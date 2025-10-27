@@ -1,0 +1,56 @@
+/* src/styles/Home.module.css */
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.header {
+  background-color: #f8f9fa;
+  padding: 1rem 0;
+  border-bottom: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.header h1 {
+  margin: 0;
+  color: #333;
+  font-size: 2.5rem;
+}
+
+.main-content {
+  padding: 2rem 0;
+}
+
+.footer {
+  text-align: center;
+  padding: 1.5rem 0;
+  margin-top: 3rem;
+  border-top: 1px solid #e9ecef;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.fileInputSection {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.viewerContainer {
+  border: 1px solid #e0e0e0;
+  min-height: 600px;
+  max-height: 80vh; /* ビューポートの高さに合わせて最大高さを制限 */
+  overflow-y: auto;
+  margin-top: 20px;
+  background-color: #fdfdfd;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.emptyMessage {
+  text-align: center;
+  color: #6c757d;
+  font-size: 1.2rem;
+  padding-top: 100px;
+}
