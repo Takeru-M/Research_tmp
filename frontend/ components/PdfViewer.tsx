@@ -12,174 +12,306 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 interface PdfViewerProps {
-  file: string | null; // Blob URL
+  file: string | null;
   highlights: PdfHighlight[];
   onAddHighlight: (highlight: Highlight) => void;
+  onRequestAddHighlight: (highlight: PdfHighlight) => void;
   onHighlightClick: (highlightId: string) => void;
 }
 
-const PdfViewer: React.FC<PdfViewerProps> = ({ file, highlights, onAddHighlight, onHighlightClick }) => {
+// 🔹 「メモを追加」メニュー
+const SelectionMenu: React.FC<{
+  x: number;
+  y: number;
+  visible: boolean;
+  onAddMemo: () => void;
+  onClose: () => void;
+}> = ({ x, y, visible, onAddMemo, onClose }) => {
+  if (!visible) return null;
+
+  return (
+    <div
+      id="selection-menu"
+      style={{
+        position: 'fixed',
+        top: y,
+        left: x,
+        background: '#fff',
+        border: '1px solid #ccc',
+        borderRadius: '6px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        zIndex: 9999,
+        padding: '6px 10px',
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onAddMemo();
+          onClose();
+        }}
+        style={{
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          fontSize: '0.9rem',
+        }}
+      >
+        📝 メモを追加
+      </button>
+    </div>
+  );
+};
+
+const PdfViewer: React.FC<PdfViewerProps> = ({
+  file,
+  highlights,
+  onAddHighlight,
+  onRequestAddHighlight,
+  onHighlightClick,
+}) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ [pageNum: number]: { width: number; height: number } }>({});
-  // ★ NEW: ページのレンダリングされた幅に基づくスケールを保持するState
-  const [pageScales, setPageScales] = useState<{ [pageNum: number]: number }>({}); 
+  const [pageScales, setPageScales] = useState<{ [pageNum: number]: number }>({});
   const viewerRef = useRef<HTMLDivElement>(null);
+
+  const [selectionMenu, setSelectionMenu] = useState<{
+    x: number;
+    y: number;
+    visible: boolean;
+    pendingHighlight: PdfHighlight | null;
+  }>({ x: 0, y: 0, visible: false, pendingHighlight: null });
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    visible: boolean;
+    highlightId: string | null;
+  }>({ x: 0, y: 0, visible: false, highlightId: null });
+
+  const [menuOpenTime, setMenuOpenTime] = useState<number>(0);
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: PDFDocumentProxy) => {
     setNumPages(numPages);
   }, []);
 
   const onPageLoadSuccess = useCallback((page: PDFPageProxy, pageNum: number) => {
-    // 100%スケールでのPDFのオリジナル寸法
     const { width, height } = page.getViewport({ scale: 1 });
-    setPageDimensions(prev => ({ ...prev, [pageNum]: { width, height } }));
+    setPageDimensions((prev) => ({ ...prev, [pageNum]: { width, height } }));
   }, []);
 
-  // ★ MODIFIED: useEffectでDOMアクセス（ref.currentの使用）を分離
+  // スケール更新
   useEffect(() => {
     if (!viewerRef.current || !numPages) return;
-
-    const newPageScales: { [pageNum: number]: number } = {};
+    const newScales: { [pageNum: number]: number } = {};
     let changed = false;
-
     for (let i = 1; i <= numPages; i++) {
-      const pageNum = i;
-      const pageDim = pageDimensions[pageNum];
-      if (!pageDim) continue;
-
-      // ref.current にアクセスし、レンダリングされた canvas 要素を探す
-      const pageCanvas = viewerRef.current.querySelector(`.react-pdf__Page[data-page-number="${pageNum}"] canvas`);
-      
-      const renderedWidth = pageCanvas?.offsetWidth; // DOMから実際の表示幅を取得
-
-      if (renderedWidth && pageDim.width) {
-        // 表示幅 / オリジナル幅 = スケール
-        const scale = renderedWidth / pageDim.width;
-        
-        // スケールが変わった場合のみ更新
-        if (pageScales[pageNum] !== scale) {
-          newPageScales[pageNum] = scale;
+      const dim = pageDimensions[i];
+      if (!dim) continue;
+      const pageCanvas = viewerRef.current.querySelector(`.react-pdf__Page[data-page-number="${i}"] canvas`);
+      const renderedWidth = pageCanvas?.offsetWidth;
+      if (renderedWidth && dim.width) {
+        const scale = renderedWidth / dim.width;
+        if (pageScales[i] !== scale) {
+          newScales[i] = scale;
           changed = true;
         }
       }
     }
+    if (changed) setPageScales((prev) => ({ ...prev, ...newScales }));
+  }, [numPages, pageDimensions, pageScales]);
 
-    if (changed || Object.keys(newPageScales).length > 0) {
-        setPageScales(prev => ({ ...prev, ...newPageScales }));
-    }
+  // 右クリックメニュー
+  const handleRightClick = useCallback((e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, visible: true, highlightId: id });
+  }, []);
 
-  }, [numPages, pageDimensions]); // pageScales の変更は依存配列から除外（無限ループ防止のため）
+  // 外部クリックでメニューを閉じる
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      // 開いた直後(300ms以内)は無視
+      if (Date.now() - menuOpenTime < 300) return;
 
-
-  const renderHighlightOverlays = useCallback((pageNum: number) => {
-    // pageDimensions と pageScales が利用可能かチェック
-    if (!pageDimensions[pageNum] || !pageScales[pageNum]) return null;
-
-    const pageHighlights = highlights.filter(h => h.pageNum === pageNum);
-    const scale = pageScales[pageNum]; // ★ NEW: Stateから計算済みのスケール値を取得
-    
-    // 削除されたロジック:
-    // const pageCanvas = viewerRef.current.querySelector(...);
-    // const renderedWidth = pageCanvas?.offsetWidth || width;
-    // const scale = renderedWidth / width; 
-
-    // スケール値を使ってハイライトの位置とサイズを計算
-    return pageHighlights.map(h => {
-      const dummyRect = h.rects[0] || { x1: 50, y1: 50, x2: 150, y2: 70 };
-
-      const left = dummyRect.x1 * scale;
-      const top = dummyRect.y1 * scale;
-      const overlayWidth = (dummyRect.x2 - dummyRect.x1) * scale;
-      const overlayHeight = (dummyRect.y2 - dummyRect.y1) * scale;
-
-      return (
-        <div
-          key={h.id}
-          className="pdf-highlight-overlay"
-          style={{
-            left: `${left}px`,
-            top: `${top}px`,
-            width: `${overlayWidth}px`,
-            height: `${overlayHeight}px`,
-            // 視覚的なデバッグ用スタイル (必要に応じて追加)
-            backgroundColor: 'rgba(255, 255, 0, 0.4)', 
-            position: 'absolute',
-            zIndex: 10,
-            cursor: 'pointer',
-          }}
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            onHighlightClick(h.id);
-          }}
-        ></div>
-      );
-    });
-  }, [highlights, pageDimensions, pageScales, onHighlightClick]); // ★ MODIFIED: pageScales を依存配列に追加
-
-  const addDummyHighlight = useCallback((pageNum: number) => {
-    const selectedText = "Dummy PDF Highlight Text";
-    const dummyHighlight: PdfHighlight = {
-      id: `pdf-highlight-${Date.now()}`,
-      type: 'pdf',
-      text: selectedText,
-      pageNum: pageNum,
-      // ダミー rects は pageNum に応じて位置を変える
-      rects: [{ x1: 50 + (pageNum * 10), y1: 50 + (pageNum * 10), x2: 150 + (pageNum * 10), y2: 70 + (pageNum * 10) }],
-      memo: '',
+      const target = e.target as HTMLElement;
+      if (!target.closest('#selection-menu')) {
+        setSelectionMenu((p) => ({ ...p, visible: false }));
+        setContextMenu((p) => ({ ...p, visible: false }));
+      }
     };
-    onAddHighlight(dummyHighlight);
-    alert(`Page ${pageNum}にダミーハイライトを追加しました。`);
-  }, [onAddHighlight]);
 
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [menuOpenTime]);
+
+  // ハイライト描画
+  const renderHighlightOverlays = useCallback(
+    (pageNum: number) => {
+      if (!pageDimensions[pageNum] || !pageScales[pageNum]) return null;
+      const scale = pageScales[pageNum];
+      return highlights
+        .filter((h) => h.pageNum === pageNum)
+        .map((h) => {
+          const rect = h.rects[0];
+          const left = rect.x1 * scale;
+          const top = rect.y1 * scale;
+          const width = (rect.x2 - rect.x1) * scale;
+          const height = (rect.y2 - rect.y1) * scale;
+          return (
+            <div
+              key={h.id}
+              className="pdf-highlight-overlay"
+              style={{
+                position: 'absolute',
+                left,
+                top,
+                width,
+                height,
+                backgroundColor: 'rgba(255, 255, 0, 0.35)',
+                cursor: 'pointer',
+                zIndex: 10,
+              }}
+              onContextMenu={(e) => handleRightClick(e, h.id)}
+            />
+          );
+        });
+    },
+    [highlights, pageDimensions, pageScales, handleRightClick]
+  );
+
+  // 選択 → メニュー表示
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent) => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) return;
+
+      const text = sel.toString().trim();
+      if (!text) return;
+
+      const range = sel.getRangeAt(0);
+      const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0);
+      if (rects.length === 0) return;
+      const firstRect = rects[0];
+
+      // 親ページ検出（TextNode対応）
+      let parent: HTMLElement | null = null;
+      const startNode = range.startContainer;
+      if (startNode instanceof Element) {
+        parent = startNode.closest('.react-pdf__Page');
+      } else if ((startNode as any)?.parentElement) {
+        parent = (startNode as any).parentElement.closest('.react-pdf__Page');
+      }
+      if (!parent) {
+        const el = document.elementFromPoint(firstRect.left, firstRect.top) as HTMLElement | null;
+        parent = el?.closest('.react-pdf__Page') || null;
+      }
+      if (!parent) return;
+
+      const pageNum = Number(parent.getAttribute('data-page-number'));
+      if (!pageNum) return;
+
+      const pageRect = parent.getBoundingClientRect();
+      const scale = pageScales[pageNum] || 1;
+
+      const x1 = (firstRect.left - pageRect.left) / scale;
+      const y1 = (firstRect.top - pageRect.top) / scale;
+      const x2 = (firstRect.right - pageRect.left) / scale;
+      const y2 = (firstRect.bottom - pageRect.top) / scale;
+
+      const newHighlight: PdfHighlight = {
+        id: `pdf-highlight-${Date.now()}`,
+        type: 'pdf',
+        text,
+        pageNum,
+        rects: [{ x1, y1, x2, y2 }],
+        memo: '',
+      };
+
+      // メニューを表示
+      setSelectionMenu({
+        x: firstRect.right + 8,
+        y: Math.max(firstRect.top - 35, 10),
+        visible: true,
+        pendingHighlight: newHighlight,
+      });
+      setMenuOpenTime(Date.now()); // ← 追加：メニューオープン時刻を記録
+
+      sel.removeAllRanges();
+    },
+    [pageScales]
+  );
 
   return (
-    <div ref={viewerRef} className="pdf-viewer-container">
+    <div
+      ref={viewerRef}
+      className="pdf-viewer-container"
+      style={{ position: 'relative' }}
+      onMouseUp={handleMouseUp}
+    >
       {file ? (
-        <Document
-          file={file}
-          onLoadSuccess={onDocumentLoadSuccess}
-          className="react-pdf__Document"
-        >
-          {Array.from(new Array(numPages || 0), (el, index) => (
-            <div 
-                key={`page_${index + 1}`} 
-                style={{ 
-                    position: 'relative', 
-                    marginBottom: '10px' 
-                }}
-            >
+        <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
+          {Array.from(new Array(numPages || 0), (_, i) => (
+            <div key={i + 1} style={{ position: 'relative', marginBottom: '10px' }}>
               <Page
-                pageNumber={index + 1}
-                onLoadSuccess={(page) => onPageLoadSuccess(page, index + 1)}
-                renderAnnotationLayer={true}
-                renderTextLayer={true}
-                className="react-pdf__Page"
+                pageNumber={i + 1}
+                onLoadSuccess={(page) => onPageLoadSuccess(page, i + 1)}
+                renderAnnotationLayer
+                renderTextLayer
               />
-              {/* レンダリングロジック内で renderHighlightOverlays を呼び出す */}
-              {renderHighlightOverlays(index + 1)}
-
-              <button
-                onClick={() => addDummyHighlight(index + 1)}
-                style={{
-                  position: 'absolute',
-                  top: '10px',
-                  right: '10px',
-                  zIndex: 11,
-                  padding: '5px 10px',
-                  fontSize: '0.8rem',
-                }}
-              >
-                P{index + 1} ダミーハイライト追加
-              </button>
+              {renderHighlightOverlays(i + 1)}
             </div>
           ))}
         </Document>
       ) : (
-        <p style={{ textAlign: 'center', marginTop: '1rem' }}>PDFファイルを読み込んでいません。</p>
+        <p style={{ textAlign: 'center' }}>PDFファイルを読み込んでいません。</p>
       )}
-      <p style={{ textAlign: 'center', marginTop: '1rem' }}>
-        {numPages ? `全 ${numPages} ページ` : 'PDFを読み込み中...'}
-      </p>
+
+      {/* 🔹 メモ追加メニュー */}
+      <SelectionMenu
+        x={selectionMenu.x}
+        y={selectionMenu.y}
+        visible={selectionMenu.visible}
+        onAddMemo={() => {
+          if (selectionMenu.pendingHighlight) {
+            onRequestAddHighlight(selectionMenu.pendingHighlight);
+          }
+        }}
+        onClose={() => setSelectionMenu((p) => ({ ...p, visible: false }))}
+      />
+
+      {/* 🔹 メモ閲覧（右クリック） */}
+      {contextMenu.visible && (
+        <div
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: '#fff',
+            border: '1px solid #ccc',
+            borderRadius: '6px',
+            padding: '6px 10px',
+            zIndex: 9999,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              if (contextMenu.highlightId) onHighlightClick(contextMenu.highlightId);
+              setContextMenu((p) => ({ ...p, visible: false }));
+            }}
+            style={{
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+            }}
+          >
+            メモを確認
+          </button>
+        </div>
+      )}
     </div>
   );
 };
