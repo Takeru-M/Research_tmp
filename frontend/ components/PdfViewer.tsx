@@ -56,6 +56,7 @@ const SelectionMenu: React.FC<{
           background: 'none',
           cursor: 'pointer',
           fontSize: '0.9rem',
+          color: 'black',
         }}
       >
         📝 メモを追加
@@ -281,7 +282,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         onClose={() => setSelectionMenu((p) => ({ ...p, visible: false }))}
       />
 
-      {/* 🔹 メモ閲覧（右クリック） */}
+      {/* 🔹 メモ閲覧（右クリックメニュー） */}
       {contextMenu.visible && (
         <div
           style={{
@@ -293,25 +294,48 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             borderRadius: '6px',
             padding: '6px 10px',
             zIndex: 9999,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            color: '#000',
           }}
+          // ✅ デフォルト右クリック無効化
+          onContextMenu={(e) => e.preventDefault()}
+          // ✅ イベント捕捉を確実に停止
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            onClick={() => {
-              if (contextMenu.highlightId) onHighlightClick(contextMenu.highlightId);
-              setContextMenu((p) => ({ ...p, visible: false }));
+            type="button"
+            onMouseDown={(e) => {
+              // ✅ mousedown で捕捉（click より先に動作）
+              e.stopPropagation();
+              e.preventDefault();
+
+              if (contextMenu.highlightId) {
+                console.log('✅ メモ確認ボタン押下:', contextMenu.highlightId);
+                onHighlightClick(contextMenu.highlightId);
+              } else {
+                console.warn('⚠ contextMenu.highlightId が未定義');
+              }
+
+              // ✅ メニューを確実に閉じる
+              setContextMenu((prev) => ({ ...prev, visible: false }));
             }}
             style={{
               border: 'none',
-              background: 'none',
+              background: 'transparent',
               cursor: 'pointer',
               fontSize: '0.9rem',
+              color: '#000',
+              padding: '4px 8px',
+              width: '100%',
+              textAlign: 'left',
             }}
           >
             メモを確認
           </button>
         </div>
       )}
+
     </div>
   );
 };
