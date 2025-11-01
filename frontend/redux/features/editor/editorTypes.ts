@@ -23,17 +23,16 @@ interface BaseHighlight {
   memo: string;
 }
 
+// PDF （ページを跨げる）
+export interface PdfHighlight extends BaseHighlight {
+  type: 'pdf';
+  rects: PdfRectWithPage[]; // ✅ pageNumを各rectと紐付け
+}
+
 // テキストファイル用のハイライト型
 export interface TextHighlight extends BaseHighlight {
   type: 'text';
   rangeInfo: SerializedRange;
-}
-
-// PDFファイル用のハイライト型
-export interface PdfHighlight extends BaseHighlight {
-  type: 'pdf';
-  pageNum: number;
-  rects: PdfRect[]; // 複数行にまたがる可能性を考慮し配列
 }
 
 // 全てのハイライトのユニオン型
@@ -45,5 +44,34 @@ export interface EditorState {
   fileType: string | null;
   fileContent: string | null; // PDFの場合はBlob URL、テキストの場合は文字列
   highlights: Highlight[];
+  comments: Comment[]; // ここを追加
   activeHighlightId: string | null;
+  activeCommentId: string | null,
+  activeHighlightMemo: string | null;
+}
+
+export type Comment = {
+  id: string;
+  highlightId: string;
+  parentId: string | null; // null = root comment in thread
+  author: string;
+  text: string;
+  createdAt: string;
+  editedAt?: string | null;
+  deleted?: boolean;
+};
+export interface SerializedRange {
+  startContainerPath: number[];
+  startOffset: number;
+  endContainerPath: number[];
+  endOffset: number;
+}
+
+// PDF上の矩形情報 + ページ番号
+export interface PdfRectWithPage {
+  pageNum: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }

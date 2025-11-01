@@ -1,6 +1,6 @@
 // src/redux/features/editor/editorSelectors.ts
 import { createSelector } from '@reduxjs/toolkit';
-import { RootState } from '../../store'; // RootStateをインポート
+import { RootState } from '../../store';
 import { Highlight, PdfHighlight, TextHighlight } from './editorTypes';
 
 const selectEditorState = (state: RootState) => state.editor;
@@ -30,6 +30,12 @@ export const selectActiveHighlightId = createSelector(
   (editor) => editor.activeHighlightId
 );
 
+// NEW: selectActiveCommentId
+export const selectActiveCommentId = createSelector(
+  selectEditorState,
+  (editor) => editor.activeCommentId
+);
+
 export const selectPdfHighlights = createSelector(
   selectHighlights,
   (highlights): PdfHighlight[] => highlights.filter((h): h is PdfHighlight => h.type === 'pdf')
@@ -48,3 +54,14 @@ export const selectActiveHighlightMemo = createSelector(
     return activeHighlight ? activeHighlight.memo : '';
   }
 );
+
+export const selectAllComments = (state: RootState) => state.editor.comments;
+
+export const makeSelectCommentsByHighlight = (highlightId?: string) =>
+  createSelector(
+    (state: RootState) => state.editor.comments,
+    (comments) => {
+      if (!highlightId) return comments;
+      return comments.filter((c) => c.highlightId === highlightId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    }
+  );

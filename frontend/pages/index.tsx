@@ -3,11 +3,15 @@ import React, { useCallback, useEffect, useState, ChangeEvent } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   setFile,
-  addHighlight,
+  addHighlightWithComment,
   updateHighlightMemo,
   setActiveHighlightId,
-  setAllHighlights,
+  setActiveCommentId,
+  deleteComment,
+  deleteHighlight,
+  updateComment,
 } from '../redux/features/editor/editorSlice';
+
 import {
   selectFile,
   selectFileType,
@@ -16,19 +20,23 @@ import {
   selectTextHighlights,
   selectActiveHighlightId,
   selectActiveHighlightMemo,
+  selectAllComments,
 } from '../redux/features/editor/editorSelectors';
+
 import { RootState, AppDispatch } from '../redux/store';
-import { Highlight, PdfHighlight } from '../redux/features/editor/editorTypes';
+import { Highlight, Comment as CommentType, PdfHighlight } from '../redux/features/editor/editorTypes';
 import dynamic from 'next/dynamic';
 import HighlightMemoModal from '../ components/HighlightMemoModal';
-import HighlightMemoViewModal from '../ components/HighlightMemoViewModal';
+import CommentPanel from '../ components/CommentPanel';
 import styles from '../styles/Home.module.css';
+import { v4 as uuidv4 } from 'uuid';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
 
 const EditorPage: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
+
   const file = useSelector(selectFile);
   const fileType = useSelector(selectFileType);
   const fileContent = useSelector(selectFileContent);
@@ -36,91 +44,82 @@ const EditorPage: React.FC = () => {
   const textHighlights = useSelector(selectTextHighlights);
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeHighlightMemo = useSelector(selectActiveHighlightMemo);
-  const allHighlights = useSelector((state: RootState) => state.editor.highlights);
+  const allComments = useSelector(selectAllComments);
 
-  // モーダル制御
-  const [showMemoModal, setShowMemoModal] = useState<boolean>(false); // 新規／編集用
-  const [showMemoView, setShowMemoView] = useState<boolean>(false);   // 閲覧用
-
-  // 新規ハイライト入力のための pending state
+  const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
 
-  // 表示用メモテキスト
-  const [viewMemoText, setViewMemoText] = useState<string>('');
-
-  // 起動時に localStorage からハイライトを読み込む
+  // === Outside click to reset selection ===
   useEffect(() => {
-    const savedHighlights = localStorage.getItem('highlights');
-    if (savedHighlights) {
-      try {
-        const parsedHighlights: Highlight[] = JSON.parse(savedHighlights);
-        dispatch(setAllHighlights(parsedHighlights));
-      } catch (error) {
-        console.error('Failed to parse highlights from localStorage:', error);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".highlight, .comment-panel")) {
+        dispatch(setActiveHighlightId(null));
+        dispatch(setActiveCommentId(null));
       }
-    }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dispatch]);
 
-  // ハイライトの永続化
-  useEffect(() => {
-    localStorage.setItem('highlights', JSON.stringify(allHighlights));
-  }, [allHighlights]);
-
-  // ファイルアップロード
+  // === Upload File ===
   const handleFileUpload = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const uploadedFile = event.target.files?.[0];
-      if (uploadedFile) {
-        if (uploadedFile.type === 'application/pdf') {
-          const content = URL.createObjectURL(uploadedFile);
-          dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: content }));
-        } else if (uploadedFile.type.startsWith('text/')) {
-          const reader = new FileReader();
-          reader.onload = (e: ProgressEvent<FileReader>) => {
-            const content = e.target?.result as string;
-            dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: content }));
-          };
-          reader.readAsText(uploadedFile);
-        } else {
-          alert('現在、PDFとテキストファイルのみサポートしています。');
-          dispatch(setFile({ file: null, fileType: null, fileContent: null }));
-        }
+      if (!uploadedFile) return;
+
+      if (uploadedFile.type === 'application/pdf') {
+        const content = URL.createObjectURL(uploadedFile);
+        dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: content }));
+      } else if (uploadedFile.type.startsWith('text/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: e.target?.result as string }));
+        };
+        reader.readAsText(uploadedFile);
+      } else {
+        alert('現在、PDFとテキストファイルのみサポートしています。');
       }
     },
     [dispatch]
   );
 
-  // 新規ハイライト追加（保存時）
-  const handleAddHighlight = useCallback(
-    (newHighlight: Highlight) => {
-      dispatch(addHighlight(newHighlight));
-    },
-    [dispatch]
-  );
+  // === Request highlight (open memo modal) ===
+  const handleRequestAddHighlight = useCallback((h: PdfHighlight) => {
+    setPendingHighlight(h);
+    dispatch(setActiveHighlightId(h.id));
+    setShowMemoModal(true);
+  }, [dispatch]);
 
-  // PdfViewer → 新規ハイライト作成要求
-  const handleRequestAddHighlight = useCallback(
-    (h: PdfHighlight) => {
-      setPendingHighlight(h);
-      dispatch(setActiveHighlightId(h.id));
-      setShowMemoModal(true);
-    },
-    [dispatch]
-  );
-
-  // メモ保存（新規 or 既存編集）
+  // === Save memo + add highlight + add root comment ===
   const handleSaveMemo = useCallback(
     (id: string, memo: string) => {
       if (pendingHighlight && pendingHighlight.id === id) {
-        const finalHighlight: Highlight = { ...pendingHighlight, memo };
-        dispatch(addHighlight(finalHighlight));
+        const finalHighlight: Highlight = {
+          ...pendingHighlight,
+          memo,
+          createdAt: new Date().toISOString(),
+          createdBy: 'You',
+        };
+
+        const rootComment: CommentType = {
+          id: uuidv4(),
+          highlightId: id,
+          parentId: null,
+          author: 'You',
+          text: memo.trim(),
+          createdAt: new Date().toISOString(),
+          editedAt: null,
+          deleted: false,
+        };
+
+        dispatch(addHighlightWithComment({ highlight: finalHighlight, initialComment: rootComment }));
+
         setPendingHighlight(null);
         setShowMemoModal(false);
         dispatch(setActiveHighlightId(null));
         return;
       }
 
-      // 既存ハイライトのメモ更新
       dispatch(updateHighlightMemo({ id, memo }));
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
@@ -128,84 +127,108 @@ const EditorPage: React.FC = () => {
     [dispatch, pendingHighlight]
   );
 
-  // 右クリック → 「メモを確認」
-  const handleHighlightClick = useCallback(
-    (highlightId: string) => {
-      const all = [...pdfHighlights, ...textHighlights];
-      const target = all.find((h) => h.id === highlightId);
+  // === Highlight Click ===
+  const handleHighlightClick = useCallback((highlightId: string) => {
+    dispatch(setActiveHighlightId(highlightId));
+  }, [dispatch]);
 
-      if (target) {
-        dispatch(setActiveHighlightId(highlightId));
-        setViewMemoText(target.memo || '（メモがありません）');
-        setShowMemoView(true);
-      }
+  // === Comment actions ===
+  const handleDeleteComment = useCallback(
+    (commentId: string) => {
+      if (confirm('削除しますか？')) dispatch(deleteComment({ id: commentId }));
     },
-    [dispatch, pdfHighlights, textHighlights]
+    [dispatch]
   );
 
-  // Viewerの切り替え
+  const handleDeleteThread = useCallback(
+    (highlightId: string) => {
+      if (confirm('このスレッドを削除しますか？')) dispatch(deleteHighlight({ id: highlightId }));
+    },
+    [dispatch]
+  );
+
+  const handleAddReply = useCallback(
+    (highlightId: string, parentId: string | null, author: string, text: string) => {
+      const reply: CommentType = {
+        id: uuidv4(),
+        highlightId,
+        parentId,
+        author,
+        text,
+        createdAt: new Date().toISOString(),
+        editedAt: null,
+        deleted: false,
+      };
+      dispatch(addHighlightWithComment as any); // no-op for replies (see CommentPanel own dispatch)
+      dispatch({ type: "editor/addComment", payload: reply });
+    },
+    [dispatch]
+  );
+
+  const handleEditComment = useCallback(
+    (id: string, newText: string) => {
+      dispatch(updateComment({ id, text: newText }));
+    },
+    [dispatch]
+  );
+
+  // === Viewer ===
   const renderViewer = () => {
-    if (!file) return <p className={styles.emptyMessage}>ファイルをアップロードしてください</p>;
+    if (!file) return <p>ファイルをアップロードしてください</p>;
 
     if (fileType === 'application/pdf') {
       return (
         <PdfViewer
           file={fileContent}
           highlights={pdfHighlights}
-          onAddHighlight={handleAddHighlight}
+          comments={allComments}
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
+          onDeleteComment={handleDeleteComment}
+          onDeleteThread={handleDeleteThread}
+          onAddReply={handleAddReply}
+          onEditComment={handleEditComment}
         />
       );
-    } else if (fileType && fileType.startsWith('text/')) {
+    }
+
+    if (fileType?.startsWith("text/")) {
       return (
         <TextViewer
           content={fileContent || ''}
           highlights={textHighlights}
-          onAddHighlight={handleAddHighlight}
+          onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
         />
       );
     }
-    return <p className={styles.emptyMessage}>このファイル形式はプレビューできません。</p>;
+
+    return <p>このファイル形式はプレビューできません。</p>;
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.fileInputSection}>
-        <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
+    <div className={styles.container} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+      <div style={{ flex: 1 }}>
+        <div className={styles.fileInputSection}>
+          <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
+        </div>
+
+        <div className={styles.viewerContainer}>{renderViewer()}</div>
       </div>
 
-      <div className={styles.viewerContainer}>{renderViewer()}</div>
+      {/* ✅ 右側のコメントパネル */}
+      <CommentPanel currentUser="You" />
 
-      {/* 🟢 新規／編集用メモ入力モーダル */}
       {showMemoModal && (
         <HighlightMemoModal
-          highlightId={pendingHighlight ? pendingHighlight.id : activeHighlightId}
-          currentMemo={pendingHighlight ? pendingHighlight.memo : activeHighlightMemo || ''}
+          highlightId={pendingHighlight?.id || activeHighlightId}
+          currentMemo={pendingHighlight?.memo || activeHighlightMemo || ''}
           onClose={() => {
             setShowMemoModal(false);
             setPendingHighlight(null);
             dispatch(setActiveHighlightId(null));
           }}
-          onSave={(id, memo) => handleSaveMemo(id, memo)}
-        />
-      )}
-
-      {/* 🟣 閲覧＋編集モーダル */}
-      {showMemoView && activeHighlightId && (
-        <HighlightMemoViewModal
-          highlightId={activeHighlightId}
-          memo={viewMemoText}
-          onEditSave={(id, newMemo) => {
-            dispatch(updateHighlightMemo({ id, memo: newMemo }));
-            setShowMemoView(false);
-            dispatch(setActiveHighlightId(null));
-          }}
-          onClose={() => {
-            setShowMemoView(false);
-            dispatch(setActiveHighlightId(null));
-          }}
+          onSave={handleSaveMemo}
         />
       )}
     </div>
