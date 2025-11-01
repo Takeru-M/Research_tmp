@@ -1,8 +1,9 @@
 /* src/styles/Home.module.css */
 .container {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 1rem;
 }
 
 .header {
@@ -37,15 +38,17 @@
 }
 
 .viewerContainer {
+  flex: 1;
   border: 1px solid #e0e0e0;
-  min-height: 600px;
-  max-height: 80vh; /* ビューポートの高さに合わせて最大高さを制限 */
-  overflow-y: auto;
-  margin-top: 20px;
-  background-color: #fdfdfd;
+  background-color: #fff;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
   border-radius: 8px;
   padding: 1rem;
+
+  /* ✅ 全体を表示するので scroll 禁止 */
+  overflow: visible;
+  max-height: none;
+  min-height: 100vh;
 }
 
 .emptyMessage {
@@ -53,4 +56,38 @@
   color: #6c757d;
   font-size: 1.2rem;
   padding-top: 100px;
+}
+
+/* ハイライトオーバーレイ基礎 */
+.pdf-highlight-overlay {
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+
+/* 強調時 */
+.pdf-highlight-active {
+  box-shadow: 0 0 0 3px rgba(0,123,255,0.12);
+  transform: scale(1.01);
+}
+
+/* pulse animation when navigated to */
+@keyframes highlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(0,123,255,0.18); }
+  70% { box-shadow: 0 0 0 8px rgba(0,123,255,0.06); }
+  100% { box-shadow: 0 0 0 0 rgba(0,123,255,0); }
+}
+.pdf-highlight-pulse {
+  animation: highlightPulse 900ms ease-out;
+}
+
+/* CommentPanel small buttons */
+.comment-panel button {
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+/* Compact textarea */
+.comment-panel textarea {
+  font-size: 13px;
+  line-height: 1.4;
 }
