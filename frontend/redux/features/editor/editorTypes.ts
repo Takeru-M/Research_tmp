@@ -16,6 +16,17 @@ export interface PdfRect {
   y2: number;
 }
 
+// PDF上の矩形情報 + ページ番号
+export interface PdfRectWithPage {
+  pageNum: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  elementType?: 'image'|'shape'|'unknown';
+  elementId?: string;
+}
+
 // ハイライトオブジェクトの共通プロパティ
 interface BaseHighlight {
   id: string;
@@ -60,18 +71,3 @@ export type Comment = {
   editedAt?: string | null;
   deleted?: boolean;
 };
-export interface SerializedRange {
-  startContainerPath: number[];
-  startOffset: number;
-  endContainerPath: number[];
-  endOffset: number;
-}
-
-// PDF上の矩形情報 + ページ番号
-export interface PdfRectWithPage {
-  pageNum: number;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-}

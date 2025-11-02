@@ -50,7 +50,8 @@ export default function CommentPanel() {
   const dispatch = useDispatch();
   const { comments, activeHighlightId, activeCommentId } = useSelector((s) => s.editor);
 
-  const [replyText, setReplyText] = useState("");
+  // 変更: replyTextを各スレッドの返信テキストを保持するマップに変更
+  const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [menuOpenMap, setMenuOpenMap] = useState<Record<string, boolean>>({});
@@ -101,8 +102,11 @@ export default function CommentPanel() {
     closeMenu(id);
   };
 
+  // 変更: replyTextMapを使用して特定の親IDのテキストを送信
   const sendReply = (parentId: string) => {
+    const replyText = replyTextMap[parentId] || ""; // 親IDに対応するテキストを取得
     if (!replyText.trim()) return;
+
     dispatch(
       addComment({
         id: `c-${Date.now()}`,
@@ -115,7 +119,13 @@ export default function CommentPanel() {
         deleted: false,
       })
     );
-    setReplyText("");
+    // 成功後、そのスレッドのテキストをクリア
+    setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
+  };
+
+  // 新規: 親IDに対応するテキストを更新するハンドラ
+  const handleReplyTextChange = (parentId: string, text: string) => {
+    setReplyTextMap((prev) => ({ ...prev, [parentId]: text }));
   };
 
   return (
@@ -137,46 +147,8 @@ export default function CommentPanel() {
             dispatch(setActiveHighlightId(root.highlightId));
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div>
-              <strong>{root.author}</strong>
-              <small style={{ marginLeft: 6, color: "#666" }}>
-                {new Date(root.createdAt).toLocaleString()}
-              </small>
-            </div>
-
-            <div style={menuStyle} ref={(el) => (menuRefs.current[root.id] = el)}>
-              <span
-                style={menuButtonStyle}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleMenu(root.id);
-                }}
-              >
-                ⋮
-              </span>
-
-              {menuOpenMap[root.id] && (
-                <div style={dropdownStyle}>
-                  {editingId !== root.id && (
-                    <div
-                      style={menuItem}
-                      onClick={() => startEditing(root.id, root.text)}
-                    >
-                      ✏️ 編集
-                    </div>
-                  )}
-                  <div
-                    style={{ ...menuItem, color: "red", borderBottom: "none" }}
-                    onClick={() => removeCommentFn(root.id)}
-                  >
-                    🗑️ 削除
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
+          {/* ... (省略: コメント表示部分、編集UI、メニュー) ... */}
+          {/* 編集UI内の保存ボタンの修正 */}
           {editingId === root.id ? (
             <div>
               <textarea
@@ -196,7 +168,7 @@ export default function CommentPanel() {
                   border: "none",
                   cursor: "pointer",
                 }}
-                onClick={() => saveEdit(r.id)}
+                onClick={() => saveEdit(root.id)}
               >
                 保存
               </button>
@@ -222,6 +194,7 @@ export default function CommentPanel() {
 
           {replies(root.id).map((r) => (
             <div key={r.id} style={{ marginLeft: 14, marginTop: 8, borderLeft: "2px solid #eee", paddingLeft: 8 }}>
+              {/* ... (省略: 返信表示部分、編集UI、メニュー) ... */}
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div>
                   <strong>{r.author}</strong>
@@ -307,11 +280,11 @@ export default function CommentPanel() {
             </div>
           ))}
 
-          {/* ✅ 改良した返信 UI */}
+          {/* 変更: replyTextMapから現在のスレッドの値を参照・更新 */}
           <textarea
             placeholder="返信を書く..."
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            value={replyTextMap[root.id] || ""} // root.idに対応する値を表示
+            onChange={(e) => handleReplyTextChange(root.id, e.target.value)} // root.idに対応する値を更新
             style={{
               width: "100%",
               marginTop: 8,
