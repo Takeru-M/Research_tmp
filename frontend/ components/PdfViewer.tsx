@@ -1,18 +1,18 @@
 // src/components/PdfViewer.tsx
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import axios from 'axios';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
-import { PdfHighlight, Highlight, Comment, PdfRectWithPage } from '../redux/features/editor/editorTypes'; 
-import { useSelector } from 'react-redux';
+import { PdfHighlight, Highlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId } from '../redux/features/editor/editorSlice';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, addComment } from '../redux/features/editor/editorSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
+import { RootState } from '@/redux/store';
+import { v4 as uuidv4 } from 'uuid';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -24,14 +24,17 @@ interface PageLoadData {
   width: number;
   height: number;
   viewport: PageViewport;
+  textContent: string | null;
 }
 
 interface PdfViewerProps {
   file: string | null;
   highlights: PdfHighlight[];
-  comments: Comment[];
+  comments: CommentType[];
   onRequestAddHighlight?: (highlight: PdfHighlight) => void;
   onHighlightClick?: (highlightId: string) => void;
+  /** 💡 追加: PDFの全コンテンツのロード・レンダリングが完了したことを親に通知するコールバック */
+  onRenderSuccess?: () => void;
 }
 
 const PdfViewer: React.FC<PdfViewerProps> = ({
@@ -40,9 +43,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   comments,
   onRequestAddHighlight,
   onHighlightClick,
+  onRenderSuccess,
 }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageData, setPageData] = useState<{ [n:number]:PageLoadData }>({}); 
+  const [pageData, setPageData] = useState<{ [n:number]:PageLoadData }>({});
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
 
@@ -110,27 +114,63 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: PDFDocumentProxy) => {
     setNumPages(numPages);
+    setPageData({});
+    // ドキュメントロード成功時、ページデータとスケールをリセット
+    setPageScales({});
   }, []);
 
   const onPageLoadSuccess = useCallback(async (page:PDFPageProxy, n:number)=>{
-    // 1. scale 1 の viewport と dimensions を保存
     const viewport = page.getViewport({ scale:1 });
-    // setStateを安全な関数形式にし、即座に実行
-    setPageData(p=>({...p,[n]:{width:viewport.width,height:viewport.height,viewport}}));
+    const newPageData: PageLoadData = {
+      width: viewport.width,
+      height: viewport.height,
+      viewport,
+      textContent: null,
+    };
 
-    // 2. 図形情報を抽出
+    try {
+      const textContentResult = await page.getTextContent();
+      const text = textContentResult.items
+          .map(item => ('str' in item) ? item.str : '')
+          .join('');
+      newPageData.textContent = text;
+    } catch (error) {
+      console.error(`Error extracting text content for page ${n}:`, error);
+      newPageData.textContent = '';
+    }
+
     try {
         const shapes = await extractShapeData(page);
-        // setStateを安全な関数形式にし、即座に実行
         setPageShapeData(p => ({ ...p, [n]: shapes }));
     } catch (error) {
         console.error(`Error extracting shapes for page ${n}:`, error);
         setPageShapeData(p => ({ ...p, [n]: [] }));
     }
 
+    setPageData(p=>({...p,[n]:newPageData}));
   },[]);
 
-  // 💡 再挿入: PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック
+  // 全ページロード完了後に全テキストをReduxに保存するロジック (変更なし)
+  useEffect(() => {
+    if (!numPages || Object.keys(pageData).length === 0) return;
+
+    if (Object.keys(pageData).length === numPages) {
+      let fullText = '';
+      for (let i = 1; i <= numPages; i++) {
+        const data = pageData[i];
+        if (data && data.textContent !== null) {
+          fullText += (i > 1 ? '\n\n--- Page '+i+' ---\n\n' : '') + data.textContent;
+        }
+      }
+
+      if (fullText) {
+          dispatch(setPdfTextContent(fullText));
+          console.log("PDFの全テキストコンテンツをReduxに保存しました。");
+      }
+    }
+  }, [numPages, pageData, dispatch]);
+
+  // PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック (変更なし)
   useEffect(()=>{
     if(!viewerRef.current||!numPages) return;
     let nScales:any={}, changed=false;
@@ -152,6 +192,21 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
     if(changed) setPageScales(p=>({...p,...nScales}));
   },[numPages,pageData,pageScales]);
+
+  // 💡 追加: 全てのページスケールが確定したら、親にレンダリング完了を通知する
+  useEffect(() => {
+    // ページ数が確定し、かつ全ページのスケールが確定（全ページがレンダリングされたと見なせる）
+    const allScalesCalculated = numPages && Object.keys(pageScales).length === numPages;
+    // 全てのページデータ（テキスト・形状）もロード済みかを確認
+    const allPageDataLoaded = numPages && Object.keys(pageData).length === numPages;
+
+    if (allScalesCalculated && allPageDataLoaded && onRenderSuccess) {
+      console.log("PDF Viewer: All pages rendered and scales calculated. Notifying parent.");
+      // 親コンポーネントに通知
+      onRenderSuccess();
+    }
+  }, [numPages, pageScales, pageData, onRenderSuccess]);
+
 
   // scroll PDF to show active highlight (省略)
 
@@ -269,26 +324,86 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   }, []);
 
+  // プロンプトに必要なデータ（TODO:getterを用いた処理に修正）
+  const pdfTextContentData = useSelector((state: RootState) => state.editor.pdfTextContent);
+
   // 完了ボタンのクリックハンドラ（OpenAI APIリクエスト）
   const handleCompletion = useCallback(async () => {
-    // ハイライトされた全テキストとコメントを結合してプロンプトを作成
-    // const allText = highlights.map(h => h.text).join('\n---\n');
-    // const allComments = comments.map(c => `[Comment for ${c.highlightId}]: ${c.content}`).join('\n');
+    // ハイライトごとに紐づくコメントを組み立てる（highlight.id ベースで紐付け）
+    let tmp = '';
+    for (const h of highlights) {
+      const related = comments.filter(c => c.highlightId === h.id);
+      if (related.length > 0) {
+        for (const c of related) {
+          tmp += `id: ${c.id}, highlightId: ${h.id}, highlight: ${h.text}, comment: ${c.text}\n`;
+        }
+      } else {
+        tmp += `highlightId: ${h.id}, highlight: ${h.text}, comment: (none)\n`;
+      }
+    }
 
-    // const instruction = `以下のPDFのハイライトとコメントを分析し、要点をまとめてください。
-    // \n\n---ハイライト---\n${allText}
-    // \n\n---コメント---\n${allComments}`;
+    const instruction = `MT資料の内容に関して，学習者が吟味をしている箇所にはハイライトと吟味した内容を書かせています．ハイライトがある箇所に対して，吟味をさせる素材を与えるような示唆を出してください．出力は下記の形式をJSONを参考にして出力してください．以下に出力形式の参考例，MT資料，ハイライト箇所と対応するコメント内容を提供します．
 
-    const instruction = "Hello";
+    #出力の参考にするJSON形式
+    {
+      "responses": [
+        {
+          "highlighted": [
+            {
+              "id": "入力データのidと対応したid",
+              "response": "レスポンス内容",
+            }
+          ]
+          "non-highlighted": [
+              "text": "示唆の対象テキスト",
+              "response": "レスポンス内容",
+          ]
+        }
+      ]
+    }
+
+    #MT資料
+    ${pdfTextContentData}
+
+    #ハイライト箇所と対応するコメント内容
+    ${tmp}`;
+
+    console.log(highlights, comments);
+    console.log(pdfTextContentData);
+    console.log(instruction);
 
     try {
-        // ⭐ 修正: 自身のAPI Routeへリクエスト
-        const response = await axios.post('/api/analyze', {
-            instruction: instruction
-        });
+        // const response = await axios.post('/api/analyze', {
+        //     instruction: instruction
+        // });
+        // console.log("Done1");
+        // console.log(response);
+        // console.log("Done2");
+        // console.log(response.data);
+        // const data = response.data;
+        // if (data?.responses && Array.isArray(data.responses)) {
+        //   // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）
+        //   let lastAddedCommentId: string | null = null;
+        //   data.responses.forEach((r: { id: string; response: string }) => {
+        //     const commentObj: CommentType = {
+        //       id: uuidv4(),
+        //       highlightId: r.id,
+        //       parentId: null,
+        //       author: 'AI',
+        //       text: r.response,
+        //       createdAt: new Date().toISOString(),
+        //       editedAt: null,
+        //       deleted: false,
+        //     };
+        //     dispatch(addComment(commentObj));
+        //     lastAddedCommentId = commentObj.id;
+        //   });
 
-        console.log('Analysis Success:', response.data);
-
+        //   // 最後に追加したコメントをアクティブにする（UIに即表示されるように）
+        //   if (lastAddedCommentId) {
+        //     dispatch(setActiveCommentId(lastAddedCommentId));
+        //   }
+        // }
     } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error('API Route Error:', error.response?.data || error.message);
@@ -296,7 +411,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             console.error('An unexpected error occurred:', error);
         }
     }
-}, [highlights, comments]);
+  }, [highlights, comments, pdfTextContentData, dispatch]);
 
   return (
 <div style={{position:"relative",width:"100%",height:"100%", overflowY: 'auto'}} ref={viewerRef} onMouseUp={handleMouseUp}>

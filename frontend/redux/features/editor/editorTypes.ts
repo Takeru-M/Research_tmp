@@ -59,6 +59,8 @@ export interface EditorState {
   activeHighlightId: string | null;
   activeCommentId: string | null,
   activeHighlightMemo: string | null;
+  pdfTextContent: string | null;
+  responses: Record<string, string>;
 }
 
 export type Comment = {

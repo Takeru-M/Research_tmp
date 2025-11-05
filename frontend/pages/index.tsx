@@ -1,5 +1,5 @@
 // src/pages/index.tsx
-import React, { useCallback, useEffect, useState, ChangeEvent } from 'react';
+import React, { useCallback, useEffect, useState, ChangeEvent, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   setFile,
@@ -31,6 +31,7 @@ import CommentPanel from '../ components/CommentPanel';
 import styles from '../styles/Home.module.css';
 import { v4 as uuidv4 } from 'uuid';
 
+// PdfViewerには、PDFのレンダリングが完了したことを通知する onRenderSuccess プロパティが追加されることを想定します。
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
 
@@ -48,6 +49,31 @@ const EditorPage: React.FC = () => {
 
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
+
+  const viewerContentRef = useRef<HTMLDivElement>(null);
+  const [viewerHeight, setViewerHeight] = useState<number | 'auto'>(300);
+
+  // PDFレンダリング完了後やリサイズ時に高さを測定するロジック
+  const measureHeight = useCallback(() => {
+    if (viewerContentRef.current) {
+      // offsetHeight: パディングとボーダーを含む視覚的な高さを取得
+      const height = viewerContentRef.current.offsetHeight;
+      setViewerHeight(height);
+    }
+  }, []);
+
+  // PDFビューアーがレンダリングを完了した際に呼ばれるコールバック
+  const handlePdfRenderComplete = useCallback(() => {
+      // レンダリング完了後、DOMが完全に更新されるのを待つため、setTimeoutで非同期に実行
+      setTimeout(measureHeight, 0);
+  }, [measureHeight]);
+
+  useEffect(() => {
+    // 初回ロード時とファイル切り替え時、およびリサイズ時の処理
+    measureHeight();
+    window.addEventListener('resize', measureHeight);
+    return () => window.removeEventListener('resize', measureHeight);
+  }, [fileContent, fileType, measureHeight]); // measureHeightを依存配列に追加
 
   // === Outside click to reset selection ===
   useEffect(() => {
@@ -184,6 +210,7 @@ const EditorPage: React.FC = () => {
           comments={allComments}
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
+          onRenderSuccess={handlePdfRenderComplete}
           onDeleteComment={handleDeleteComment}
           onDeleteThread={handleDeleteThread}
           onAddReply={handleAddReply}
@@ -212,12 +239,10 @@ const EditorPage: React.FC = () => {
         <div className={styles.fileInputSection}>
           <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
         </div>
-
-        <div className={styles.viewerContainer}>{renderViewer()}</div>
+        <div className={styles.viewerContainer} ref={viewerContentRef}>{renderViewer()}</div>
       </div>
 
-      {/* ✅ 右側のコメントパネル */}
-      <CommentPanel currentUser="You" />
+      <CommentPanel currentUser="You" viewerHeight={viewerHeight} />
 
       {showMemoModal && (
         <HighlightMemoModal

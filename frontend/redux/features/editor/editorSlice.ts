@@ -1,4 +1,5 @@
-// src/redux/features/editor/editorSlice.ts
+// src/redux/features/editor/editorSlice.ts (修正後)
+
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { EditorState, Highlight, Comment } from './editorTypes';
 
@@ -11,7 +12,18 @@ const initialState: EditorState = {
   activeHighlightId: null,
   activeCommentId: null,
   activeHighlightMemo: null,
+  // ★ 修正1: PDFの全テキストを格納する状態を追加
+  pdfTextContent: null as string | null,
+  responses: {} as Record<string, string>,
 };
+
+// EditorStateの定義も外部ファイルで更新が必要です
+/* // src/redux/features/editor/editorTypes.ts (想定される追加)
+export interface EditorState {
+  // ... 既存のフィールド
+  pdfTextContent: string | null;
+}
+*/
 
 const editorSlice = createSlice({
   name: 'editor',
@@ -21,18 +33,19 @@ const editorSlice = createSlice({
       state.file = action.payload.file;
       state.fileType = action.payload.fileType;
       state.fileContent = action.payload.fileContent;
+      state.pdfTextContent = null;
+    },
+
+    setPdfTextContent(state, action: PayloadAction<string>) {
+      state.pdfTextContent = action.payload;
     },
 
     // === Highlights ===
+    // ... (既存の reducer は変更なし)
     addHighlight(state, action: PayloadAction<Highlight>) {
       state.highlights.push(action.payload);
     },
 
-    /**
-     * 新しい reducer: ハイライトを追加し、同時にそのハイライトに紐づく
-     * root コメント（最初のメモ）を追加する。
-     * payload: { highlight: Highlight, initialComment?: { author: string; text: string; id?: string; createdAt?: string } }
-     */
     addHighlightWithComment(
       state,
       action: PayloadAction<{
@@ -56,7 +69,6 @@ const editorSlice = createSlice({
           deleted: false,
         };
         state.comments.push(c);
-        // set newly created comment active (UI convenience)
         state.activeCommentId = cid;
         state.activeHighlightId = (highlight as any).id;
       }
@@ -72,18 +84,16 @@ const editorSlice = createSlice({
     deleteHighlight(state, action: PayloadAction<{ id: string }>) {
       const id = action.payload.id;
       state.highlights = state.highlights.filter((h) => h.id !== id);
-      // remove comments belonging to this highlight
       const removedCommentIds = state.comments.filter((c) => c.highlightId === id).map((c) => c.id);
       state.comments = state.comments.filter((c) => c.highlightId !== id);
-      // clear activeHighlightId if needed
       if (state.activeHighlightId === id) state.activeHighlightId = null;
-      // clear activeCommentId if it belonged to removed comments
       if (state.activeCommentId && removedCommentIds.includes(state.activeCommentId)) {
         state.activeCommentId = null;
       }
     },
 
     // === Comments ===
+    // ... (既存の reducer は変更なし)
     addComment(state, action: PayloadAction<Comment>) {
       state.comments.push(action.payload);
     },
@@ -106,14 +116,13 @@ const editorSlice = createSlice({
     },
 
     // === Active selections (UI sync) ===
+    // ... (既存の reducer は変更なし)
     setActiveHighlightId(state, action: PayloadAction<string | null>) {
       state.activeHighlightId = action.payload;
-      // when highlight changes to null, clear activeCommentId
       if (action.payload === null) state.activeCommentId = null;
     },
     setActiveCommentId(state, action: PayloadAction<string | null>) {
       state.activeCommentId = action.payload;
-      // propagate to highlight focus if possible
       if (action.payload) {
         const c = state.comments.find((x) => x.id === action.payload);
         if (c) state.activeHighlightId = c.highlightId;
@@ -133,12 +142,19 @@ const editorSlice = createSlice({
       state.activeHighlightId = null;
       state.activeCommentId = null;
       state.activeHighlightMemo = null;
+      state.pdfTextContent = null;
+    },
+
+    addLLMResponse: (state, action) => {
+      const { id, response } = action.payload;
+      state.responses[id] = response;
     },
   },
 });
 
 export const {
   setFile,
+  setPdfTextContent,
   addHighlight,
   addHighlightWithComment,
   setAllHighlights,
@@ -152,6 +168,7 @@ export const {
   setActiveCommentId,
   setActiveHighlightMemo,
   clearAllState,
+  addLLMResponse
 } = editorSlice.actions;
 
 export default editorSlice.reducer;
