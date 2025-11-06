@@ -366,15 +366,15 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     #ハイライト箇所と対応するコメント内容
     ${inst_highlight_comment}`;
 
-    // console.log(highlights, comments);
+    console.log(highlights, comments);
     // console.log(pdfTextContentData);
     // console.log(instruction);
 
     try {
-        const response = await axios.post('/api/analyze', {
-            instruction: instruction
-        });
-        console.log(response.data);
+        // const response = await axios.post('/api/analyze', {
+        //     instruction: instruction
+        // });
+        // console.log(response.data);
         // const data = response.data;
         // if (data?.responses && Array.isArray(data.responses)) {
         //   // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）

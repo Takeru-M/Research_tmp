@@ -10,6 +10,24 @@ import {
   setActiveHighlightId,
 } from "../redux/features/editor/editorSlice";
 
+// 💡 追加: PdfRectWithPage と PdfHighlight の型定義 (editorTypesからインポートされると仮定)
+// 実際には '../redux/features/editor/editorTypes' からインポートしてください。
+interface PdfRectWithPage {
+  pageNum: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+interface PdfHighlight {
+  id: string;
+  type: string;
+  text: string;
+  rects: PdfRectWithPage[];
+  memo: string;
+}
+// -------------------------------------------------------------------
+
 // 3-dot menu styles
 const menuStyle: React.CSSProperties = {
   position: "relative",
@@ -165,7 +183,8 @@ interface CommentPanelProps {
 // 💡 修正: propを受け取る
 export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProps) {
   const dispatch = useDispatch();
-  const { comments, activeHighlightId, activeCommentId } = useSelector((s: any) => s.editor);
+  // 💡 修正: highlights を Redux store から取得
+  const { comments, activeHighlightId, activeCommentId, highlights } = useSelector((s: any) => s.editor);
 
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -211,6 +230,57 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   const rootComments: Comment[] = comments.filter((c: Comment) => c.parentId === null);
   const getReplies = (pid: string): Comment[] => comments.filter((c: Comment) => c.parentId === pid);
+
+  // 💡 追加: ハイライトの縦位置（PDF座標）に基づいてルートコメントをソートするロジック
+  const sortedRootComments = useMemo(() => {
+    // 1. 各ハイライトのPDF上での最上位のソートキー（ページ番号とY座標の組み合わせ）を計算
+    const getHighlightSortKey = (highlightId: string): number | null => {
+      // 💡 型アサーション: Reduxからのデータは型がないため、ここでは推論に基づき処理
+      const highlight = (highlights as PdfHighlight[]).find((h) => h.id === highlightId);
+      if (!highlight || highlight.rects.length === 0) return null;
+
+      // ページ番号とY座標でソートし、最も上にある矩形（topRect）を取得
+      const topRect = highlight.rects.sort((a, b) => {
+        if (a.pageNum !== b.pageNum) {
+          return a.pageNum - b.pageNum; // ページ番号が小さい方が優先
+        }
+        return a.y1 - b.y1; // Y座標が小さい方が優先
+      })[0];
+      
+      // ソートキーの生成: ページ番号を大きく重み付けすることで、ページ順を最優先し、次にY座標順にする
+      // 100000はY座標の最大値として十分な大きさを持つと仮定 (実際にはPDFの単位に依存)
+      return topRect.pageNum * 100000 + topRect.y1; 
+    };
+    
+    // 2. ルートコメントにソートキーを付与
+    const rootsWithSortKey = rootComments.map(root => {
+      const sortKey = getHighlightSortKey(root.highlightId);
+      
+      // ソートキーがない場合（ハイライトが見つからないなど）は、Infinityとして最後に表示
+      return {
+        ...root,
+        sortKey: sortKey !== null ? sortKey : Infinity 
+      };
+    });
+    
+    // 3. ソートキーを基に昇順ソート (Yが小さいほど上)
+    rootsWithSortKey.sort((a, b) => {
+      // ソートキーがないものを最後に
+      if (a.sortKey === Infinity && b.sortKey !== Infinity) return 1;
+      if (a.sortKey !== Infinity && b.sortKey === Infinity) return -1;
+      
+      // Y座標ベースのキーでソート
+      return a.sortKey - b.sortKey;
+    });
+
+    // 4. ソート結果からComment型の配列を生成
+    return rootsWithSortKey.map(root => {
+        const { sortKey, ...comment } = root;
+        return comment as Comment;
+    });
+    
+  }, [rootComments, highlights]); // rootCommentsまたはhighlightsが変更されたときのみ再計算
+
 
   // Toggle collapse for a specific root thread
   const toggleCollapse = (rootId: string) => {
@@ -389,39 +459,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     const scrollContainer = scrollContainerRef.current;
     // スクロールコンテナとターゲット要素が存在する場合のみ処理を実行
     if (targetElement && scrollContainer) {
-      // 画面全体を動かす 'scrollIntoView' ではなく、親コンテナ内の位置を調整します。
-      // ターゲット要素のコンテナに対する相対的な位置
-      const relativeTop = targetElement.offsetTop - scrollContainer.offsetTop;
-      // スクロールコンテナの現在のスクロール位置を更新
-      // ここでは 'nearest' (最も近い端にスクロール) の代わりに、
-      // 画面上端に合わせる（0）か、または中央付近に持ってくるように調整できます。
-      // ターゲット要素をスクロールコンテナの上端に移動させる
-      // targetElement.offsetTop: スクロールコンテナの先頭からのターゲット要素の位置
-      scrollContainer.scrollTop = targetElement.offsetTop;
-      // 🚨 注意点: 上記の simple scrollIntoView のロジックでは、PDF側のハイライトとコメントスレッドの縦位置（緯度）を合わせるためには、
-      // PDF側のハイライトの縦位置情報が必要になります。
-      // 現状のコードではその情報がないため、最も一般的な「スレッドをコメントパネルの**上端**にスクロールする」方法に修正します。
       targetElement.scrollIntoView({
         behavior: 'smooth',
         block: 'start', // スクロールコンテナ内で要素を上端に移動させる
       });
-      /* もしPDF側のハイライトの縦位置情報 (例: `activeHighlightY` [px] または [vh]) があれば、
-      scrollContainer.scrollTop = targetElement.offsetTop - activeHighlightY + (scrollContainer.offsetHeight / 2);
-      のような計算で位置を合わせることが可能です。
-      */
-    } else if (targetElement) {
-      // 💡 画面全体が動く原因だった 'block: nearest' の代わりに、
-      // スクロールを伴わない 'block: start' または 'block: center' を使用し、
-      // 親要素がスクロールしないようにする。
-      // しかし、独立したスクロールコンテナがあるため、単に scrollIntoView を使うのは止めます。
-      // **元のロジックを削除し、独立したスクロールコンテナを使うロジックを採用します。**
     }
   }, [activeCommentId, activeHighlightId, comments]);
-
-  // 💡 修正: スクロールエリアの計算定数
-  // const H3_HEIGHT_PLUS_MARGIN = 17 + 12; // h3の高さ(fontSize: 17) + marginBottom: 12
-  // const PANEL_PADDING_VERTICAL = 20; // ラッパーの padding: 10 (上) + padding: 10 (下)
-  // const HEADER_OFFSET = H3_HEIGHT_PLUS_MARGIN + PANEL_PADDING_VERTICAL;
 
   return (
     <div 
@@ -445,7 +488,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           overflowY: 'auto' 
         }}
       >
-        {rootComments.map((root, rootIdx) => {
+        {/* 💡 修正: rootComments の代わりに sortedRootComments を使用 */}
+        {sortedRootComments.map((root, rootIdx) => {
           const replies = getReplies(root.id);
           const totalReplies = replies.length;
           const isInitiallyCollapsed = totalReplies > COLLAPSE_THRESHOLD;
