@@ -330,19 +330,19 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   // 完了ボタンのクリックハンドラ（OpenAI APIリクエスト）
   const handleCompletion = useCallback(async () => {
     // ハイライトごとに紐づくコメントを組み立てる（highlight.id ベースで紐付け）
-    let tmp = '';
+    let inst_highlight_comment = '';
     for (const h of highlights) {
       const related = comments.filter(c => c.highlightId === h.id);
       if (related.length > 0) {
         for (const c of related) {
-          tmp += `id: ${c.id}, highlightId: ${h.id}, highlight: ${h.text}, comment: ${c.text}\n`;
+          inst_highlight_comment += `id: ${c.id}, highlightId: ${h.id}, highlight: ${h.text}, comment: ${c.text}\n`;
         }
       } else {
-        tmp += `highlightId: ${h.id}, highlight: ${h.text}, comment: (none)\n`;
+        inst_highlight_comment += `highlightId: ${h.id}, highlight: ${h.text}, comment: (none)\n`;
       }
     }
 
-    const instruction = `MT資料の内容に関して，学習者が吟味をしている箇所にはハイライトと吟味した内容を書かせています．ハイライトがある箇所に対して，吟味をさせる素材を与えるような示唆を出してください．出力は下記の形式をJSONを参考にして出力してください．以下に出力形式の参考例，MT資料，ハイライト箇所と対応するコメント内容を提供します．
+    const instruction = `MT資料の内容に関して，学習者が吟味をしている箇所にはハイライトと吟味した内容が書かれています．ハイライトがある箇所に対して，吟味の余地があると判断した場合には吟味をさせるために他の選択肢について考えさせるような示唆を出してください．ただし，出力は下記の形式をJSONを参考にして出力してください．以下に出力形式の参考例，MT資料内容，ハイライト箇所と対応するコメント内容を提供します．
 
     #出力の参考にするJSON形式
     {
@@ -351,35 +351,30 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           "highlighted": [
             {
               "id": "入力データのidと対応したid",
-              "response": "レスポンス内容",
+              "isSuggestion": "吟味の余地があるならばtrue，ないならばfalse"
+              "response": "吟味の余地があるならばレスポンス内，ないならば空",
+              "reason": "isSuggestionを下した判断の理由",
             }
-          ]
-          "non-highlighted": [
-              "text": "示唆の対象テキスト",
-              "response": "レスポンス内容",
           ]
         }
       ]
     }
 
-    #MT資料
+    #MT資料内容
     ${pdfTextContentData}
 
     #ハイライト箇所と対応するコメント内容
-    ${tmp}`;
+    ${inst_highlight_comment}`;
 
-    console.log(highlights, comments);
-    console.log(pdfTextContentData);
-    console.log(instruction);
+    // console.log(highlights, comments);
+    // console.log(pdfTextContentData);
+    // console.log(instruction);
 
     try {
-        // const response = await axios.post('/api/analyze', {
-        //     instruction: instruction
-        // });
-        // console.log("Done1");
-        // console.log(response);
-        // console.log("Done2");
-        // console.log(response.data);
+        const response = await axios.post('/api/analyze', {
+            instruction: instruction
+        });
+        console.log(response.data);
         // const data = response.data;
         // if (data?.responses && Array.isArray(data.responses)) {
         //   // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）

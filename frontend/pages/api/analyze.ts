@@ -30,8 +30,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [{ role: "user", content: instruction }],
-            max_tokens: 800,
-            temperature: 0.2,
+            // max_tokens: 800,
+            temperature: 1.0,
         });
 
         const analysisResult = response.choices[0].message.content;
