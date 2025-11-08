@@ -2,7 +2,7 @@
 import Head from 'next/head';
 import React, { PropsWithChildren } from 'react';
 import styles from '../styles/Home.module.css';
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const { t } = useTranslation();
@@ -10,7 +10,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   return (
     <>
       <Head>
-        <title>t{("main-title")}</title>
+        <title>{t("main-title")}</title>
         <meta name="description" content={t("app-description")} />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -27,8 +27,17 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
       <footer className={styles.footer || 'footer'}>
         <div className={styles.container || 'container'}>
-          {/* TODO: 国際化対応 */}
-          <p>&copy; {new Date().getFullYear()} {t("footer-txt")}</p>
+          <p>
+          <Trans
+            i18nKey="footer-txt"
+            values={{
+              year: new Date().getFullYear(),
+            }}
+            components={{
+              year: <>{new Date().getFullYear()}</>
+            }}
+          />
+          </p>
         </div>
       </footer>
     </>

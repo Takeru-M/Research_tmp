@@ -471,7 +471,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       className="comment-panel"
     >
       {/* <h3 style={{ marginBottom: 12, fontSize: 17 }}>コメント</h3> */}
-      <h3 style={{ marginBottom: 12, fontSize: 17 }}></h3>
       <div
         ref={scrollContainerRef}
         style={{
@@ -480,6 +479,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         }}
       >
         {sortedRootComments.map((root, rootIdx) => {
+          const { t } = useTranslation();
           const replies = getReplies(root.id);
           const totalReplies = replies.length;
           const isInitiallyCollapsed = totalReplies > COLLAPSE_THRESHOLD;
@@ -609,8 +609,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                   }}
                 >
                   {isCollapsed
-                    ? `全て表示 (${totalReplies - visibleReplies.length} 件)`
-                    : "一部を表示"}
+                    ? `${t("CommentPanel.show-more")} (${totalReplies - visibleReplies.length} 件)`
+                    : t("CommentPanel.show-less")}
                 </button>
               )}
 

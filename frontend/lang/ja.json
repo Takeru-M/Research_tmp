@@ -1,7 +1,7 @@
 {
   "main-title": "ファイルエディタ",
   "app-description": "ファイルエディタアプリケーション",
-  "footer-txt": "My File Editor",
+  "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
   "PdfViewer": {
     "add-comment": "コメントを追加"
@@ -19,6 +19,8 @@
     "save-reply": "保存",
     "cancel-reply": "キャンセル",
     "reply-placeholder": "返信を書く",
-    "reply": "返信"
+    "reply": "返信",
+    "show-less": "一部を表示",
+    "show-more": "全体を表示"
   }
 }

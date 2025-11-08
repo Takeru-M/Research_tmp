@@ -1,7 +1,7 @@
 {
   "main-title": "File Editor",
   "app-description": "File Editor Application",
-  "footer-txt": "My File Editor",
+  "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "Please upload a file",
   "PdfViewer": {
     "add-comment": "Add Comment"
@@ -19,6 +19,8 @@
     "save-reply": "Save",
     "cancel-reply": "Cancel",
     "reply-placeholder": "Write a reply",
-    "reply": "Reply"
+    "reply": "Reply",
+    "show-less": "show less",
+    "show-more": "show more"
   }
 }
