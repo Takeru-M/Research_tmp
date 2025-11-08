@@ -8,7 +8,6 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
 import { PdfHighlight, Highlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
-// 💡 修正: setActiveScrollTarget のアクションをインポートに追加 (editorSliceで定義されていると仮定)
 import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, addComment, setActiveScrollTarget } from '../redux/features/editor/editorSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
@@ -34,7 +33,6 @@ interface PdfViewerProps {
   comments: CommentType[];
   onRequestAddHighlight?: (highlight: PdfHighlight) => void;
   onHighlightClick?: (highlightId: string) => void;
-  /** 💡 追加: PDFの全コンテンツのロード・レンダリングが完了したことを親に通知するコールバック */
   onRenderSuccess?: () => void;
 }
 
@@ -51,7 +49,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
 
-  // 💡 修正: viewerRef はスクロールコンテナを参照
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
 
@@ -59,7 +56,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
   });
 
-  // Redux: active selections (省略)
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeCommentId = useSelector(selectActiveCommentId);
 
@@ -71,7 +67,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
 
-  // PDF以外クリックで選択解除 (修正)
+  // PDF以外クリックで選択解除
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -86,7 +82,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       dispatch(setActiveHighlightId(null));
       dispatch(setActiveCommentId(null));
-      // 💡 修正: 選択解除時もスクロールターゲットをリセット
       dispatch(setActiveScrollTarget(null));
     };
 
@@ -97,17 +92,16 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     };
   }, [dispatch]);
 
+  // selectionMenuの閉じ処理
   useEffect(() => {
     if (!selectionMenu.visible) return;
 
     const handleMenuClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      // メニュー要素自体、またはその子要素へのクリックであれば何もしない
       if (target.closest('.pdf-add-menu')) {
         return;
       }
 
-      // それ以外（画面上のどこであっても）でクリックされた場合はメニューを閉じる
       setSelectionMenu(s => ({ ...s, visible: false, pendingHighlight: null }));
     };
     document.addEventListener('mousedown', handleMenuClickOutside);
@@ -119,7 +113,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const onDocumentLoadSuccess = useCallback(({ numPages }: PDFDocumentProxy) => {
     setNumPages(numPages);
     setPageData({});
-    // ドキュメントロード成功時、ページデータとスケールをリセット
     setPageScales({});
   }, []);
 
@@ -154,7 +147,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     setPageData(p=>({...p,[n]:newPageData}));
   },[]);
 
-  // 全ページロード完了後に全テキストをReduxに保存するロジック (変更なし)
+  // 全ページロード完了後に全テキストをReduxに保存するロジック
   useEffect(() => {
     if (!numPages || Object.keys(pageData).length === 0) return;
 
@@ -173,7 +166,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   }, [numPages, pageData, dispatch]);
 
-  // PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック (変更なし)
+  // PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック
   useEffect(()=>{
     if(!viewerRef.current||!numPages) return;
     let nScales:any={}, changed=false;
@@ -196,7 +189,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     if(changed) setPageScales(p=>({...p,...nScales}));
   },[numPages,pageData,pageScales]);
 
-  // 💡 全てのページスケールが確定したら、親にレンダリング完了を通知する (変更なし)
+  // 全てのページスケールが確定したら、親にレンダリング完了を通知する
   useEffect(() => {
     const allScalesCalculated = numPages && Object.keys(pageScales).length === numPages;
     const allPageDataLoaded = numPages && Object.keys(pageData).length === numPages;
@@ -208,9 +201,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   }, [numPages, pageScales, pageData, onRenderSuccess]);
 
 
-  // scroll PDF to show active highlight (省略)
-
-  const renderHighlightOverlays = useCallback((page:number)=>{
+  // 💡 修正: ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
+  const renderHighlightVisuals = useCallback((page:number)=>{
     if(!pageData[page]||!pageScales[page]) return null;
     const scale = pageScales[page];
 
@@ -220,6 +212,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         .filter(r => r.pageNum===page)
         .map((r,idx)=>{
           const isActive = effectiveActiveHighlightId === h.id;
+          
+          // --- ハイライトの描画要素 (pointer-events: none) ---
           const style={
             position:'absolute' as const,
             left:r.x1*scale,
@@ -228,61 +222,27 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             height:(r.y2-r.y1)*scale,
             background: isActive ? 'rgba(255,200,0,0.65)' : 'rgba(255,235,59,0.35)',
             borderRadius:2,
-            cursor:'pointer',
-            zIndex: isActive ? 20 : 8,
+            // 💡 修正: pointer-events: none に設定し、全てのイベントを下層に透過させる
+            pointerEvents: 'none' as const, 
+            // TextLayerより上に配置
+            zIndex: isActive ? 20 : 8, 
             boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : undefined,
           };
+          
           return (
+            // 💡 修正: onClickハンドラを削除し、純粋な視覚要素として配置
             <div
-              key={`${h.id}-${idx}`}
+              key={`${h.id}-${idx}-visual`}
               data-highlight-id={h.id}
-              className='highlight'
+              className='highlight-visual'
               style={style}
-              onClick={e=>{
-                e.stopPropagation();
-                
-                // 1. アクティブなハイライト/コメントを設定
-                onHighlightClick?.(h.id);
-
-                // 💡 修正: PDF座標とレンダリング情報をReduxにディスパッチ
-                const targetEl = e.currentTarget;
-                const viewerElement = viewerRef.current;
-                // ハイライト要素の親要素 (div style={{ position: "relative" }}) を取得
-                const parentWrapper = targetEl.parentElement;
-                
-                // 親要素の子の中から、.react-pdf__Page クラスを持つ兄弟要素を検索
-                // 🚨 修正後の pageEl 取得ロジック
-                const pageEl = parentWrapper
-                    ? parentWrapper.querySelector('.react-pdf__Page')
-                    : null;
-
-                if (viewerElement && pageEl) {
-                    const viewerRect = viewerElement.getBoundingClientRect();
-                    const pageRect = pageEl.getBoundingClientRect();
-
-                    // ハイライトのrectsのうち、このページでの最上位のy1を使用
-                    // (rは既にフィルターされているので、r.y1はこのページでの最上部の矩形の一つ)
-                    
-                    const scrollTarget = {
-                        pdfY1: r.y1,          // 選択されたハイライトの y1 (PDF座標)
-                        pageNum: r.pageNum,   // ページ番号
-                        pageScale: scale,     // そのページの現在のレンダリングスケール
-                        // ページのDOM上端の、PDF Viewerコンテナ上端からのピクセル距離
-                        // = ページの画面上での絶対位置 - Viewerコンテナの画面上での絶対位置
-                        pageTopOffset: pageRect.top - viewerRect.top, 
-                    };
-
-                    dispatch(setActiveScrollTarget(scrollTarget)); 
-                }
-                // ----------------------------------------------------
-              }}
             />
           );
         }));
-  },[highlights,pageData,pageScales,onHighlightClick,effectiveActiveHighlightId, dispatch]);
+  },[highlights,pageData,pageScales,effectiveActiveHighlightId]);
 
 
-  // TextNode対応 helper (省略)
+  // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {
     const el =
       node.nodeType === Node.TEXT_NODE
@@ -292,10 +252,60 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     return el?.closest('.react-pdf__Page') ?? null;
   };
 
-  // handleMouseUp (変更なし)
+  // handleMouseUp (テキスト選択捕捉とハイライトクリック検出)
   const handleMouseUp = useCallback((e:React.MouseEvent)=>{
     const sel=window.getSelection();
-    if(!sel||sel.isCollapsed) return;
+    
+    const target = e.target as HTMLElement;
+    const clickedPageEl = target.closest('.react-pdf__Page');
+    
+    // --- 💡 修正: ハイライトクリック検出ロジック ---
+    // テキスト選択が行われなかった場合（単純クリックの場合）
+    if(!sel || sel.isCollapsed) {
+        if (!clickedPageEl) return;
+        
+        const pageNum = Number(clickedPageEl.getAttribute('data-page-number'));
+        const pageScale = pageScales[pageNum] || 1;
+        const pageRect = clickedPageEl.getBoundingClientRect();
+
+        // クリック座標 (PDF座標)
+        const clickX = (e.clientX - pageRect.left) / pageScale;
+        const clickY = (e.clientY - pageRect.top) / pageScale;
+
+        // クリックされた座標が既存のハイライトの矩形内にあるかチェック
+        const clickedHighlight = highlights.find(h => 
+            h.rects.some(r => 
+                r.pageNum === pageNum &&
+                r.x1 <= clickX && clickX <= r.x2 &&
+                r.y1 <= clickY && clickY <= r.y2
+            )
+        );
+
+        if (clickedHighlight) {
+            // ハイライトがクリックされた場合の処理を実行
+            e.stopPropagation(); // イベント伝播を停止
+            onHighlightClick?.(clickedHighlight.id);
+            dispatch(setActiveHighlightId(clickedHighlight.id));
+            
+            // スクロールターゲット設定ロジック
+            const rect = clickedHighlight.rects.find(r => r.pageNum === pageNum);
+            if (viewerRef.current && rect) {
+                const viewerRect = viewerRef.current.getBoundingClientRect();
+                const scrollTarget = {
+                    pdfY1: rect.y1,
+                    pageNum: pageNum,
+                    pageScale: pageScale,
+                    pageTopOffset: pageRect.top - viewerRect.top, 
+                };
+                dispatch(setActiveScrollTarget(scrollTarget)); 
+            }
+            return; // ハイライト処理が完了したら終了
+        }
+    }
+    // ----------------------------------------------------
+
+
+    // --- 既存のテキスト選択ロジック (ハイライトクリックでなかった場合のみ実行) ---
     const text=sel.toString().trim();
     if(!text) return;
 
@@ -303,6 +313,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const rects=Array.from(range.getClientRects()).filter(r=>r.width>0&&r.height>0);
     if(rects.length===0) return;
 
+    // テキスト選択の親要素がどのページか特定
     const firstRect=rects[0];
     const parent = getClosestPageElement(range.startContainer);
     if(!parent){ sel.removeAllRanges(); return;}
@@ -311,6 +322,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const pRect = parent.getBoundingClientRect();
     const scale = pageScales[pageNum]||1;
 
+    // 選択範囲の矩形をPDF座標に変換
     const allRects: PdfRectWithPage[] = rects.map(r=>({
       pageNum,
       x1:(r.left-pRect.left)/scale,
@@ -319,6 +331,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       y2:(r.bottom-pRect.top)/scale,
     }));
 
+    // メニュー表示
     setSelectionMenu({
       x: Math.min(window.innerWidth-80, firstRect.right+8),
       y: firstRect.top-10,
@@ -329,9 +342,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     });
 
     sel.removeAllRanges();
-  },[pageScales]);
-
-  // useEffect(selectionMenuの閉じ処理) (省略)
+  },[pageScales, highlights, dispatch, onHighlightClick, viewerRef]);
 
   const addHighlight = ()=>{
     if(selectionMenu.pendingHighlight){
@@ -340,7 +351,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   };
 
-  // --- 図形ハイライトをリクエストするハンドラ (変更なし) ---
   const handleRequestShapeHighlight = useCallback((rects: PdfRectWithPage[]) => {
     const firstRect = rects[0];
 
@@ -358,10 +368,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   }, []);
 
-  // プロンプトに必要なデータ (変更なし)
   const pdfTextContentData = useSelector((state: RootState) => state.editor.pdfTextContent);
 
-  // 完了ボタンのクリックハンドラ（OpenAI APIリクエスト） (変更なし)
   const handleCompletion = useCallback(async () => {
     let inst_highlight_comment = '';
     for (const h of highlights) {
@@ -389,8 +397,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           renderAnnotationLayer={true}
           renderTextLayer={true}
         />
-
-        {renderHighlightOverlays(i + 1)}
+        
+        {/* ハイライトの描画レイヤー (pointer-events: noneで透過) */}
+        {renderHighlightVisuals(i + 1)}
 
         {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
           <FabricShapeLayer

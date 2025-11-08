@@ -469,11 +469,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         })
       }
     }
-    // if (targetElement && scrollContainer) {
-    //   targetElement.scrollIntoView({
-    //     behavior: "smooth",
-    //   });
-    // }
   }, [activeCommentId, activeHighlightId]);
 
   return (
@@ -522,8 +517,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                 background: activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId) ? "#f0f7ff" : "#fff",
                 border: "1px solid #ddd",
                 borderRadius: 8,
-                padding: 8, 
-                marginBottom: 8, 
+                padding: 8,
+                marginBottom: 8,
                 cursor: 'pointer',
               }}
               onClick={() => {
