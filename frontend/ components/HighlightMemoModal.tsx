@@ -1,5 +1,7 @@
 // src/components/HighlightMemoModal.tsx
 import React, { useState, useEffect, MouseEvent } from 'react';
+import { useDispatch } from 'react-redux';
+import { setActiveHighlightId, setInitialCommentScrollFlag } from '@/redux/features/editor/editorSlice';
 
 interface HighlightMemoModalProps {
   highlightId: string | null;
@@ -10,14 +12,23 @@ interface HighlightMemoModalProps {
 
 const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, currentMemo, onClose, onSave }) => {
   const [memoText, setMemoText] = useState<string>(currentMemo || '');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const dispatch = useDispatch();
 
   useEffect(() => {
     setMemoText(currentMemo || '');
+    setErrorMessage('');
   }, [currentMemo, highlightId]);
 
   const handleSave = () => {
-    if (highlightId) {
+    const trimmedMemo = memoText.trim();
+
+    if (highlightId && trimmedMemo) {
       onSave(highlightId, memoText);
+      dispatch(setActiveHighlightId(highlightId));
+      setErrorMessage('');
+    } else if (highlightId && !trimmedMemo) {
+      setErrorMessage("メモを入力してください");
     }
   };
 
@@ -30,14 +41,24 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
         <h2>メモ</h2>
         <textarea
           value={memoText}
-          onChange={(e) => setMemoText(e.target.value)}
+          onChange={(e) => {
+            setMemoText(e.target.value);
+            setErrorMessage('');
+          }}
           placeholder="ここにメモを入力..."
           rows={5}
         />
-        <button onClick={handleSave}>保存</button>
-        <button onClick={onClose} style={{ marginLeft: '10px', backgroundColor: '#6c757d' }}>
-          キャンセル
-        </button>
+        {errorMessage && (
+          <p style={{ color: 'red', marginTop: '10px' }}>
+            {errorMessage}
+          </p>
+        )}
+        <div style={{ marginTop: '15px' }}>
+            <button onClick={handleSave}>保存</button>
+            <button onClick={onClose} style={{ marginLeft: '10px', backgroundColor: '#6c757d' }}>
+              キャンセル
+            </button>
+        </div>
       </div>
     </div>
   );
