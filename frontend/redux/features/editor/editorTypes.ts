@@ -83,3 +83,13 @@ export type Comment = {
   editedAt?: string | null;
   deleted?: boolean;
 };
+
+export type HighlightInfo = {
+  createdAt: string;
+  createdBy: string;
+  id: string;
+  memo: string;
+  rects: PdfRect[];
+  text: string;
+  type: 'pdf' | string;
+}

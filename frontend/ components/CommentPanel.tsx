@@ -10,21 +10,23 @@ import {
   setActiveHighlightId,
 } from "../redux/features/editor/editorSlice";
 
+import { PdfRectWithPage, PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
+
 // 💡 修正: PdfRectWithPage と PdfHighlight の型定義 (editorTypesからインポートされると仮定)
-interface PdfRectWithPage {
-  pageNum: number;
-  x1: number;
-  y1: number; // PDF座標 (論理的な上端からの距離)
-  x2: number;
-  y2: number;
-}
-interface PdfHighlight {
-  id: string;
-  type: string;
-  text: string;
-  rects: PdfRectWithPage[];
-  memo: string;
-}
+// interface PdfRectWithPage {
+//   pageNum: number;
+//   x1: number;
+//   y1: number;
+//   x2: number;
+//   y2: number;
+// }
+// interface PdfHighlight {
+//   id: string;
+//   type: string;
+//   text: string;
+//   rects: PdfRectWithPage[];
+//   memo: string;
+// }
 
 // 💡 追加: 新しいRedux Stateの型 (PdfViewerから伝達される情報)
 interface ScrollTarget {
@@ -201,6 +203,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const [editText, setEditText] = useState("");
   const [menuOpenMap, setMenuOpenMap] = useState<Record<string, boolean>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const commentPanelRef = useRef<HTMLDivElement>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
   const COLLAPSE_THRESHOLD = 3; 
   const ROOTS_COLLAPSE_THRESHOLD = 6; 
@@ -390,6 +393,15 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     return cur.id;
   };
 
+  const getHighlightInfo = (highlightId: string | null) => {
+    if (!highlightId) return null;
+    const map = new Map<string, HighlightInfo>();
+    highlights.forEach(h => map.set(h.id, h));
+    const highlightInfo = map.get(highlightId);
+    if (!highlightInfo) return null;
+    return highlightInfo;
+  }
+
   // Auto-initialize collapsedMap (変更なし)
   useEffect(() => {
     const newCollapsed: Record<string, boolean> = { ...collapsedMap };
@@ -438,24 +450,35 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     if (activeCommentId) {
       targetRootId = findRootId(activeCommentId);
     } else if (activeHighlightId) {
-      console.log(activeHighlightId);
       const matched = comments.find((c: Comment) => c.highlightId === activeHighlightId);
       if (matched) {
         targetRootId = findRootId(matched.id);
       }
     }
+
     const targetElement = targetRootId && threadRefs.current[targetRootId];
-    const scrollContainer = scrollContainerRef.current;
-    
-    if (targetElement && scrollContainer) {
-      targetElement.scrollIntoView({
-        behavior: "smooth",
-      });
+    // const scrollContainer = scrollContainerRef.current;
+    const commentPanel = commentPanelRef.current;
+    const targetHighlight = getHighlightInfo(activeHighlightId);
+    if (targetElement instanceof HTMLDivElement) {
+      const targetElement_y = targetElement.getBoundingClientRect().y;
+      if (targetElement && commentPanel && targetHighlight) {
+        commentPanel.scrollBy({
+          top: targetElement_y - targetHighlight.rects[0].y1,
+          behavior: "smooth",
+        })
+      }
     }
+    // if (targetElement && scrollContainer) {
+    //   targetElement.scrollIntoView({
+    //     behavior: "smooth",
+    //   });
+    // }
   }, [activeCommentId, activeHighlightId]);
 
   return (
     <div 
+      ref={commentPanelRef}
       style={{ 
         width: 300, 
         borderLeft: "1px solid #ddd", 
@@ -615,7 +638,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               )}
 
             </div>
-          );
+          );s
         })}
       </div>
     </div>
