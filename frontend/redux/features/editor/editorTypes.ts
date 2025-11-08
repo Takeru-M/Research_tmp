@@ -49,17 +49,27 @@ export interface TextHighlight extends BaseHighlight {
 // 全てのハイライトのユニオン型
 export type Highlight = TextHighlight | PdfHighlight;
 
+// 💡 追加: コメントパネルのスクロールに必要な情報
+export interface ScrollTarget {
+    pdfY1: number;         // 選択されたハイライトの y1 (PDF座標)
+    pageNum: number;       // ページ番号
+    pageScale: number;     // そのページの現在のレンダリングスケール
+    pageTopOffset: number; // そのページのDOM上端の、PDF Viewer上端からのピクセル距離
+}
+// ----------------------------------------------------
+
 // エディタースライスの状態型
 export interface EditorState {
   file: File | null;
   fileType: string | null;
   fileContent: string | null; // PDFの場合はBlob URL、テキストの場合は文字列
   highlights: Highlight[];
-  comments: Comment[]; // ここを追加
+  comments: Comment[];
   activeHighlightId: string | null;
   activeCommentId: string | null,
   activeHighlightMemo: string | null;
   pdfTextContent: string | null;
+  activeScrollTarget: ScrollTarget | null;
   responses: Record<string, string>;
 }
 

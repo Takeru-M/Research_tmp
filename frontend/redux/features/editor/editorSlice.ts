@@ -1,8 +1,11 @@
 // src/redux/features/editor/editorSlice.ts (修正後)
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { EditorState, Highlight, Comment } from './editorTypes';
+// 💡 修正: EditorState, Highlight, Comment に加え、ScrollTarget をインポート
+import { EditorState, Highlight, Comment, ScrollTarget } from './editorTypes';
+import { v4 as uuidv4 } from 'uuid'; // uuidv4 が使用されていないが、念のためインポートは維持
 
+// 💡 修正1: activeScrollTarget の状態を初期化に追加
 const initialState: EditorState = {
   file: null,
   fileType: null,
@@ -12,18 +15,10 @@ const initialState: EditorState = {
   activeHighlightId: null,
   activeCommentId: null,
   activeHighlightMemo: null,
-  // ★ 修正1: PDFの全テキストを格納する状態を追加
   pdfTextContent: null as string | null,
+  activeScrollTarget: null as ScrollTarget | null,
   responses: {} as Record<string, string>,
 };
-
-// EditorStateの定義も外部ファイルで更新が必要です
-/* // src/redux/features/editor/editorTypes.ts (想定される追加)
-export interface EditorState {
-  // ... 既存のフィールド
-  pdfTextContent: string | null;
-}
-*/
 
 const editorSlice = createSlice({
   name: 'editor',
@@ -41,7 +36,6 @@ const editorSlice = createSlice({
     },
 
     // === Highlights ===
-    // ... (既存の reducer は変更なし)
     addHighlight(state, action: PayloadAction<Highlight>) {
       state.highlights.push(action.payload);
     },
@@ -57,10 +51,11 @@ const editorSlice = createSlice({
       state.highlights.push(highlight);
 
       if (initialComment && initialComment.text && initialComment.text.trim().length > 0) {
-        const cid = initialComment.id ?? `comment-${Date.now()}`;
+        // uuidv4 を使用しない既存のロジックを維持 (ここでは Date.now() ベース)
+        const cid = initialComment.id ?? `comment-${Date.now()}`; 
         const c: Comment = {
           id: cid,
-          highlightId: (highlight as any).id,
+          highlightId: highlight.id,
           parentId: null,
           author: initialComment.author,
           text: initialComment.text,
@@ -70,7 +65,7 @@ const editorSlice = createSlice({
         };
         state.comments.push(c);
         state.activeCommentId = cid;
-        state.activeHighlightId = (highlight as any).id;
+        state.activeHighlightId = highlight.id;
       }
     },
 
@@ -87,13 +82,14 @@ const editorSlice = createSlice({
       const removedCommentIds = state.comments.filter((c) => c.highlightId === id).map((c) => c.id);
       state.comments = state.comments.filter((c) => c.highlightId !== id);
       if (state.activeHighlightId === id) state.activeHighlightId = null;
+      // 💡 修正: activeScrollTarget のリセットを追加
+      if (state.activeHighlightId === null) state.activeScrollTarget = null;
       if (state.activeCommentId && removedCommentIds.includes(state.activeCommentId)) {
         state.activeCommentId = null;
       }
     },
 
     // === Comments ===
-    // ... (既存の reducer は変更なし)
     addComment(state, action: PayloadAction<Comment>) {
       state.comments.push(action.payload);
     },
@@ -112,21 +108,34 @@ const editorSlice = createSlice({
       state.comments = state.comments.filter((c) => c.id !== id);
       if (state.activeCommentId === id) {
         state.activeCommentId = null;
+        // 💡 修正: activeCommentId が null になったら activeScrollTarget もリセット
+        state.activeScrollTarget = null;
       }
     },
 
     // === Active selections (UI sync) ===
-    // ... (既存の reducer は変更なし)
     setActiveHighlightId(state, action: PayloadAction<string | null>) {
       state.activeHighlightId = action.payload;
-      if (action.payload === null) state.activeCommentId = null;
+      if (action.payload === null) {
+        state.activeCommentId = null;
+        // 💡 修正: activeHighlightId が null になったら activeScrollTarget もリセット
+        state.activeScrollTarget = null; 
+      }
     },
     setActiveCommentId(state, action: PayloadAction<string | null>) {
       state.activeCommentId = action.payload;
       if (action.payload) {
         const c = state.comments.find((x) => x.id === action.payload);
         if (c) state.activeHighlightId = c.highlightId;
+      } else {
+        // 💡 修正: activeCommentId が null になったら activeScrollTarget もリセット
+        state.activeScrollTarget = null; 
       }
+    },
+
+    // 💡 修正2: 新しい reducer を追加 - スクロールターゲットの設定
+    setActiveScrollTarget(state, action: PayloadAction<ScrollTarget | null>) {
+      state.activeScrollTarget = action.payload;
     },
 
     setActiveHighlightMemo(state, action: PayloadAction<string | null>) {
@@ -143,6 +152,7 @@ const editorSlice = createSlice({
       state.activeCommentId = null;
       state.activeHighlightMemo = null;
       state.pdfTextContent = null;
+      state.activeScrollTarget = null; // ★ 追加: リセット
     },
 
     addLLMResponse: (state, action) => {
@@ -166,9 +176,10 @@ export const {
   deleteComment,
   setActiveHighlightId,
   setActiveCommentId,
+  setActiveScrollTarget,
   setActiveHighlightMemo,
   clearAllState,
-  addLLMResponse
+  addLLMResponse,
 } = editorSlice.actions;
 
 export default editorSlice.reducer;

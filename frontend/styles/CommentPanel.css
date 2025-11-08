@@ -1,0 +1,13 @@
+.menuButtonStyle {
+  cursor: "pointer";
+  color: "black";
+  fontSize: 18;
+  padding: "4px 8px";
+  borderRadius: "50%";
+  lineHeight: 1;
+  background: 'none';
+  border: 'none';
+  :hover {
+    backgroundColor: '#eee',
+  }
+}
