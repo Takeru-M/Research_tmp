@@ -4,7 +4,8 @@
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
   "PdfViewer": {
-    "add-comment": "コメントを追加"
+    "add-comment": "コメントを追加",
+    "complete": "完了する"
   },
   "HighlightMemoModal": {
     "memo-title": "メモ",
@@ -13,7 +14,7 @@
     "cancel-memo": "キャンセル"
   },
   "CommentPanel": {
-    "comment-author-user": "User",
+    "comment-author-user": "ユーザー",
     "edit-comment": "編集",
     "delete-comment": "削除",
     "save-reply": "保存",
@@ -22,5 +23,13 @@
     "reply": "返信",
     "show-less": "一部を表示",
     "show-more": "全体を表示"
+  },
+  "Alert": {
+    "file-support": "現在，PDFとテキストファイルのみサポートしています",
+    "comment-delete": "このコメントを削除してもよろしいですか？"
+  },
+  "Error": {
+    "enter-memo": "メモを入力してください",
+    "file-format-error": "このファイル形式はプレビューできません"
   }
 }

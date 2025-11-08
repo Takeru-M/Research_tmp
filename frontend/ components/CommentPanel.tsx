@@ -9,8 +9,9 @@ import {
   setActiveCommentId,
   setActiveHighlightId,
 } from "../redux/features/editor/editorSlice";
-import { PdfRectWithPage, PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
+import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
+import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD } from "@/utils/constants";
 
 // 💡 修正1: 動的なパディングを計算するヘルパー関数
 // ページ全体の半分まではスクロール可
@@ -57,11 +58,6 @@ const CommentHeader: React.FC<{
     const date = new Date(comment.createdAt);
     return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + ' ' + date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   }, [comment.createdAt]);
-
-  // 簡略化のため、元のコードのスタイルとロジックを維持
-  const menuButtonStyle: React.CSSProperties = { /* ... */ };
-  const dropdownStyle: React.CSSProperties = { /* ... */ };
-  const menuItem: React.CSSProperties = { /* ... */ };
 
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
@@ -183,8 +179,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const commentPanelRef = useRef<HTMLDivElement>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
-  const COLLAPSE_THRESHOLD = 3;
-  const ROOTS_COLLAPSE_THRESHOLD = 6;
 
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const threadRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -275,7 +269,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   };
 
   const removeCommentFn = (id: string) => {
-    if (window.confirm("このコメントを削除してもよろしいですか？")) {
+    if (window.confirm(t("Alert.comment-delete"))) {
       const comment = comments.find((c: Comment) => c.id === id);
       if (!comment) return;
       dispatch(deleteComment({ id }));
@@ -479,7 +473,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         }}
       >
         {sortedRootComments.map((root, rootIdx) => {
-          const { t } = useTranslation();
           const replies = getReplies(root.id);
           const totalReplies = replies.length;
           const isInitiallyCollapsed = totalReplies > COLLAPSE_THRESHOLD;

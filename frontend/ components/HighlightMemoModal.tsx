@@ -17,11 +17,6 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
   const dispatch = useDispatch();
   const { t } = useTranslation();
 
-  useEffect(() => {
-    setMemoText(currentMemo || '');
-    setErrorMessage('');
-  }, [currentMemo, highlightId]);
-
   const handleSave = () => {
     const trimmedMemo = memoText.trim();
 
@@ -30,7 +25,7 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
       dispatch(setActiveHighlightId(highlightId));
       setErrorMessage('');
     } else if (highlightId && !trimmedMemo) {
-      setErrorMessage("メモを入力してください");
+      setErrorMessage(t("Error.enter-memo"));
     }
   };
 

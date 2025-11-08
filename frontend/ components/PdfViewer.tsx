@@ -2,15 +2,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
+import axios from 'axios';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
-import { PdfHighlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
-import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget } from '../redux/features/editor/editorSlice';
+import { RootState } from '@/redux/store';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState } from '../redux/features/editor/editorTypes';
+import { selectActiveHighlightId, selectActiveCommentId} from '../redux/features/editor/editorSelectors';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment } from '../redux/features/editor/editorSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
+import { v4 as uuidv4 } from 'uuid';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -336,7 +339,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       y: firstRect.top-10,
       visible: true,
       pendingHighlight:{
-        id:`pdf-${Date.now()}`, type:"pdf", text, rects:allRects, memo:""
+        id:`pdf-${Date.now()}`, type:"pdf", text, rects:allRects, memo:"", createdAt: `${Date.now()}`, createdBy: 'User'
       }
     });
 
@@ -362,14 +365,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         type:"pdf",
         text: `図形/画像ハイライト (P${firstRect.pageNum})`,
         rects: rects,
-        memo:""
+        memo:"",
+        createdAt: `${Date.now()}`,
+        createdBy: `${t("CommentPanel.comment-author-user")}`
       }
     });
-  }, []);
+  }, [t]);
 
-  const pdfTextContentData = useSelector((state: RootState) => state.editor.pdfTextContent);
+  const pdfTextContent = useSelector((state: RootState) => state.editor.pdfTextContent);
 
   const handleCompletion = useCallback(async () => {
+    console.log(pdfTextContent);
     let inst_highlight_comment = '';
     for (const h of highlights) {
       const related = comments.filter(c => c.highlightId === h.id);
@@ -381,8 +387,69 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         inst_highlight_comment += `highlightId: ${h.id}, highlight: ${h.text}, comment: (none)\n`;
       }
     }
-    // ... (instruction組み立てとAPIロジックは省略) ...
-  }, [highlights, comments, pdfTextContentData, dispatch]);
+
+    const instruction = `MT資料の内容に関して，学習者が吟味をしている箇所にはハイライトと吟味した内容を書かせています．ハイライトがある箇所に対して，吟味をさせる素材を与えるような示唆を出してください．出力は下記の形式をJSONを参考にして出力してください．以下に出力形式の参考例，MT資料，ハイライト箇所と対応するコメント内容を提供します．
+      #出力の参考にするJSON形式
+      {
+        "responses": [
+          {
+            "highlighted": [
+              {
+                "id": "入力データのidと対応したid",
+                "response": "レスポンス内容",
+              }
+            ]
+            "non-highlighted": [
+                "text": "示唆の対象テキスト",
+                "response": "レスポンス内容",
+            ]
+          }
+        ]
+      }
+
+      #MT資料
+      ${pdfTextContent}
+
+      #ハイライト箇所と対応するコメント内容
+      ${inst_highlight_comment}`;
+
+      try {
+        const response = await axios.post('/api/analyze', {
+            instruction: instruction
+        });
+        console.log(response.data);
+        const data = response.data;
+        if (data?.responses && Array.isArray(data.responses)) {
+          // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）
+          // let lastAddedCommentId: string | null = null;
+          // data.responses.forEach((r: { id: string; response: string }) => {
+          //   const commentObj: CommentType = {
+          //     id: uuidv4(),
+          //     highlightId: r.id,
+          //     parentId: null,
+          //     author: 'AI',
+          //     text: r.response,
+          //     createdAt: new Date().toISOString(),
+          //     editedAt: null,
+          //     deleted: false,
+          //   };
+          //   dispatch(addComment(commentObj));
+          //   lastAddedCommentId = commentObj.id;
+          // });
+
+          // 最後に追加したコメントをアクティブにする（UIに即表示されるように）
+          // if (lastAddedCommentId) {
+          //   dispatch(setActiveCommentId(lastAddedCommentId));
+          // }
+        }
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('API Route Error:', error.response?.data || error.message);
+        } else {
+            console.error('An unexpected error occurred:', error);
+        }
+    }
+  }, [highlights, comments, pdfTextContent, dispatch]);
 
   return (
 <div style={{position:"relative",width:"100%",height:"100%", overflowY: 'auto'}} ref={viewerRef} onMouseUp={handleMouseUp}>
@@ -447,7 +514,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               cursor: 'pointer'
           }}
       >
-          完了する
+          {t("PdfViewer.complete")}
       </button>
   </div>
 </div>

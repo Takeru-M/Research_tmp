@@ -1,6 +1,8 @@
+// 現状は使用していない
 // src/components/TextViewer.tsx
 import React, { useRef, useEffect, useCallback, MouseEvent } from 'react';
 import { TextHighlight, Highlight, SerializedRange } from '../redux/features/editor/editorTypes';
+import { useTranslation } from "react-i18next";
 
 interface TextViewerProps {
   content: string;
@@ -11,11 +13,12 @@ interface TextViewerProps {
 
 const TextViewer: React.FC<TextViewerProps> = ({ content, highlights, onAddHighlight, onHighlightClick }) => {
   const viewerRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   // Rangeオブジェクトをシリアライズ (DOMパスとオフセットで保存)
   const serializeRange = useCallback((range: Range, rootElement: HTMLDivElement): SerializedRange => {
     const getPath = (node: Node | null): number[] => {
-      let path: number[] = [];
+      const path: number[] = [];
       let currentNode: Node | null = node;
       while (currentNode && currentNode !== rootElement) {
         let sibling: Node | null = currentNode.previousSibling;
@@ -92,7 +95,7 @@ const TextViewer: React.FC<TextViewerProps> = ({ content, highlights, onAddHighl
           const span = document.createElement('span');
           span.className = 'text-viewer-highlight';
           span.dataset.highlightId = h.id;
-          span.onclick = (e: MouseEvent) => {
+          span.onclick = (e: globalThis.MouseEvent) => {
             e.stopPropagation();
             onHighlightClick(h.id);
           };
@@ -120,13 +123,15 @@ const TextViewer: React.FC<TextViewerProps> = ({ content, highlights, onAddHighl
           text: selectedText,
           rangeInfo: serializeRange(range, viewerRef.current),
           memo: '',
+          createdAt: `${Date.now()}`,
+          createdBy: `${t("CommentPanel.comment-author-user")}`
         };
         onAddHighlight(newHighlight);
 
         selection.removeAllRanges();
       }
     }
-  }, [onAddHighlight, serializeRange]);
+  }, [onAddHighlight, serializeRange, t]);
 
   return (
     <div

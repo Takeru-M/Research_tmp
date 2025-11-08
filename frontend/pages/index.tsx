@@ -106,10 +106,10 @@ const EditorPage: React.FC = () => {
         };
         reader.readAsText(uploadedFile);
       } else {
-        alert('現在、PDFとテキストファイルのみサポートしています。');
+        alert(t("Alert.file-support"));
       }
     },
-    [dispatch]
+    [dispatch, t]
   );
 
   // === Request highlight (open memo modal) ===
@@ -161,45 +161,45 @@ const EditorPage: React.FC = () => {
     dispatch(setActiveHighlightId(highlightId));
   }, [dispatch]);
 
-  // === Comment actions ===
-  const handleDeleteComment = useCallback(
-    (commentId: string) => {
-      if (confirm('削除しますか？')) dispatch(deleteComment({ id: commentId }));
-    },
-    [dispatch]
-  );
+  // // === Comment actions ===
+  // const handleDeleteComment = useCallback(
+  //   (commentId: string) => {
+  //     if (confirm('削除しますか？')) dispatch(deleteComment({ id: commentId }));
+  //   },
+  //   [dispatch]
+  // );
 
-  const handleDeleteThread = useCallback(
-    (highlightId: string) => {
-      if (confirm('このスレッドを削除しますか？')) dispatch(deleteHighlight({ id: highlightId }));
-    },
-    [dispatch]
-  );
+  // const handleDeleteThread = useCallback(
+  //   (highlightId: string) => {
+  //     if (confirm('このスレッドを削除しますか？')) dispatch(deleteHighlight({ id: highlightId }));
+  //   },
+  //   [dispatch]
+  // );
 
-  const handleAddReply = useCallback(
-    (highlightId: string, parentId: string | null, author: string, text: string) => {
-      const reply: CommentType = {
-        id: uuidv4(),
-        highlightId,
-        parentId,
-        author,
-        text,
-        createdAt: new Date().toISOString(),
-        editedAt: null,
-        deleted: false,
-      };
-      dispatch(addHighlightWithComment as any); // no-op for replies (see CommentPanel own dispatch)
-      dispatch({ type: "editor/addComment", payload: reply });
-    },
-    [dispatch]
-  );
+  // const handleAddReply = useCallback(
+  //   (highlightId: string, parentId: string | null, author: string, text: string) => {
+  //     const reply: CommentType = {
+  //       id: uuidv4(),
+  //       highlightId,
+  //       parentId,
+  //       author,
+  //       text,
+  //       createdAt: new Date().toISOString(),
+  //       editedAt: null,
+  //       deleted: false,
+  //     };
+  //     dispatch(addHighlightWithComment as any); // no-op for replies (see CommentPanel own dispatch)
+  //     dispatch({ type: "editor/addComment", payload: reply });
+  //   },
+  //   [dispatch]
+  // );
 
-  const handleEditComment = useCallback(
-    (id: string, newText: string) => {
-      dispatch(updateComment({ id, text: newText }));
-    },
-    [dispatch]
-  );
+  // const handleEditComment = useCallback(
+  //   (id: string, newText: string) => {
+  //     dispatch(updateComment({ id, text: newText }));
+  //   },
+  //   [dispatch]
+  // );
 
   // === Viewer ===
   const renderViewer = () => {
@@ -214,26 +214,23 @@ const EditorPage: React.FC = () => {
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
           onRenderSuccess={handlePdfRenderComplete}
-          onDeleteComment={handleDeleteComment}
-          onDeleteThread={handleDeleteThread}
-          onAddReply={handleAddReply}
-          onEditComment={handleEditComment}
         />
       );
     }
 
-    if (fileType?.startsWith("text/")) {
-      return (
-        <TextViewer
-          content={fileContent || ''}
-          highlights={textHighlights}
-          onRequestAddHighlight={handleRequestAddHighlight}
-          onHighlightClick={handleHighlightClick}
-        />
-      );
-    }
+    // 仮TODO: textファイルを扱う場合には実装
+    // if (fileType?.startsWith("text/")) {
+    //   return (
+    //     <TextViewer
+    //       content={fileContent || ''}
+    //       highlights={textHighlights}
+    //       onRequestAddHighlight={handleRequestAddHighlight}
+    //       onHighlightClick={handleHighlightClick}
+    //     />
+    //   );
+    // }
 
-    return <p>このファイル形式はプレビューできません。</p>;
+    return <p>{t("Error.file-format")}</p>;
   };
 
   return (

@@ -32,6 +32,8 @@ interface BaseHighlight {
   id: string;
   text: string;
   memo: string;
+  createdAt: string;
+  createdBy: string;
 }
 
 // PDF （ページを跨げる）
