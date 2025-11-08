@@ -1,18 +1,16 @@
 // src/components/PdfViewer.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
-import { PdfHighlight, Highlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, addComment, setActiveScrollTarget } from '../redux/features/editor/editorSlice';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget } from '../redux/features/editor/editorSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
-import { RootState } from '@/redux/store';
-import { v4 as uuidv4 } from 'uuid';
+import { useTranslation } from "react-i18next";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -51,6 +49,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
+  const { t } = useTranslation();
 
   const [selectionMenu, setSelectionMenu] = useState({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
@@ -212,7 +211,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         .filter(r => r.pageNum===page)
         .map((r,idx)=>{
           const isActive = effectiveActiveHighlightId === h.id;
-          
+
           // --- ハイライトの描画要素 (pointer-events: none) ---
           const style={
             position:'absolute' as const,
@@ -223,12 +222,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             background: isActive ? 'rgba(255,200,0,0.65)' : 'rgba(255,235,59,0.35)',
             borderRadius:2,
             // 💡 修正: pointer-events: none に設定し、全てのイベントを下層に透過させる
-            pointerEvents: 'none' as const, 
+            pointerEvents: 'none' as const,
             // TextLayerより上に配置
-            zIndex: isActive ? 20 : 8, 
+            zIndex: isActive ? 20 : 8,
             boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : undefined,
           };
-          
+
           return (
             // 💡 修正: onClickハンドラを削除し、純粋な視覚要素として配置
             <div
@@ -255,15 +254,15 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   // handleMouseUp (テキスト選択捕捉とハイライトクリック検出)
   const handleMouseUp = useCallback((e:React.MouseEvent)=>{
     const sel=window.getSelection();
-    
+
     const target = e.target as HTMLElement;
     const clickedPageEl = target.closest('.react-pdf__Page');
-    
+
     // --- 💡 修正: ハイライトクリック検出ロジック ---
     // テキスト選択が行われなかった場合（単純クリックの場合）
     if(!sel || sel.isCollapsed) {
         if (!clickedPageEl) return;
-        
+
         const pageNum = Number(clickedPageEl.getAttribute('data-page-number'));
         const pageScale = pageScales[pageNum] || 1;
         const pageRect = clickedPageEl.getBoundingClientRect();
@@ -273,8 +272,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const clickY = (e.clientY - pageRect.top) / pageScale;
 
         // クリックされた座標が既存のハイライトの矩形内にあるかチェック
-        const clickedHighlight = highlights.find(h => 
-            h.rects.some(r => 
+        const clickedHighlight = highlights.find(h =>
+            h.rects.some(r =>
                 r.pageNum === pageNum &&
                 r.x1 <= clickX && clickX <= r.x2 &&
                 r.y1 <= clickY && clickY <= r.y2
@@ -286,7 +285,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             e.stopPropagation(); // イベント伝播を停止
             onHighlightClick?.(clickedHighlight.id);
             dispatch(setActiveHighlightId(clickedHighlight.id));
-            
+
             // スクロールターゲット設定ロジック
             const rect = clickedHighlight.rects.find(r => r.pageNum === pageNum);
             if (viewerRef.current && rect) {
@@ -295,9 +294,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     pdfY1: rect.y1,
                     pageNum: pageNum,
                     pageScale: pageScale,
-                    pageTopOffset: pageRect.top - viewerRect.top, 
+                    pageTopOffset: pageRect.top - viewerRect.top,
                 };
-                dispatch(setActiveScrollTarget(scrollTarget)); 
+                dispatch(setActiveScrollTarget(scrollTarget));
             }
             return; // ハイライト処理が完了したら終了
         }
@@ -397,7 +396,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           renderAnnotationLayer={true}
           renderTextLayer={true}
         />
-        
+
         {/* ハイライトの描画レイヤー (pointer-events: noneで透過) */}
         {renderHighlightVisuals(i + 1)}
 
@@ -432,7 +431,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         fontSize:12,
         zIndex:9999
       }}>
-      <button style={{fontSize:12,padding:"2px 6px"}} onClick={addHighlight}>コメントを追加</button>
+      <button style={{fontSize:12,padding:"2px 6px"}} onClick={addHighlight}>{t("PdfViewer.add-comment")}</button>
     </div>
   )}
   <div style={{textAlign:'center', padding: '20px 0'}}>

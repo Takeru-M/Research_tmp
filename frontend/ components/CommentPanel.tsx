@@ -9,32 +9,8 @@ import {
   setActiveCommentId,
   setActiveHighlightId,
 } from "../redux/features/editor/editorSlice";
-
 import { PdfRectWithPage, PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
-
-// 💡 修正: PdfRectWithPage と PdfHighlight の型定義 (editorTypesからインポートされると仮定)
-// interface PdfRectWithPage {
-//   pageNum: number;
-//   x1: number;
-//   y1: number;
-//   x2: number;
-//   y2: number;
-// }
-// interface PdfHighlight {
-//   id: string;
-//   type: string;
-//   text: string;
-//   rects: PdfRectWithPage[];
-//   memo: string;
-// }
-
-// 💡 追加: 新しいRedux Stateの型 (PdfViewerから伝達される情報)
-interface ScrollTarget {
-    pdfY1: number;      // 選択されたハイライトのy1 (PDF座標)
-    pageNum: number;    // 選択されたハイライトのページ番号
-    pageScale: number;  // そのページの現在のレンダリングスケール
-    pageTopOffset: number; // そのページのDOM上端の、PDF Viewer上端からのピクセル距離
-}
+import { useTranslation } from "react-i18next";
 
 // 💡 修正1: 動的なパディングを計算するヘルパー関数
 // ページ全体の半分まではスクロール可
@@ -75,6 +51,7 @@ const CommentHeader: React.FC<{
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const time = useMemo(() => {
     const date = new Date(comment.createdAt);
@@ -103,7 +80,7 @@ const CommentHeader: React.FC<{
         onMouseLeave={() => setIsMenuAreaHovered(false)}
       >
         <button
-          style={{ 
+          style={{
             cursor: "pointer",
             fontSize: 18,
             color: "black",
@@ -157,14 +134,14 @@ const CommentHeader: React.FC<{
                   startEditing(comment.id, comment.text);
                 }}
               >
-                編集
+                {t("CommentPanel.edit-comment")}
               </button>
             )}
             <button
-              style={{ 
+              style={{
                 padding: "8px 12px",
                 cursor: "pointer",
-                color: "red", 
+                color: "red",
                 fontSize: 14,
                 borderBottom: "none",
                 background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
@@ -179,7 +156,7 @@ const CommentHeader: React.FC<{
                 removeCommentFn(comment.id);
               }}
             >
-              削除
+              {t("CommentPanel.delete-comment")}
             </button>
           </div>
         )}
@@ -190,14 +167,15 @@ const CommentHeader: React.FC<{
 
 
 interface CommentPanelProps {
-  currentUser?: string; 
-  viewerHeight: number | 'auto'; 
+  currentUser?: string;
+  viewerHeight: number | 'auto';
 }
 
 export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProps) {
   const dispatch = useDispatch();
-  
-  const { comments, activeHighlightId, activeCommentId, highlights, activeScrollTarget } = useSelector((s: any) => s.editor);
+  const { t } = useTranslation();
+
+  const { comments, activeHighlightId, activeCommentId, highlights } = useSelector((s: any) => s.editor);
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -205,8 +183,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const commentPanelRef = useRef<HTMLDivElement>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
-  const COLLAPSE_THRESHOLD = 3; 
-  const ROOTS_COLLAPSE_THRESHOLD = 6; 
+  const COLLAPSE_THRESHOLD = 3;
+  const ROOTS_COLLAPSE_THRESHOLD = 6;
 
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const threadRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -227,7 +205,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       const clickedInside = Object.entries(menuRefs.current).some(
         ([id, ref]) => ref && menuOpenMap[id] && ref.contains(event.target as Node)
       );
-      
+
       if (!clickedInside) {
         setMenuOpenMap({});
       }
@@ -254,14 +232,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         }
         return a.y1 - b.y1;
       });
-      const topRect = sortedRects[0]; 
-      return topRect.pageNum * 100000 + topRect.y1; 
+      const topRect = sortedRects[0];
+      return topRect.pageNum * 100000 + topRect.y1;
     };
     const rootsWithSortKey = rootComments.map(root => {
       const sortKey = getHighlightSortKey(root.highlightId);
       return {
         ...root,
-        sortKey: sortKey !== null ? sortKey : Infinity 
+        sortKey: sortKey !== null ? sortKey : Infinity
       };
     });
     rootsWithSortKey.sort((a, b) => {
@@ -355,7 +333,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           }}
           onClick={(e) => { e.stopPropagation(); saveEdit(comment.id); }}
         >
-          保存
+          {t("CommentPanel.save-reply")}
         </button>
         <button
           style={{
@@ -370,7 +348,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           }}
           onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
         >
-          キャンセル
+          {t("CommentPanel.cancel-reply")}
         </button>
       </div>
     ) : (
@@ -456,6 +434,10 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       }
     }
 
+    // ヘッダーの高さを取得（デフォルト値は0）
+    const header = document.querySelector("header");
+    const headerHeight = header ? header.offsetHeight : 0;
+
     const targetElement = targetRootId && threadRefs.current[targetRootId];
     // const scrollContainer = scrollContainerRef.current;
     const commentPanel = commentPanelRef.current;
@@ -463,7 +445,10 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     if (targetElement instanceof HTMLDivElement) {
       const targetElement_y = targetElement.getBoundingClientRect().y;
       if (targetElement && commentPanel && targetHighlight) {
+        console.log(targetHighlight.rects[0].y1);
+        console.log(targetElement_y);
         commentPanel.scrollBy({
+          // 多分TODO: 現状は(スレッドのDOM位置) - (ハイライトのpdf位置)にしているので，DOM位置で計算する
           top: targetElement_y - targetHighlight.rects[0].y1,
           behavior: "smooth",
         })
@@ -472,18 +457,18 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   }, [activeCommentId, activeHighlightId]);
 
   return (
-    <div 
+    <div
       ref={commentPanelRef}
-      style={{ 
-        width: 300, 
-        borderLeft: "1px solid #ddd", 
+      style={{
+        width: 300,
+        borderLeft: "1px solid #ddd",
         padding: 10,
-        maxHeight: viewerHeight !== 'auto' 
-          ? `calc(${viewerHeight}px)` 
-          : 'auto', 
+        maxHeight: viewerHeight !== 'auto'
+          ? `calc(${viewerHeight}px)`
+          : 'auto',
         overflowY: 'auto',
       }}
-      className="comment-panel" 
+      className="comment-panel"
     >
       {/* <h3 style={{ marginBottom: 12, fontSize: 17 }}>コメント</h3> */}
       <h3 style={{ marginBottom: 12, fontSize: 17 }}></h3>
@@ -492,9 +477,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         style={{
           paddingTop: DYNAMIC_PADDING_PX,
           paddingBottom: DYNAMIC_PADDING_PX,
-          // うまくいかんかった
-          // marginTop: `-${DYNAMIC_PADDING_PX}`, // パネルの表示位置を相殺
-          // marginBottom: `-${DYNAMIC_PADDING_PX}`,
         }}
       >
         {sortedRootComments.map((root, rootIdx) => {
@@ -544,7 +526,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                   key={r.id}
                   style={{
                     marginLeft: 14,
-                    marginTop: 6, 
+                    marginTop: 6,
                     borderLeft: "2px solid #eee",
                     paddingLeft: 8,
                     background: activeCommentId === r.id ? "#e6f3ff" : "transparent",
@@ -573,13 +555,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               ))}
 
               <textarea
-                placeholder="返信を書く..."
+                placeholder={t("CommentPanel.reply-placeholder")}
                 value={replyTextMap[root.id] || ""}
                 onChange={(e) => handleReplyTextChange(root.id, e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   width: "100%",
-                  marginTop: 6, 
+                  marginTop: 6,
                   fontSize: 14,
                   padding: 6,
                   borderRadius: 6,
@@ -605,9 +587,9 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                   sendReply(root.id);
                 }}
               >
-                返信
+                {t("CommentPanel.reply")}
               </button>
-              
+
               {showCollapseButton && (
                 <button
                   onClick={(e) => {
@@ -633,7 +615,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               )}
 
             </div>
-          );s
+          );
         })}
       </div>
     </div>

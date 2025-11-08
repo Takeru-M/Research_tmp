@@ -30,6 +30,8 @@ import HighlightMemoModal from '../ components/HighlightMemoModal';
 import CommentPanel from '../ components/CommentPanel';
 import styles from '../styles/Home.module.css';
 import { v4 as uuidv4 } from 'uuid';
+import "../lang/config";
+import { useTranslation } from "react-i18next";
 
 // PdfViewerには、PDFのレンダリングが完了したことを通知する onRenderSuccess プロパティが追加されることを想定します。
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
@@ -37,6 +39,7 @@ const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: fal
 
 const EditorPage: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
+  const { t } = useTranslation();
 
   const file = useSelector(selectFile);
   const fileType = useSelector(selectFileType);
@@ -200,7 +203,7 @@ const EditorPage: React.FC = () => {
 
   // === Viewer ===
   const renderViewer = () => {
-    if (!file) return <p>ファイルをアップロードしてください</p>;
+    if (!file) return <p>{t("file-upload-txt")}</p>;
 
     if (fileType === 'application/pdf') {
       return (

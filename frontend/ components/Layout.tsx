@@ -2,19 +2,22 @@
 import Head from 'next/head';
 import React, { PropsWithChildren } from 'react';
 import styles from '../styles/Home.module.css';
+import { useTranslation } from "react-i18next";
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
+  const { t } = useTranslation();
+
   return (
     <>
       <Head>
-        <title>ファイルエディタ</title>
-        <meta name="description" content="ファイルエディタアプリケーション" />
+        <title>t{("main-title")}</title>
+        <meta name="description" content={t("app-description")} />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <header className={styles.header || 'header'}>
         <div className={styles.container || 'container'}>
-          <h1>ファイルエディタ</h1>
+          <h1>{t("main-title")}</h1>
         </div>
       </header>
 
@@ -24,7 +27,8 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
       <footer className={styles.footer || 'footer'}>
         <div className={styles.container || 'container'}>
-          <p>&copy; {new Date().getFullYear()} My File Editor</p>
+          {/* TODO: 国際化対応 */}
+          <p>&copy; {new Date().getFullYear()} {t("footer-txt")}</p>
         </div>
       </footer>
     </>

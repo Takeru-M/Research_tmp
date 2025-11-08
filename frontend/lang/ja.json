@@ -1,0 +1,24 @@
+{
+  "main-title": "ファイルエディタ",
+  "app-description": "ファイルエディタアプリケーション",
+  "footer-txt": "My File Editor",
+  "file-upload-txt": "ファイルをアップロードしてください",
+  "PdfViewer": {
+    "add-comment": "コメントを追加"
+  },
+  "HighlightMemoModal": {
+    "memo-title": "メモ",
+    "memo-placeholder": "ここにメモを入力...",
+    "save-memo": "保存",
+    "cancel-memo": "キャンセル"
+  },
+  "CommentPanel": {
+    "comment-author-user": "User",
+    "edit-comment": "編集",
+    "delete-comment": "削除",
+    "save-reply": "保存",
+    "cancel-reply": "キャンセル",
+    "reply-placeholder": "返信を書く",
+    "reply": "返信"
+  }
+}

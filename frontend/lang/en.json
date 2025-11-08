@@ -1,0 +1,24 @@
+{
+  "main-title": "File Editor",
+  "app-description": "File Editor Application",
+  "footer-txt": "My File Editor",
+  "file-upload-txt": "Please upload a file",
+  "PdfViewer": {
+    "add-comment": "Add Comment"
+  },
+  "HighlightMemoModal": {
+    "memo-title": "Memo",
+    "memo-placeholder": "Enter your memo here...",
+    "save-memo": "Save",
+    "cancel-memo": "Cancel"
+  },
+  "CommentPanel": {
+    "comment-author-user": "User",
+    "edit-comment": "Edit",
+    "delete-comment": "Delete",
+    "save-reply": "Save",
+    "cancel-reply": "Cancel",
+    "reply-placeholder": "Write a reply",
+    "reply": "Reply"
+  }
+}

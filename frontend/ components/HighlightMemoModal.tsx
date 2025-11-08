@@ -1,7 +1,8 @@
 // src/components/HighlightMemoModal.tsx
 import React, { useState, useEffect, MouseEvent } from 'react';
 import { useDispatch } from 'react-redux';
-import { setActiveHighlightId, setInitialCommentScrollFlag } from '@/redux/features/editor/editorSlice';
+import { setActiveHighlightId } from '@/redux/features/editor/editorSlice';
+import { useTranslation } from "react-i18next";
 
 interface HighlightMemoModalProps {
   highlightId: string | null;
@@ -14,6 +15,7 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
   const [memoText, setMemoText] = useState<string>(currentMemo || '');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const dispatch = useDispatch();
+  const { t } = useTranslation();
 
   useEffect(() => {
     setMemoText(currentMemo || '');
@@ -38,14 +40,14 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e: MouseEvent) => e.stopPropagation()}>
         <button className="close-button" onClick={onClose}>&times;</button>
-        <h2>メモ</h2>
+        <h2>{t("HighlightMemoModal.memo-title")}</h2>
         <textarea
           value={memoText}
           onChange={(e) => {
             setMemoText(e.target.value);
             setErrorMessage('');
           }}
-          placeholder="ここにメモを入力..."
+          placeholder={t("HighlightMemoModal.memo-placeholder")}
           rows={5}
         />
         {errorMessage && (
@@ -54,10 +56,8 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
           </p>
         )}
         <div style={{ marginTop: '15px' }}>
-            <button onClick={handleSave}>保存</button>
-            <button onClick={onClose} style={{ marginLeft: '10px', backgroundColor: '#6c757d' }}>
-              キャンセル
-            </button>
+            <button onClick={handleSave}>{t("HighlightMemoModal.save-memo")}</button>
+            <button onClick={onClose} style={{ marginLeft: '10px', backgroundColor: '#6c757d' }}>{t("HighlightMemoModal.cancel-memo")}</button>
         </div>
       </div>
     </div>
