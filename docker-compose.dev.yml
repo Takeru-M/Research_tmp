@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      target: dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
+  backend:
+    # 開発用にLaravelの.envなどを反映（環境に合わせて設定）
+    environment:
+      APP_ENV: local
+      DB_HOST: db
+      DB_DATABASE: laravel_db
+      DB_USERNAME: laravel_user
+      DB_PASSWORD: password
+
+  nginx:
+    ports:
+      - "80:80"

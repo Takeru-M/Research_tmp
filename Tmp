@@ -1,0 +1,14 @@
+// 開発環境
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+// 本番環境
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+// テスト（Docker Composeネットワーク内でコマンドを実行）
+docker compose exec backend bash -c "php artisan migrate --env=testing && vendor/bin/phpunit"
+
+// コンテナ削除
+docker compose down --remove-orphans
+
+// 初回リクエスト（nginxを経由してフロントがレスポンスを返す）
+"localhost:80"にアクセス

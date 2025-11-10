@@ -1,3 +1,4 @@
+// 使用はしているが，未実装のためおそらく役に立っていない
 // src/components/FabricShapeLayer.tsx
 import React, { useRef, useEffect, useCallback } from 'react';
 import * as fabric from 'fabric';
@@ -35,7 +36,7 @@ const FabricShapeLayer: React.FC<FabricShapeLayerProps> = ({
     return { left, top, w, h };
   }, [viewport]);
 
-  // ✅ unified cleanup function
+  // unified cleanup function
   const disposeAll = () => {
     const cvs = canvasesRef.current;
     if (cvs && typeof cvs === 'object') {
@@ -88,7 +89,7 @@ const FabricShapeLayer: React.FC<FabricShapeLayerProps> = ({
       wrap.appendChild(canvasEl);
       container.appendChild(wrap);
 
-      // ✅ backgroundColor should be undefined in fabric v5
+      // backgroundColor should be undefined in fabric v5
       const fCanvas = new fabric.Canvas(canvasEl, {
         backgroundColor: undefined,
         selection: false,

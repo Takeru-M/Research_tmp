@@ -115,6 +115,32 @@ return [
 
     ],
 
+    'connections' => array_merge(
+        $connections,
+        [
+            // PHPUnit実行時に利用されることが推奨される接続設定
+            'testing' => [
+                'driver' => 'mysql',
+                // ホスト名はテスト用DBコンテナのサービス名 (Step 1で定義した名前)
+                'host' => env('DB_HOST_TEST', 'db_test'),
+                'port' => env('DB_PORT_TEST', '3306'),
+                // DB名は Step 1の MYSQL_TEST_DATABASE と一致させる
+                'database' => env('DB_DATABASE_TEST', 'laravel_test_db'),
+                'username' => env('DB_USERNAME', 'Takeru'),
+                'password' => env('DB_PASSWORD', 'kenrokuen'),
+                'charset' => 'utf8mb4',
+                'collation' => 'utf8mb4_unicode_ci',
+                'prefix' => '',
+                'prefix_indexes' => true,
+                'strict' => true,
+                'engine' => null,
+                'options' => extension_loaded('pdo_mysql') ? array_filter([
+                    PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                ]) : [],
+            ],
+        ],
+    ),
+
     /*
     |--------------------------------------------------------------------------
     | Migration Repository Table

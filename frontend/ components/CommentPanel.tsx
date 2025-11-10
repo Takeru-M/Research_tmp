@@ -10,35 +10,25 @@ import {
   setActiveHighlightId,
 } from "../redux/features/editor/editorSlice";
 import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
+import { Comment } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
+import "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD } from "@/utils/constants";
 
-// 💡 修正1: 動的なパディングを計算するヘルパー関数
+// 動的なパディングを計算するヘルパー関数
 // ページ全体の半分まではスクロール可
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
   return (typeof viewerHeight !== 'number') ? 500 : viewerHeight;
 };
 // -------------------------------------------------------------------
 
-// 3-dot menu styles (省略)
+// TODO: CSS読み込みで対応
 const menuStyle: React.CSSProperties = {
   position: "relative",
   display: "inline-block",
 };
-// ... (中略: menuButtonStyle, dropdownStyle, menuItem の定義は省略します)
 
-interface Comment {
-  id: string;
-  parentId: string | null;
-  highlightId: string;
-  author: string;
-  text: string;
-  createdAt: string;
-  editedAt: string | null;
-  deleted: boolean;
-}
-
-// CommentHeader コンポーネント (変更なし)
+// CommentHeader コンポーネント
 const CommentHeader: React.FC<{
   comment: Comment;
   editingId: string | null;
@@ -213,13 +203,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const rootComments: Comment[] = comments.filter((c: Comment) => c.parentId === null);
   const getReplies = (pid: string): Comment[] => comments.filter((c: Comment) => c.parentId === pid);
 
-  // ハイライトの縦位置（PDF座標）に基づいてルートコメントをソートするロジック (ランタイムエラー修正済み)
+  // ハイライトの縦位置（PDF座標）に基づいてルートコメントをソートするロジック
   const sortedRootComments = useMemo(() => {
     const getHighlightSortKey = (highlightId: string): number | null => {
       const highlight = (highlights as PdfHighlight[]).find((h) => h.id === highlightId);
       if (!highlight || highlight.rects.length === 0) return null;
 
-      // 💡 修正: highlight.rects のコピーを作成してからソートする (読み取り専用エラー回避)
+      // highlight.rects のコピーを作成してからソートする (読み取り専用エラー回避)
       const sortedRects = [...highlight.rects].sort((a, b) => {
         if (a.pageNum !== b.pageNum) {
           return a.pageNum - b.pageNum;
@@ -394,7 +384,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comments.length]);
 
-  // Expand the thread when a corresponding highlight or comment is selected (変更なし)
+  // Expand the thread when a corresponding highlight or comment is selected
   useEffect(() => {
     if (activeCommentId) {
       const rootId = findRootId(activeCommentId);
@@ -412,11 +402,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
   }, [activeHighlightId]);
 
-  // 💡 修正2: スクロールを強制するための動的パディングを計算
+  // スクロールを強制するための動的パディングを計算
   const DYNAMIC_PADDING = getDynamicPadding(viewerHeight);
   const DYNAMIC_PADDING_PX = `${DYNAMIC_PADDING }px`;
 
-  // 💡 修正3: activeScrollTarget に基づいたスクロールロジック
+  // activeScrollTarget に基づいたスクロールロジック
   useEffect(() => {
     let targetRootId: string | null = null;
     if (activeCommentId) {

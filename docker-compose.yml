@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # --- Next.js (フロントエンド) ---
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      target: base
+    container_name: nextjs_frontend
+    networks:
+      - app-network
+
+  # --- Laravel (PHP-FPM) ---
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: laravel_backend
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - app-network
+    depends_on:
+      - db
+      - db_test
+
+  # --- Nginx (Webサーバ/リバースプロキシ) ---
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx_proxy
+    volumes:
+      - ./backend:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - app-network
+    depends_on:
+      - frontend
+      - backend
+
+  # --- MySQL (開発/本番用DB) ---
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: 'Asia/Tokyo'
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - app-network
+
+  # --- MySQL (テスト用DB) ---
+  db_test:
+    # 開発環境でのみ使用
+    image: mysql:8.0
+    container_name: mysql_db_test
+    environment:
+      MYSQL_DATABASE: ${MYSQL_TEST_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: 'Asia/Tokyo'
+    volumes:
+      - db-test-data:/var/lib/mysql
+    networks:
+      - app-network
+
+# --- ネットワークとボリューム定義 ---
+volumes:
+  db-data:
+  db-test-data:
+
+networks:
+  app-network:
+    driver: bridge

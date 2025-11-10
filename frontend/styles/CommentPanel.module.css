@@ -1,7 +1,13 @@
+/* 現状は使用していない */
+.menuStyle {
+  position: "relative";
+  display: "inline-block";
+}
+
 .menuButtonStyle {
   cursor: "pointer";
   color: "black";
-  fontSize: 18;
+  fontSize: 18px;
   padding: "4px 8px";
   borderRadius: "50%";
   lineHeight: 1;
@@ -10,4 +16,12 @@
   :hover {
     backgroundColor: '#eee',
   }
+}
+
+.dropdownStyle {
+
+}
+
+.menuItem {
+
 }

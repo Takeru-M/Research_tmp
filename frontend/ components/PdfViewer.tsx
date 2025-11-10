@@ -14,28 +14,12 @@ import FabricShapeLayer from './FabricShapeLayer';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from 'uuid';
+import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url,
 ).toString();
-
-// --- ページデータ構造の定義 ---
-interface PageLoadData {
-  width: number;
-  height: number;
-  viewport: PageViewport;
-  textContent: string | null;
-}
-
-interface PdfViewerProps {
-  file: string | null;
-  highlights: PdfHighlight[];
-  comments: CommentType[];
-  onRequestAddHighlight?: (highlight: PdfHighlight) => void;
-  onHighlightClick?: (highlightId: string) => void;
-  onRenderSuccess?: () => void;
-}
 
 const PdfViewer: React.FC<PdfViewerProps> = ({
   file,
@@ -170,26 +154,35 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   // PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック
   useEffect(()=>{
-    if(!viewerRef.current||!numPages) return;
-    let nScales:any={}, changed=false;
-    for(let i=1;i<=numPages;i++){
-      const dim=pageData[i];
-      if(!dim) continue;
-      // Pageコンポーネントが描画したCanvasの実際の幅を取得
-      const el = viewerRef.current.querySelector(`.react-pdf__Page[data-page-number="${i}"]`);
-      const cv = el?.querySelector("canvas") as HTMLCanvasElement|null;
-      const w=cv?.offsetWidth;
-
-      if(w && dim.width){
-        const s=w/dim.width;
-        // 誤差を考慮して比較し、変更があれば更新
-        if(Math.abs((pageScales[i]||0) - s) > 0.001){
-            nScales[i]=s; changed=true;
+    if(!viewerRef.current || !numPages) return;
+    setPageScales(prevScales => {
+      let nScales:any = {};
+      let changed = false;
+      for(let i = 1; i <= numPages; i++){
+        const dim = pageData[i];
+        if(!dim) continue;
+        // Pageコンポーネントが描画したCanvasの実際の幅を取得
+        const el = viewerRef.current!.querySelector(`.react-pdf__Page[data-page-number="${i}"]`);
+        const cv = el?.querySelector("canvas") as HTMLCanvasElement|null;
+        const w = cv?.offsetWidth;
+        if(w && dim.width){
+          const s = w / dim.width;
+          // 誤差を考慮して比較し、変更があれば更新
+          // prevScales を参照することで、外部の pageScales に依存しない
+          if(Math.abs((prevScales[i] || 0) - s) > 0.001){
+              nScales[i] = s;
+              changed = true;
+          }
         }
       }
-    }
-    if(changed) setPageScales(p=>({...p,...nScales}));
-  },[numPages,pageData,pageScales]);
+      // 変更がなければ前の状態をそのまま返し、setStateをスキップする
+      if(!changed) {
+          return prevScales;
+      }
+      // 変更があれば新しいスケールをマージして返す
+      return {...prevScales, ...nScales};
+  });
+},[viewerRef, numPages, pageData]);
 
   // 全てのページスケールが確定したら、親にレンダリング完了を通知する
   useEffect(() => {
@@ -203,7 +196,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   }, [numPages, pageScales, pageData, onRenderSuccess]);
 
 
-  // 💡 修正: ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
+  // ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
   const renderHighlightVisuals = useCallback((page:number)=>{
     if(!pageData[page]||!pageScales[page]) return null;
     const scale = pageScales[page];
@@ -224,7 +217,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             height:(r.y2-r.y1)*scale,
             background: isActive ? 'rgba(255,200,0,0.65)' : 'rgba(255,235,59,0.35)',
             borderRadius:2,
-            // 💡 修正: pointer-events: none に設定し、全てのイベントを下層に透過させる
+            // pointer-events: none に設定し、全てのイベントを下層に透過させる
             pointerEvents: 'none' as const,
             // TextLayerより上に配置
             zIndex: isActive ? 20 : 8,
@@ -232,7 +225,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           };
 
           return (
-            // 💡 修正: onClickハンドラを削除し、純粋な視覚要素として配置
             <div
               key={`${h.id}-${idx}-visual`}
               data-highlight-id={h.id}
@@ -261,7 +253,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const target = e.target as HTMLElement;
     const clickedPageEl = target.closest('.react-pdf__Page');
 
-    // --- 💡 修正: ハイライトクリック検出ロジック ---
+    // --- ハイライトクリック検出ロジック ---
     // テキスト選択が行われなかった場合（単純クリックの場合）
     if(!sel || sel.isCollapsed) {
         if (!clickedPageEl) return;

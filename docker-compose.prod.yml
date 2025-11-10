@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      target: production
+    # ports:
+    #   - "3000:3000" # Nginx経由なので通常は不要。直接アクセスしたい場合のみ有効化
+
+  backend:
+    build:
+      target: production
+    # 本番用の.env設定（Secretや外部設定サービスからの取得を推奨）
+    environment:
+      APP_ENV: production
+
+  nginx:
+    # portsはクラウド環境のロードバランサ等に任せるため不要だが、確認用に設定する場合
+    # ports:
+    #   - "80:80"
+
+  # 本番では通常db_testは不要なので、オーバーライドで除外
+  db_test:
+    deploy:
+      resources:
+        limits:
+          memory: 0 # サービスを事実上停止
+
+# ボリュームも本番用と分ける場合は、ここでオーバーライド
