@@ -20,23 +20,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(405).end('Method Not Allowed');
     }
 
-    const { systemPrompt, userInput } = req.body;
+    const { formatDataPrompt, pdfTextData } = req.body;
 
-    if (!systemPrompt) {
-        return res.status(400).json({ error: 'Missing "systemInput" in request body.' });
-    } else if (!userInput) {
-      return res.status(400).json({ error: 'Missing "userInput" in request body.' });
+    if (!formatDataPrompt) {
+        return res.status(400).json({ error: 'Missing "formatDataPrompt" in request body.' });
+    } else if (!pdfTextData) {
+      return res.status(400).json({ error: 'Missing "pdfTextData" in request body.' });
     }
 
     try {
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
-            temperature: 0.7,
+            temperature: 0.1,
             messages: [
-              {role: "system", content: systemPrompt},
-              {role: "user", content: JSON.stringify(userInput, null, 2)}
-            ],
-            response_format: {type: "json_object"},
+              {role: "system", content: formatDataPrompt},
+              {role: "user", content: pdfTextData}
+            ]
         });
 
         const analysisResult = response.choices[0].message.content;

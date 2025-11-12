@@ -96,3 +96,10 @@ export type HighlightInfo = {
   text: string;
   type: 'pdf' | string;
 }
+
+export type HighlightCommentList = {
+  id: string;
+  highlightId: string;
+  highlight: string;
+  comment: string;
+}[]
