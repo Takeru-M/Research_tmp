@@ -72,6 +72,7 @@ export interface EditorState {
   activeHighlightMemo: string | null;
   pdfTextContent: string | null;
   activeScrollTarget: ScrollTarget | null;
+  pdfScale: number;
   responses: Record<string, string>;
 }
 

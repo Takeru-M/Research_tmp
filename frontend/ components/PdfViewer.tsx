@@ -43,6 +43,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
   });
 
+  const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeCommentId = useSelector(selectActiveCommentId);
 
@@ -476,7 +477,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               // アノテーションは必要ないので無効化
               renderAnnotationLayer={false}
               renderTextLayer={true}
-              scale={1.5}
+              scale={pdfScale}
             />
 
             {/* ハイライトの描画レイヤー (pointer-events: noneで透過) */}

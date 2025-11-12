@@ -1,11 +1,9 @@
 // src/redux/features/editor/editorSlice.ts (修正後)
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-// 💡 修正: EditorState, Highlight, Comment に加え、ScrollTarget をインポート
 import { EditorState, Highlight, Comment, ScrollTarget } from './editorTypes';
-import { v4 as uuidv4 } from 'uuid'; // uuidv4 が使用されていないが、念のためインポートは維持
+// import { v4 as uuidv4 } from 'uuid';
 
-// 💡 修正1: activeScrollTarget の状態を初期化に追加
 const initialState: EditorState = {
   file: null,
   fileType: null,
@@ -17,6 +15,7 @@ const initialState: EditorState = {
   activeHighlightMemo: null,
   pdfTextContent: null as string | null,
   activeScrollTarget: null as ScrollTarget | null,
+  pdfScale: 1.0,
   responses: {} as Record<string, string>,
 };
 
@@ -119,7 +118,7 @@ const editorSlice = createSlice({
       if (action.payload === null) {
         state.activeCommentId = null;
         // 💡 修正: activeHighlightId が null になったら activeScrollTarget もリセット
-        state.activeScrollTarget = null; 
+        state.activeScrollTarget = null;
       }
     },
     setActiveCommentId(state, action: PayloadAction<string | null>) {
@@ -129,7 +128,7 @@ const editorSlice = createSlice({
         if (c) state.activeHighlightId = c.highlightId;
       } else {
         // 💡 修正: activeCommentId が null になったら activeScrollTarget もリセット
-        state.activeScrollTarget = null; 
+        state.activeScrollTarget = null;
       }
     },
 
@@ -140,6 +139,11 @@ const editorSlice = createSlice({
 
     setActiveHighlightMemo(state, action: PayloadAction<string | null>) {
       state.activeHighlightMemo = action.payload;
+    },
+
+    setPdfScale(state, action: PayloadAction<number>) {
+      // 0.1 から 3.0 の範囲で制約を設けるなど、必要に応じて調整できます。
+      state.pdfScale = action.payload;
     },
 
     clearAllState(state) {
@@ -178,6 +182,7 @@ export const {
   setActiveCommentId,
   setActiveScrollTarget,
   setActiveHighlightMemo,
+  setPdfScale,
   clearAllState,
   addLLMResponse,
 } = editorSlice.actions;

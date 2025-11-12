@@ -12,3 +12,13 @@ export const JSON_SAMPLE = {
 export const COLLAPSE_THRESHOLD = 3;
 // コメントパネルに表示されるルートコメントのスレッド数の制限
 export const ROOTS_COLLAPSE_THRESHOLD = 6;
+
+// pdf表示エリアの変更可能倍率一覧
+export const SCALE_OPTIONS = [
+  { value: 0.5, label: '50%' },
+  { value: 0.75, label: '75%' },
+  { value: 1.0, label: '100%' },
+  { value: 1.25, label: '125%' },
+  { value: 1.5, label: '150%' },
+  { value: 2.0, label: '200%' },
+];
