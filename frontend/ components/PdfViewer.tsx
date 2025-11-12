@@ -1,4 +1,4 @@
-// src/components/PdfViewer.tsx (修正後)
+// src/components/PdfViewer.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
@@ -52,6 +52,37 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const c = comments.find((x) => x.id === activeCommentId);
     return c ? c.highlightId : null;
   }, [activeCommentId, comments]);
+
+  const mockResponseData = {
+    "highlight_feedback": [
+      {
+        "id": "1f53f84e-5b84-44cc-988a-5bbd71083f11",
+        "highlight_id": "pdf-1762954464881",
+        "intervention_needed": true,
+        "reason": "UIの不便さについての懸念が表面的で具体的な解決策が示されていないため",
+        "suggestion": "この懸念を解消するためには、どのような改善策が考えられるでしょうか？別のアプローチが必要かもしれません。"
+      },
+      // ... 他のハイライトフィードバックデータ ...
+      {
+        "id": "132928f9-7ef9-442a-8ebc-be690b87f4da",
+        "highlight_id": "pdf-1762954555929",
+        "intervention_needed": false,
+        "reason": "UIの必要性について具体的な根拠が示されているため",
+        "suggestion": ""
+      }
+    ],
+    "unhighlighted_feedback": [
+      {
+        "unhighlighted_text": "実装進捗の報告2025-11-04 松島丈翔",
+        "suggestion": ""
+      },
+      // ... 他の未ハイライトフィードバックデータ ...
+      {
+        "unhighlighted_text": "今後予定している実装・pdf表示エリアの画像や図形を選択可能に",
+        "suggestion": "選択可能にすることの具体的な利点は何か、他に考えられる改善点はありますか？"
+      }
+    ]
+  };
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
 
@@ -401,7 +432,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       const systemPrompt = OPTION_SYSTEM_PROMPT;
       const userInput = {
-        "mt_text": firstResponse.data,
+        "mt_text": firstResponse.data.analysis,
         "highlights": highlightCommentList,
       }
 
@@ -409,30 +440,30 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           systemPrompt: systemPrompt,
           userInput: userInput,
       });
-      console.log(response.data);
-      const data = response.data;
-      if (data?.responses && Array.isArray(data.responses)) {
-        // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）
-        // let lastAddedCommentId: string | null = null;
-        // data.responses.forEach((r: { id: string; response: string }) => {
-        //   const commentObj: CommentType = {
-        //     id: uuidv4(),
-        //     highlightId: r.id,
-        //     parentId: null,
-        //     author: 'AI',
-        //     text: r.response,
-        //     createdAt: new Date().toISOString(),
-        //     editedAt: null,
-        //     deleted: false,
-        //   };
-        //   dispatch(addComment(commentObj));
-        //   lastAddedCommentId = commentObj.id;
-        // });
 
-        // 最後に追加したコメントをアクティブにする（UIに即表示されるように）
-        // if (lastAddedCommentId) {
-        //   dispatch(setActiveCommentId(lastAddedCommentId));
-        // }
+      const responseData = JSON.parse(response.data.analysis);
+      console.log(responseData);
+      if (responseData) {
+        // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）
+        const highlight_feedback = responseData.highlight_feedback;
+        const unhighlighted_feedback = responseData.unhighlighted_feedback;
+
+        // --- ハイライトへの返信を追加 ---
+        highlight_feedback.forEach((hf: any) => {
+          if (hf.intervention_needed && hf.suggestion) {
+            dispatch(
+              addComment({
+                id: `s-${Date.now()}`,
+                highlightId: hf.highlight_id,
+                parentId: hf.id,
+                author: 'AI',
+                text: hf.suggestion,
+                createdAt: new Date().toISOString(),
+                editedAt: null,
+                deleted: false,
+            }));
+          }
+        });
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {

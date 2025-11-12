@@ -65,6 +65,7 @@ export const OPTION_SYSTEM_PROMPT = `
 次の2つの配列を含めてください。
 
 1. highlight_feedback（ハイライト箇所へのフィードバック）
+- id: string
 - highlight_id: string
 - intervention_needed: boolean
 - reason: その判断の理由
