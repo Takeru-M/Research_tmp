@@ -162,7 +162,7 @@ Research_tmp
 
 ### コンテナの作成と起動
 
-.env ファイル（ルートディレクトリ，frontendフォルダ，backendフォルダの三箇所）を以下の環境変数例と[環境変数の一覧](#環境変数の一覧)を元に作成
+.env ファイル（ルートディレクトリ，frontendフォルダ，backendフォルダの三箇所）を[環境変数の一覧](#環境変数の一覧)を元に作成
 
 
 .env ファイルを作成後、以下のコマンドで開発環境を構築
@@ -188,20 +188,25 @@ http://127.0.0.1:80 にアクセスできるか確認
 docker compose down
 
 ### 環境変数の一覧
+.env（ルートディレクトリ）
+MYSQL_ROOT_PASSWORD={ルートパスワード}
+MYSQL_USER={ユーザ名}
+MYSQL_PASSWORD={パスワード}
+MYSQL_DATABASE=laravel_db
+MYSQL_TEST_DATABASE=laravel_test_db
 
-| 変数名                 | 役割                                      | デフォルト値                       | DEV 環境での値                           |
-| ---------------------- | ----------------------------------------- | ---------------------------------- | ---------------------------------------- |
-| MYSQL_ROOT_PASSWORD    | MySQL のルートパスワード（Docker で使用） | root                               |                                          |
-| MYSQL_DATABASE         | MySQL のデータベース名（Docker で使用）   | django-db                          |                                          |
-| MYSQL_USER             | MySQL のユーザ名（Docker で使用）         | django                             |                                          |
-| MYSQL_PASSWORD         | MySQL のパスワード（Docker で使用）       | django                             |                                          |
-| MYSQL_HOST             | MySQL のホスト名（Docker で使用）         | db                                 |                                          |
-| MYSQL_PORT             | MySQL のポート番号（Docker で使用）       | 3306                               |                                          |
-| SECRET_KEY             | Django のシークレットキー                 | secretkey                          | 他者に推測されないランダムな値にすること |
-| ALLOWED_HOSTS          | リクエストを許可するホスト名              | localhost 127.0.0.1 [::1] back web | フロントのホスト名                       |
-| DEBUG                  | デバッグモードの切り替え                  | True                               | False                                    |
-| TRUSTED_ORIGINS        | CORS で許可するオリジン                   | http://localhost                   |                                          |
-| DJANGO_SETTINGS_MODULE | Django アプリケーションの設定モジュール   | project.settings.local             | project.settings.dev                     |
+.env（frontend内）
+OPENAI_SECRET_KEY={APIキー}
+
+.env（backend内）
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=laravel_db
+DB_USERNAME={ユーザ名}
+DB_PASSWORD={パスワード}
+
+※その他の環境変数についてはLaravel作成時.envファイルと同様
 
 ### コマンド一覧
 特になし．
