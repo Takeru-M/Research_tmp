@@ -266,7 +266,6 @@ const EditorPage: React.FC = () => {
     display: "flex",
     alignItems: "flex-start",
     width: '100%',
-    overflowX: 'hidden',
     padding: '0 2%',
   };
 

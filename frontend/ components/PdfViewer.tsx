@@ -15,6 +15,7 @@ import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from 'uuid';
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
+import { MIN_PDF_WIDTH } from '@/utils/constants';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -450,6 +451,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           position:"relative",
           width:"100%",
           height:"100%",
+          minWidth: MIN_PDF_WIDTH,
+          overflowX: "auto",
         }}
         ref={viewerRef}
         onMouseUp={handleMouseUp}

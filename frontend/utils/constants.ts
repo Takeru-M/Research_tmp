@@ -24,7 +24,7 @@ export const SCALE_OPTIONS = [
 ];
 
 // PDFビューアの最小幅 (px)
-export const MIN_PDF_WIDTH = 500;
+export const MIN_PDF_WIDTH = 650;
 // コメントパネルの最小幅 (px)
 export const MIN_COMMENT_PANEL_WIDTH = 300;
 // リサイズハンドルの幅 (px)

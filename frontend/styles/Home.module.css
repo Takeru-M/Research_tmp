@@ -44,9 +44,7 @@
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
   border-radius: 8px;
   padding: 1rem;
-
-  /* ✅ 全体を表示するので scroll 禁止 */
-  overflow: visible;
+  overflow-y: visible;
   max-height: none;
   min-height: 100vh;
 }
