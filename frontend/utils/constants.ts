@@ -22,3 +22,10 @@ export const SCALE_OPTIONS = [
   { value: 1.5, label: '150%' },
   { value: 2.0, label: '200%' },
 ];
+
+// PDFビューアの最小幅 (px)
+export const MIN_PDF_WIDTH = 500;
+// コメントパネルの最小幅 (px)
+export const MIN_COMMENT_PANEL_WIDTH = 300;
+// リサイズハンドルの幅 (px)
+export const HANDLE_WIDTH = 8;

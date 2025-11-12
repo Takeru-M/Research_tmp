@@ -17,5 +17,4 @@ export interface PdfViewerProps {
   onHighlightClick?: (highlightId: string) => void;
   onRenderSuccess?: () => void;
   containerStyle?: CSSProperties;
-  pdfScale: number;
 }

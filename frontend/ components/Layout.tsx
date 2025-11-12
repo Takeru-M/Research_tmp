@@ -26,8 +26,8 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <header className={styles.header || 'header'} style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: '#fff', borderBottom: '1px solid #ccc' }}>
-        <div className={styles.container || 'container'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className={styles.header || 'header'}>
+        <div className={styles.container || 'container'}>
           <h1>{t("main-title")}</h1>
           {/* 倍率変更 UI の追加 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -48,7 +48,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
         </div>
       </header>
 
-      <main className={styles.main || 'main-content'} style={{ paddingTop: '70px' }}>
+      <main className={styles.main || 'main-content'}>
         <div className={styles.container || 'container'}>{children}</div>
       </main>
 

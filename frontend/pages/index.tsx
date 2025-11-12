@@ -1,4 +1,4 @@
-// src/pages/index.tsx (最終修正版)
+// src/pages/index.tsx
 import React, { useCallback, useEffect, useState, ChangeEvent, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -33,15 +33,10 @@ import { v4 as uuidv4 } from 'uuid';
 import "../lang/config";
 import { useTranslation } from "react-i18next";
 import { CSSProperties } from 'react'; // CSSPropertiesをインポート
+import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
 
-// PdfViewerには、PDFのレンダリングが完了したことを通知する onRenderSuccess プロパティが追加されることを想定します。
-// また、リサイズに対応するため、PdfViewerに width を渡せるように修正済みと仮定します。
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
-const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
-
-const MIN_PDF_WIDTH = 500; // PDFビューアの最小幅 (px)
-const MIN_COMMENT_PANEL_WIDTH = 300; // コメントパネルの最小幅 (px)
-const HANDLE_WIDTH = 8; // リサイズハンドルの幅 (px)
+// const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
 
 const EditorPage: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
@@ -51,15 +46,12 @@ const EditorPage: React.FC = () => {
   const fileType = useSelector(selectFileType);
   const fileContent = useSelector(selectFileContent);
   const pdfHighlights = useSelector(selectPdfHighlights);
-  const textHighlights = useSelector(selectTextHighlights);
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeHighlightMemo = useSelector(selectActiveHighlightMemo);
   const allComments = useSelector(selectAllComments);
 
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
-
-  // --- リサイズ機能用のStateとRefを追加 ---
   const mainContainerRef = useRef<HTMLDivElement>(null);
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
@@ -155,7 +147,7 @@ const EditorPage: React.FC = () => {
     const handleClickOutside = (e: MouseEvent) => {
       // リサイズ中はクリックイベントを無視
       if (isResizing.current) return;
-      
+
       if (!(e.target as HTMLElement).closest(".highlight, .comment-panel, .resize-handle")) {
         dispatch(setActiveHighlightId(null));
         dispatch(setActiveCommentId(null));
@@ -241,8 +233,6 @@ const EditorPage: React.FC = () => {
     if (!file) return <p>{t("file-upload-txt")}</p>;
 
     if (fileType === 'application/pdf') {
-      // PdfViewerに幅を制御する containerStyle を渡す
-      const pdfViewerStyle: CSSProperties = { width: '100%', height: '100%' };
 
       return (
         <PdfViewer
@@ -252,7 +242,6 @@ const EditorPage: React.FC = () => {
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
           onRenderSuccess={handlePdfRenderComplete}
-          containerStyle={pdfViewerStyle} // 修正点: containerStyleを追加
         />
       );
     }
@@ -274,24 +263,23 @@ const EditorPage: React.FC = () => {
 
   // メインコンテナのレイアウト
   const mainLayoutStyle: CSSProperties = {
-    display: "flex", 
+    display: "flex",
     alignItems: "flex-start",
     width: '100%',
     overflowX: 'hidden',
-    height: '100vh', // 画面いっぱいの高さを使用する想定
-    padding: '0 2%', // 左右の余白はコンテナに移動
+    padding: '0 2%',
   };
 
   return (
     <div className={styles.container} style={mainLayoutStyle} ref={mainContainerRef}>
-      
+
       {/* 1. PDFビューアエリア - 動的に幅を適用 */}
-      <div 
+      <div
         style={{
           width: pdfViewerWidth,
           minWidth: MIN_PDF_WIDTH,
           flexShrink: 0,
-          paddingTop: "2%", // ファイルアップロードセクションのパディング
+          paddingTop: "2%",
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
@@ -301,8 +289,8 @@ const EditorPage: React.FC = () => {
           <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
         </div>
 
-        {/* Viewerコンテンツ部分 - 縦スクロールはPdfViewer内で処理される想定 */}
-        <div className={styles.viewerContainer} ref={viewerContentRef} style={{ flexGrow: 1, overflow: 'hidden' }}>
+        {/* Viewerコンテンツ部分 */}
+        <div className={styles.viewerContainer} ref={viewerContentRef}>
           {renderViewer()}
         </div>
       </div>
