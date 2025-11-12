@@ -1,4 +1,4 @@
-// src/components/PdfViewer.tsx
+// src/components/PdfViewer.tsx (修正後)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
@@ -444,72 +444,84 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   }, [highlights, comments, pdfTextContent, dispatch]);
 
   return (
-<div style={{position:"relative",width:"100%",height:"100%", overflowY: 'auto'}} ref={viewerRef} onMouseUp={handleMouseUp}>
-  {file?(
-    <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
-      {Array.from(new Array(numPages || 0), (_, i) =>
-      <div key={i + 1} style={{ position: "relative", marginBottom: 12, width: '100%' }}>
-        <Page
-          pageNumber={i + 1}
-          onLoadSuccess={(p: PDFPageProxy) => onPageLoadSuccess(p, i + 1)}
-          renderAnnotationLayer={true}
-          renderTextLayer={true}
-        />
+    // 修正箇所: JavaScriptコメントからJSXコメントに変更
+    // {/* 親のコンテナ (viewerRef) は引き続き幅100%で、overflowY: auto を持つ */}
+    <div style={{position:"relative",width:"100%",height:"100%", overflowY: 'auto'}} ref={viewerRef} onMouseUp={handleMouseUp}>
+      {file?(
+        <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
+          {Array.from(new Array(numPages || 0), (_, i) =>
+          <div
+            key={i + 1}
+            style={{
+              position: "relative",
+              marginBottom: 12,
+              margin: '0 auto',
+              width: 'max-content',
+            }}
+          >
+            <Page
+              pageNumber={i + 1}
+              onLoadSuccess={(p: PDFPageProxy) => onPageLoadSuccess(p, i + 1)}
+              // アノテーションは必要ないので無効化
+              renderAnnotationLayer={false}
+              renderTextLayer={true}
+              scale={1.5}
+            />
 
-        {/* ハイライトの描画レイヤー (pointer-events: noneで透過) */}
-        {renderHighlightVisuals(i + 1)}
+            {/* ハイライトの描画レイヤー (pointer-events: noneで透過) */}
+            {renderHighlightVisuals(i + 1)}
 
-        {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
-          <FabricShapeLayer
-            pageNumber={i + 1}
-            width={pageData[i + 1].width}
-            height={pageData[i + 1].height}
-            viewport={pageData[i + 1].viewport}
-            scale={pageScales[i + 1]}
-            shapeData={pageShapeData[i + 1]}
-            onSelectShape={handleRequestShapeHighlight}
-          />
+            {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
+              <FabricShapeLayer
+                pageNumber={i + 1}
+                width={pageData[i + 1].width}
+                height={pageData[i + 1].height}
+                viewport={pageData[i + 1].viewport}
+                scale={pageScales[i + 1]}
+                shapeData={pageShapeData[i + 1]}
+                onSelectShape={handleRequestShapeHighlight}
+              />
+            )}
+          </div>
         )}
-      </div>
-    )}
-    </Document>
-  ): <p style={{textAlign:'center'}}>PDFを読み込んでいません</p> }
+        </Document>
+      ): <p style={{textAlign:'center'}}>PDFを読み込んでいません</p> }
 
-  {selectionMenu.visible && (
-    <div className="pdf-add-menu"
-      style={{
-        position:"fixed",
-        left:selectionMenu.x,
-        top:selectionMenu.y,
-        background:"#fff",
-        border:"1px solid #ccc",
-        borderRadius:4,
-        padding:"4px 6px",
-        display:"flex",
-        gap:4,
-        fontSize:12,
-        zIndex:9999
-      }}>
-      <button style={{fontSize:12,padding:"2px 6px"}} onClick={addHighlight}>{t("PdfViewer.add-comment")}</button>
-    </div>
-  )}
-  <div style={{textAlign:'center', padding: '20px 0'}}>
-      <button
-          onClick={handleCompletion}
+      {selectionMenu.visible && (
+        <div className="pdf-add-menu"
           style={{
-              padding: '10px 20px',
-              fontSize: '16px',
-              backgroundColor: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer'
-          }}
-      >
-          {t("PdfViewer.complete")}
-      </button>
-  </div>
-</div>
+            position:"fixed",
+            left:selectionMenu.x,
+            top:selectionMenu.y,
+            background:"#fff",
+            border:"1px solid #ccc",
+            borderRadius:4,
+            padding:"4px 6px",
+            display:"flex",
+            gap:4,
+            fontSize:12,
+            zIndex:9999
+          }}>
+          <button style={{fontSize:12,padding:"2px 6px"}} onClick={addHighlight}>{t("PdfViewer.add-comment")}</button>
+        </div>
+      )}
+      <div style={{textAlign:'center', padding: '20px 0'}}>
+          <button
+              onClick={handleCompletion}
+              style={{
+                  padding: '10px 20px',
+                  fontSize: '16px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: 'pointer'
+              }}
+          >
+              {t("PdfViewer.complete")}
+          </button>
+      </div>
+    </div>
   );
 };
 

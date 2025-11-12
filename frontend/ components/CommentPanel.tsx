@@ -70,7 +70,7 @@ const CommentHeader: React.FC<{
             cursor: "pointer",
             fontSize: 18,
             color: "black",
-            padding: "4px 8px",
+            padding: "1% 2%",
             borderRadius: "50%",
             lineHeight: 1,
             background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
@@ -444,7 +444,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     <div
       ref={commentPanelRef}
       style={{
-        width: 300,
+        minWidth: "300px",
         borderLeft: "1px solid #ddd",
         padding: 10,
         maxHeight: viewerHeight !== 'auto'

@@ -1,4 +1,4 @@
-// src/pages/index.tsx
+// src/pages/index.tsx (最終修正版)
 import React, { useCallback, useEffect, useState, ChangeEvent, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -161,46 +161,6 @@ const EditorPage: React.FC = () => {
     dispatch(setActiveHighlightId(highlightId));
   }, [dispatch]);
 
-  // // === Comment actions ===
-  // const handleDeleteComment = useCallback(
-  //   (commentId: string) => {
-  //     if (confirm('削除しますか？')) dispatch(deleteComment({ id: commentId }));
-  //   },
-  //   [dispatch]
-  // );
-
-  // const handleDeleteThread = useCallback(
-  //   (highlightId: string) => {
-  //     if (confirm('このスレッドを削除しますか？')) dispatch(deleteHighlight({ id: highlightId }));
-  //   },
-  //   [dispatch]
-  // );
-
-  // const handleAddReply = useCallback(
-  //   (highlightId: string, parentId: string | null, author: string, text: string) => {
-  //     const reply: CommentType = {
-  //       id: uuidv4(),
-  //       highlightId,
-  //       parentId,
-  //       author,
-  //       text,
-  //       createdAt: new Date().toISOString(),
-  //       editedAt: null,
-  //       deleted: false,
-  //     };
-  //     dispatch(addHighlightWithComment as any); // no-op for replies (see CommentPanel own dispatch)
-  //     dispatch({ type: "editor/addComment", payload: reply });
-  //   },
-  //   [dispatch]
-  // );
-
-  // const handleEditComment = useCallback(
-  //   (id: string, newText: string) => {
-  //     dispatch(updateComment({ id, text: newText }));
-  //   },
-  //   [dispatch]
-  // );
-
   // === Viewer ===
   const renderViewer = () => {
     if (!file) return <p>{t("file-upload-txt")}</p>;
@@ -234,15 +194,35 @@ const EditorPage: React.FC = () => {
   };
 
   return (
-    <div className={styles.container} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-      <div style={{ flex: 1 }}>
+    // メインコンテナ: flexで子要素を配置し、中央寄せ(justifyContent: 'center')で左右の余白を確保
+    <div className={styles.container} style={{
+        display: "flex", 
+        alignItems: "flex-start",
+        width: '100%',
+        overflowX: 'hidden',
+        justifyContent: 'center',
+    }}>
+      <div 
+        style={{
+          width: '70%',
+          minWidth: '500px',
+          flexShrink: 0,
+          padding: "2%",
+        }}
+      >
         <div className={styles.fileInputSection}>
           <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
         </div>
-        <div className={styles.viewerContainer} ref={viewerContentRef}>{renderViewer()}</div>
+
+        <div className={styles.viewerContainer} ref={viewerContentRef}>
+          {renderViewer()}
+        </div>
       </div>
 
-      <CommentPanel currentUser="You" viewerHeight={viewerHeight} />
+      {/* コメントパネルのコンテナは固定幅を維持 */}
+      <div style={{ width: '30%', minWidth: "300px", flexShrink: 0 }}>
+        <CommentPanel currentUser="You" viewerHeight={viewerHeight} />
+      </div>
 
       {showMemoModal && (
         <HighlightMemoModal
