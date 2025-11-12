@@ -445,8 +445,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       ref={commentPanelRef}
       style={{
         minWidth: "300px",
-        borderLeft: "1px solid #ddd",
-        padding: 10,
+        // borderLeft: "1px solid #ddd",
+        padding: "1%",
         maxHeight: viewerHeight !== 'auto'
           ? `calc(${viewerHeight}px)`
           : 'auto',

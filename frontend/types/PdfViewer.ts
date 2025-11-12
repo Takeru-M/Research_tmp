@@ -1,5 +1,6 @@
 import { PdfHighlight, Comment as CommentType } from "@/redux/features/editor/editorTypes";
 import type { PageViewport } from 'pdfjs-dist';
+import { CSSProperties } from "react";
 
 export interface PageLoadData {
   width: number;
@@ -15,4 +16,5 @@ export interface PdfViewerProps {
   onRequestAddHighlight?: (highlight: PdfHighlight) => void;
   onHighlightClick?: (highlightId: string) => void;
   onRenderSuccess?: () => void;
+  containerStyle?: CSSProperties
 }

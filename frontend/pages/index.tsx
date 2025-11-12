@@ -32,10 +32,16 @@ import styles from '../styles/Home.module.css';
 import { v4 as uuidv4 } from 'uuid';
 import "../lang/config";
 import { useTranslation } from "react-i18next";
+import { CSSProperties } from 'react'; // CSSPropertiesをインポート
 
 // PdfViewerには、PDFのレンダリングが完了したことを通知する onRenderSuccess プロパティが追加されることを想定します。
+// また、リサイズに対応するため、PdfViewerに width を渡せるように修正済みと仮定します。
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
+
+const MIN_PDF_WIDTH = 500; // PDFビューアの最小幅 (px)
+const MIN_COMMENT_PANEL_WIDTH = 300; // コメントパネルの最小幅 (px)
+const HANDLE_WIDTH = 8; // リサイズハンドルの幅 (px)
 
 const EditorPage: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
@@ -52,6 +58,16 @@ const EditorPage: React.FC = () => {
 
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
+
+  // --- リサイズ機能用のStateとRefを追加 ---
+  const mainContainerRef = useRef<HTMLDivElement>(null);
+  // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
+  const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
+    if (typeof window === 'undefined') return 800;
+    return Math.max(MIN_PDF_WIDTH, window.innerWidth * 0.7 - MIN_COMMENT_PANEL_WIDTH / 2);
+  });
+  const isResizing = useRef(false);
+  // ------------------------------------
 
   const viewerContentRef = useRef<HTMLDivElement>(null);
   const [viewerHeight, setViewerHeight] = useState<number | 'auto'>(300);
@@ -74,14 +90,73 @@ const EditorPage: React.FC = () => {
   useEffect(() => {
     // 初回ロード時とファイル切り替え時、およびリサイズ時の処理
     measureHeight();
-    window.addEventListener('resize', measureHeight);
-    return () => window.removeEventListener('resize', measureHeight);
+    const handleResize = () => {
+        // ウィンドウリサイズ時にも高さを再測定
+        measureHeight();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [fileContent, fileType, measureHeight]); // measureHeightを依存配列に追加
+
+
+  // --- リサイズハンドルのためのロジック ---
+
+  // マウスダウン時の処理 (ドラッグ開始)
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.userSelect = 'none'; // テキスト選択防止
+    document.body.style.cursor = 'col-resize'; // カーソル変更
+  }, []);
+
+  // マウス移動時の処理 (ドラッグ中)
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing.current || !mainContainerRef.current) return;
+
+    // メインコンテナの左端からの相対位置を計算
+    const containerRect = mainContainerRef.current.getBoundingClientRect();
+    const newWidth = e.clientX - containerRect.left;
+
+    // 最大幅 (コンテナ幅 - コメントパネル最小幅 - ハンドル幅)
+    const maxPdfWidth = containerRect.width - MIN_COMMENT_PANEL_WIDTH - HANDLE_WIDTH;
+
+    // 最小/最大幅の制約
+    const constrainedWidth = Math.max(MIN_PDF_WIDTH, Math.min(maxPdfWidth, newWidth));
+
+    setPdfViewerWidth(constrainedWidth);
+  }, []); // 依存配列は空でOK
+
+  // マウスアップ時の処理 (ドラッグ終了)
+  const handleMouseUp = useCallback(() => {
+    if (isResizing.current) {
+        isResizing.current = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        // ドラッグ終了後、高さを再測定
+        measureHeight();
+    }
+  }, [measureHeight]);
+
+  // グローバルなMouseMoveとMouseUpイベントを登録/解除
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
+
+  // ------------------------------------
 
   // === Outside click to reset selection ===
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest(".highlight, .comment-panel")) {
+      // リサイズ中はクリックイベントを無視
+      if (isResizing.current) return;
+      
+      if (!(e.target as HTMLElement).closest(".highlight, .comment-panel, .resize-handle")) {
         dispatch(setActiveHighlightId(null));
         dispatch(setActiveCommentId(null));
       }
@@ -166,6 +241,9 @@ const EditorPage: React.FC = () => {
     if (!file) return <p>{t("file-upload-txt")}</p>;
 
     if (fileType === 'application/pdf') {
+      // PdfViewerに幅を制御する containerStyle を渡す
+      const pdfViewerStyle: CSSProperties = { width: '100%', height: '100%' };
+
       return (
         <PdfViewer
           file={fileContent}
@@ -174,6 +252,7 @@ const EditorPage: React.FC = () => {
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
           onRenderSuccess={handlePdfRenderComplete}
+          containerStyle={pdfViewerStyle} // 修正点: containerStyleを追加
         />
       );
     }
@@ -193,34 +272,57 @@ const EditorPage: React.FC = () => {
     return <p>{t("Error.file-format")}</p>;
   };
 
+  // メインコンテナのレイアウト
+  const mainLayoutStyle: CSSProperties = {
+    display: "flex", 
+    alignItems: "flex-start",
+    width: '100%',
+    overflowX: 'hidden',
+    height: '100vh', // 画面いっぱいの高さを使用する想定
+    padding: '0 2%', // 左右の余白はコンテナに移動
+  };
+
   return (
-    // メインコンテナ: flexで子要素を配置し、中央寄せ(justifyContent: 'center')で左右の余白を確保
-    <div className={styles.container} style={{
-        display: "flex", 
-        alignItems: "flex-start",
-        width: '100%',
-        overflowX: 'hidden',
-        justifyContent: 'center',
-    }}>
+    <div className={styles.container} style={mainLayoutStyle} ref={mainContainerRef}>
+      
+      {/* 1. PDFビューアエリア - 動的に幅を適用 */}
       <div 
         style={{
-          width: '70%',
-          minWidth: '500px',
+          width: pdfViewerWidth,
+          minWidth: MIN_PDF_WIDTH,
           flexShrink: 0,
-          padding: "2%",
+          paddingTop: "2%", // ファイルアップロードセクションのパディング
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         <div className={styles.fileInputSection}>
           <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
         </div>
 
-        <div className={styles.viewerContainer} ref={viewerContentRef}>
+        {/* Viewerコンテンツ部分 - 縦スクロールはPdfViewer内で処理される想定 */}
+        <div className={styles.viewerContainer} ref={viewerContentRef} style={{ flexGrow: 1, overflow: 'hidden' }}>
           {renderViewer()}
         </div>
       </div>
 
-      {/* コメントパネルのコンテナは固定幅を維持 */}
-      <div style={{ width: '30%', minWidth: "300px", flexShrink: 0 }}>
+      {/* 2. リサイズハンドル - クリック＆ドラッグで幅を変更 */}
+      <div
+        className="resize-handle"
+        style={{
+          width: HANDLE_WIDTH,
+          minWidth: HANDLE_WIDTH,
+          cursor: 'col-resize',
+          backgroundColor: '#ddd',
+          height: '100%',
+          flexShrink: 0,
+        }}
+        onMouseDown={handleMouseDown}
+      />
+
+      {/* 3. コメントパネルエリア - 残りの幅を全て占める */}
+      <div style={{ flexGrow: 1, minWidth: MIN_COMMENT_PANEL_WIDTH, height: '100%', overflowY: 'auto', paddingTop: "2%" }}>
         <CommentPanel currentUser="You" viewerHeight={viewerHeight} />
       </div>
 

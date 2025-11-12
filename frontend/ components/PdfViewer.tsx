@@ -28,6 +28,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   onRequestAddHighlight,
   onHighlightClick,
   onRenderSuccess,
+  containerStyle = {},
 }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageData, setPageData] = useState<{ [n:number]:PageLoadData }>({});
@@ -446,7 +447,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   return (
     // 修正箇所: JavaScriptコメントからJSXコメントに変更
     // {/* 親のコンテナ (viewerRef) は引き続き幅100%で、overflowY: auto を持つ */}
-    <div style={{position:"relative",width:"100%",height:"100%", overflowY: 'auto'}} ref={viewerRef} onMouseUp={handleMouseUp}>
+    <div
+        style={{
+          position:"relative",
+          width:"100%", // デフォルトで100%を維持
+          height:"100%",
+          overflowY: 'auto',
+          ...containerStyle // 親から指定されたスタイル（特に width）を適用
+        }}
+        ref={viewerRef}
+        onMouseUp={handleMouseUp}
+      >
       {file?(
         <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
           {Array.from(new Array(numPages || 0), (_, i) =>
