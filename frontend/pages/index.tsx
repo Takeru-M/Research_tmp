@@ -279,7 +279,7 @@ const EditorPage: React.FC = () => {
           minWidth: MIN_PDF_WIDTH,
           flexShrink: 0,
           paddingTop: "2%",
-          height: '100%',
+          // height: '100%',
           display: 'flex',
           flexDirection: 'column',
         }}

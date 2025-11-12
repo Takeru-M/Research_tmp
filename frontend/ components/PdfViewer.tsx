@@ -450,7 +450,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         style={{
           position:"relative",
           width:"100%",
-          height:"100%",
           minWidth: MIN_PDF_WIDTH,
           overflowX: "auto",
         }}
