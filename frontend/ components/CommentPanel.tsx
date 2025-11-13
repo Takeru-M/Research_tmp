@@ -37,8 +37,7 @@ const CommentHeader: React.FC<{
   startEditing: (id: string, text: string) => void;
   removeCommentFn: (id: string) => void;
   menuRef: (element: HTMLDivElement | null) => void;
-  highlightText?: string;
-}> = ({ comment, editingId, toggleMenu, menuOpenMap, startEditing, removeCommentFn, menuRef, highlightText }) => {
+}> = ({ comment, editingId, toggleMenu, menuOpenMap, startEditing, removeCommentFn, menuRef }) => {
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
@@ -51,126 +50,103 @@ const CommentHeader: React.FC<{
   }, [comment.createdAt]);
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-        <div style={{ display: "flex", alignItems: "baseline" }}>
-          <strong style={{ fontSize: 14 }}>{comment.author || "You"}</strong>
-          <small style={{ marginLeft: 6, color: "#666", fontSize: 12 }}>
-            {time}
-          </small>
-        </div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+      <div style={{ display: "flex", alignItems: "baseline" }}>
+        <strong style={{ fontSize: 14 }}>{comment.author || "You"}</strong> {/* フォントサイズを14に変更 */}
+        <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}> {/* フォントサイズを12に変更 */}
+          {time}
+        </small>
+      </div>
 
-        <div
-          style={menuStyle}
-          ref={menuRef}
-          onClick={(e) => e.stopPropagation()}
-          onMouseEnter={() => setIsMenuAreaHovered(true)}
-          onMouseLeave={() => setIsMenuAreaHovered(false)}
+      <div
+        style={menuStyle}
+        ref={menuRef}
+        onClick={(e) => e.stopPropagation()}
+        onMouseEnter={() => setIsMenuAreaHovered(true)}
+        onMouseLeave={() => setIsMenuAreaHovered(false)}
+      >
+        <button
+          style={{
+            cursor: "pointer",
+            fontSize: 18, // フォントサイズを18に変更
+            color: "black",
+            padding: "0.5% 1%",
+            borderRadius: "50%",
+            lineHeight: 1,
+            background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
+            border: 'none',
+            transition: 'background-color 0.1s',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleMenu(comment.id);
+          }}
         >
-          <button
-            style={{
-              cursor: "pointer",
-              fontSize: 18,
-              color: "black",
-              padding: "1% 2%",
-              borderRadius: "50%",
-              lineHeight: 1,
-              background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
-              border: 'none',
-              transition: 'background-color 0.1s',
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleMenu(comment.id);
-            }}
-          >
-            ⋮
-          </button>
+          ⋮
+        </button>
 
-          {isMenuOpen && (
-            <div style={{
-              position: "absolute",
-              top: "20px",
-              right: "0px",
-              background: "#fff",
-              border: "1px solid #ddd",
-              boxShadow: "0px 3px 10px rgba(0,0,0,0.15)",
-              borderRadius: 8,
-              zIndex: 100,
-              width: 120,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}>
-              {!isEditing && (
-                <button
-                  style={{
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    color: "black",
-                    fontSize: 14,
-                    background: hoveredMenuItem === 'edit' ? '#f5f5f5' : '#fff',
-                    borderBottom: "1px solid #eee",
-                    textAlign: 'left',
-                    width: '100%',
-                    border: 'none',
-                  }}
-                  onMouseEnter={() => setHoveredMenuItem('edit')}
-                  onMouseLeave={() => setHoveredMenuItem(null)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startEditing(comment.id, comment.text);
-                  }}
-                >
-                  {t("CommentPanel.edit-comment")}
-                </button>
-              )}
+        {isMenuOpen && (
+          <div style={{
+            position: "absolute",
+            top: "20px",
+            right: "0px",
+            background: "#fff",
+            border: "1px solid #ddd",
+            boxShadow: "0px 3px 10px rgba(0,0,0,0.15)",
+            borderRadius: 8,
+            zIndex: 100,
+            width: 100,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}>
+            {!isEditing && (
               <button
                 style={{
-                  padding: "8px 12px",
+                  padding: "8px 12px", // パディングを調整
                   cursor: "pointer",
-                  color: "red",
-                  fontSize: 14,
-                  borderBottom: "none",
-                  background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
+                  color: "black",
+                  fontSize: 14, // フォントサイズを14に変更
+                  background: hoveredMenuItem === 'edit' ? '#f5f5f5' : '#fff',
+                  borderBottom: "1px solid #eee",
                   textAlign: 'left',
                   width: '100%',
                   border: 'none',
                 }}
-                onMouseEnter={() => setHoveredMenuItem('delete')}
+                onMouseEnter={() => setHoveredMenuItem('edit')}
                 onMouseLeave={() => setHoveredMenuItem(null)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeCommentFn(comment.id);
+                  startEditing(comment.id, comment.text);
                 }}
               >
-                {t("CommentPanel.delete-comment")}
+                {t("CommentPanel.edit-comment")}
               </button>
-            </div>
-          )}
-        </div>
+            )}
+            <button
+              style={{
+                padding: "8px 12px", // パディングを調整
+                cursor: "pointer",
+                color: "red",
+                fontSize: 14, // フォントサイズを14に変更
+                borderBottom: "none",
+                background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
+                textAlign: 'left',
+                width: '100%',
+                border: 'none',
+              }}
+              onMouseEnter={() => setHoveredMenuItem('delete')}
+              onMouseLeave={() => setHoveredMenuItem(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeCommentFn(comment.id);
+              }}
+            >
+              {t("CommentPanel.delete-comment")}
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* ハイライトテキスト表示エリア */}
-      {highlightText && (
-        <div style={{
-          marginTop: 6,
-          marginBottom: 6,
-          padding: '8px 10px',
-          backgroundColor: '#f5f5f5',
-          borderLeft: '3px solid #34a8e0',
-          borderRadius: '4px',
-          fontSize: '13px',
-          color: '#333',
-          fontStyle: 'italic',
-          lineHeight: '1.4',
-          maxHeight: '60px',
-          overflowY: 'auto',
-          wordBreak: 'break-word',
-        }}>
-          {highlightText}
-        </div>
-      )}
     </div>
   );
 };
@@ -324,15 +300,15 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         <textarea
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
-          style={{ width: "100%", marginTop: 6, padding: 6, borderRadius: 6, border: "1px solid #ccc", boxSizing: 'border-box' }}
+          style={{ width: "100%", marginTop: 4, padding: 6, borderRadius: 4, border: "1px solid #ccc", boxSizing: 'border-box', fontSize: 14 }} // フォントサイズを14に変更
         />
         <button
           style={{
-            marginTop: 6,
+            marginTop: 4,
             marginRight: 2,
-            padding: "6px 14px",
-            fontSize: 14,
-            borderRadius: 6,
+            padding: "6px 12px", // パディングを調整
+            fontSize: 14, // フォントサイズを14に変更
+            borderRadius: 4,
             background: "#1976d2",
             color: "#fff",
             border: "none",
@@ -344,10 +320,10 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         </button>
         <button
           style={{
-            marginTop: 6,
-            padding: "6px 14px",
-            fontSize: 14,
-            borderRadius: 6,
+            marginTop: 4,
+            padding: "6px 12px", // パディングを調整
+            fontSize: 14, // フォントサイズを14に変更
+            borderRadius: 4,
             background: "#6c757d",
             color: "#fff",
             border: "none",
@@ -359,7 +335,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         </button>
       </div>
     ) : (
-      <p style={{ marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{comment.text}</p>
+      <p style={{ marginTop: 2, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{comment.text}</p> // フォントサイズを14に変更
     );
   };
 
@@ -466,6 +442,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       ref={commentPanelRef}
       style={{
         minWidth: "300px",
+        // borderLeft: "1px solid #ddd",
         padding: "1%",
         maxHeight: viewerHeight !== 'auto'
           ? `calc(${viewerHeight}px)`
@@ -474,6 +451,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       }}
       className="comment-panel"
     >
+      {/* <h3 style={{ marginBottom: 12, fontSize: 17 }}>コメント</h3> */}
       <div
         ref={scrollContainerRef}
         style={{
@@ -492,8 +470,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             : replies;
 
           const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
-          const rootHighlight = getHighlightInfo(root.highlightId);
-          const rootHighlightText = rootHighlight?.text || '';
 
           return (
             <div
@@ -521,7 +497,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                 startEditing={startEditing}
                 removeCommentFn={removeCommentFn}
                 menuRef={(el) => (menuRefs.current[root.id] = el)}
-                highlightText={rootHighlightText}
               />
 
               {renderCommentBody(root)}

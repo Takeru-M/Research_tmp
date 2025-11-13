@@ -342,15 +342,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             onHighlightClick?.(clickedHighlight.id);
             dispatch(setActiveHighlightId(clickedHighlight.id));
 
-            // スクロールターゲット設定ロジック
+            // スクロールターゲット設定ロジック（画面上の絶対Yを渡す）
             const rect = clickedHighlight.rects.find(r => r.pageNum === pageNum);
             if (viewerRef.current && rect) {
-                const viewerRect = viewerRef.current.getBoundingClientRect();
+                const pageRect = clickedPageEl.getBoundingClientRect();
+                // ハイライト矩形の上辺の画面上Y（絶対座標）
+                const viewerY = pageRect.top + (rect.y1 * pageScale);
+                // highlightId を含めて送る
                 const scrollTarget = {
-                    pdfY1: rect.y1,
-                    pageNum: pageNum,
-                    pageScale: pageScale,
-                    pageTopOffset: pageRect.top - viewerRect.top,
+                    viewerY,
+                    highlightId: clickedHighlight.id,
+                    pageNum,
                 };
                 dispatch(setActiveScrollTarget(scrollTarget));
             }
