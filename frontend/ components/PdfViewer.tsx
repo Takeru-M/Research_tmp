@@ -8,8 +8,8 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
 import { RootState } from '@/redux/store';
 import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState, HighlightCommentList } from '../redux/features/editor/editorTypes';
-import { selectActiveHighlightId, selectActiveCommentId} from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment } from '../redux/features/editor/editorSlice';
+import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo } from '../redux/features/editor/editorSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
@@ -34,6 +34,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageData, setPageData] = useState<{ [n:number]:PageLoadData }>({});
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
+  const [showMemoModal, setShowMemoModal] = useState(false);
+  const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
@@ -73,12 +75,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     ],
     "unhighlighted_feedback": [
       {
-        "unhighlighted_text": "実装進捗の報告2025-11-04 松島丈翔",
-        "suggestion": ""
+        "unhighlighted_text": "議論したいこと",
+        "suggestion": "あああ"
       },
       // ... 他の未ハイライトフィードバックデータ ...
       {
-        "unhighlighted_text": "今後予定している実装・pdf表示エリアの画像や図形を選択可能に",
+        "unhighlighted_text": "今後予定している実装",
         "suggestion": "選択可能にすることの具体的な利点は何か、他に考えられる改善点はありますか？"
       }
     ]
@@ -424,31 +426,31 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
 
     try {
-      const firstResponse = await axios.post('/api/formatData', {
-        formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
-        pdfTextData: pdfTextContent
-      });
-      console.log(firstResponse.data);
+      // const firstResponse = await axios.post('/api/formatData', {
+      //   formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
+      //   pdfTextData: pdfTextContent
+      // });
+      // console.log(firstResponse.data);
 
-      const systemPrompt = OPTION_SYSTEM_PROMPT;
-      const userInput = {
-        "mt_text": firstResponse.data.analysis,
-        "highlights": highlightCommentList,
-      }
+      // const systemPrompt = OPTION_SYSTEM_PROMPT;
+      // const userInput = {
+      //   "mt_text": firstResponse.data.analysis,
+      //   "highlights": highlightCommentList,
+      // }
 
-      const response = await axios.post('/api/analyze', {
-          systemPrompt: systemPrompt,
-          userInput: userInput,
-      });
+      // const response = await axios.post('/api/analyze', {
+      //     systemPrompt: systemPrompt,
+      //     userInput: userInput,
+      // });
 
-      const responseData = JSON.parse(response.data.analysis);
-      console.log(responseData);
+      // const responseData = JSON.parse(response.data.analysis);
+      // console.log(responseData);
+      const responseData = mockResponseData;
       if (responseData) {
-        // APIからの各応答を、ユーザコメントと同じ形でReduxに追加（author: 'AI'）
         const highlight_feedback = responseData.highlight_feedback;
         const unhighlighted_feedback = responseData.unhighlighted_feedback;
 
-        // --- ハイライトへの返信を追加 ---
+        // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
         highlight_feedback.forEach((hf: any) => {
           if (hf.intervention_needed && hf.suggestion) {
             dispatch(
@@ -464,6 +466,36 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             }));
           }
         });
+
+        // TODO: ハイライト無箇所に対して，ハイライトをつけてコメントを追加
+        // unhighlighted_feedback.forEach((uhf: any) => {
+        //   if ( uhf.unhighlighted_text && uhf.suggestion ) {
+        //     // テキスト情報からハイライト作成に必要な情報を取得
+
+        //     // ハイライトの作成とコメントの追加
+        //     const finalHighlight: Highlight = {
+        //       ...pendingHighlight,
+        //       uhf.suggestion,
+        //       createdAt: new Date().toISOString(),
+        //       createdBy: t("CommentPanel.comment-author-AI"),
+        //     };
+
+        //     const rootComment: CommentType = {
+        //       id: uuidv4(),
+        //       highlightId: id,
+        //       parentId: null,
+        //       author: t("CommentPanel.comment-author-AI"),
+        //       text: uhf.suggestion,
+        //       createdAt: new Date().toISOString(),
+        //       editedAt: null,
+        //       deleted: false,
+        //     };
+
+        //     dispatch(addHighlightWithComment({ highlight: finalHighlight, initialComment: rootComment }));
+        //     dispatch(setActiveHighlightId(null));
+        //     dispatch(updateHighlightMemo({ id, uhf.suggestion }));
+        //   }
+        // });
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -479,8 +511,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         style={{
           position:"relative",
           width:"100%",
-          minWidth: MIN_PDF_WIDTH,
-          overflowX: "auto",
         }}
         ref={viewerRef}
         onMouseUp={handleMouseUp}

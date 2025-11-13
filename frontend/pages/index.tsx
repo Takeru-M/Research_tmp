@@ -190,18 +190,19 @@ const EditorPage: React.FC = () => {
   const handleSaveMemo = useCallback(
     (id: string, memo: string) => {
       if (pendingHighlight && pendingHighlight.id === id) {
+        console.log(pendingHighlight);
         const finalHighlight: Highlight = {
           ...pendingHighlight,
           memo,
           createdAt: new Date().toISOString(),
-          createdBy: 'You',
+          createdBy: t("CommentPanel.comment-author-user"),
         };
 
         const rootComment: CommentType = {
           id: uuidv4(),
           highlightId: id,
           parentId: null,
-          author: 'You',
+          author: t("CommentPanel.comment-author-user"),
           text: memo.trim(),
           createdAt: new Date().toISOString(),
           editedAt: null,
@@ -220,7 +221,7 @@ const EditorPage: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight]
+    [dispatch, pendingHighlight, t]
   );
 
   // === Highlight Click ===
@@ -279,7 +280,6 @@ const EditorPage: React.FC = () => {
           minWidth: MIN_PDF_WIDTH,
           flexShrink: 0,
           paddingTop: "2%",
-          // height: '100%',
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -289,7 +289,7 @@ const EditorPage: React.FC = () => {
         </div>
 
         {/* Viewerコンテンツ部分 */}
-        <div className={styles.viewerContainer} ref={viewerContentRef}>
+        <div className={styles.viewerContainer} ref={viewerContentRef} style={{minWidth: MIN_PDF_WIDTH, overflowX: "auto",}}>
           {renderViewer()}
         </div>
       </div>
@@ -310,7 +310,7 @@ const EditorPage: React.FC = () => {
 
       {/* 3. コメントパネルエリア - 残りの幅を全て占める */}
       <div style={{ flexGrow: 1, minWidth: MIN_COMMENT_PANEL_WIDTH, height: '100%', overflowY: 'auto', paddingTop: "2%" }}>
-        <CommentPanel currentUser="You" viewerHeight={viewerHeight} />
+        <CommentPanel viewerHeight={viewerHeight} />
       </div>
 
       {showMemoModal && (

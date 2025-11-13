@@ -153,7 +153,6 @@ const CommentHeader: React.FC<{
 
 
 interface CommentPanelProps {
-  currentUser?: string;
   viewerHeight: number | 'auto';
 }
 
@@ -429,8 +428,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     if (targetElement instanceof HTMLDivElement) {
       const targetElement_y = targetElement.getBoundingClientRect().y;
       if (targetElement && commentPanel && targetHighlight) {
-        console.log(targetHighlight.rects[0].y1);
-        console.log(targetElement_y);
         commentPanel.scrollBy({
           // 多分TODO: 現状は(スレッドのDOM位置) - (ハイライトのpdf位置)にしているので，DOM位置で計算する
           top: targetElement_y - targetHighlight.rects[0].y1,
