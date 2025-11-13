@@ -34,6 +34,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageData, setPageData] = useState<{ [n:number]:PageLoadData }>({});
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
+  const [pageTextItems, setPageTextItems] = useState<{ [n:number]:any[] }>({});
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
 
@@ -57,31 +58,43 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const mockResponseData = {
     "highlight_feedback": [
-      {
-        "id": "1f53f84e-5b84-44cc-988a-5bbd71083f11",
-        "highlight_id": "pdf-1762954464881",
-        "intervention_needed": true,
-        "reason": "UIの不便さについての懸念が表面的で具体的な解決策が示されていないため",
-        "suggestion": "この懸念を解消するためには、どのような改善策が考えられるでしょうか？別のアプローチが必要かもしれません。"
-      },
+      // {
+      //   "id": "1f53f84e-5b84-44cc-988a-5bbd71083f11",
+      //   "highlight_id": "pdf-1762954464881",
+      //   "intervention_needed": true,
+      //   "reason": "UIの不便さについての懸念が表面的で具体的な解決策が示されていないため",
+      //   "suggestion": "この懸念を解消するためには、どのような改善策が考えられるでしょうか？別のアプローチが必要かもしれません。"
+      // },
       // ... 他のハイライトフィードバックデータ ...
-      {
-        "id": "132928f9-7ef9-442a-8ebc-be690b87f4da",
-        "highlight_id": "pdf-1762954555929",
-        "intervention_needed": false,
-        "reason": "UIの必要性について具体的な根拠が示されているため",
-        "suggestion": ""
-      }
+      // {
+      //   "id": "132928f9-7ef9-442a-8ebc-be690b87f4da",
+      //   "highlight_id": "pdf-1762954555929",
+      //   "intervention_needed": false,
+      //   "reason": "UIの必要性について具体的な根拠が示されているため",
+      //   "suggestion": ""
+      // }
     ],
     "unhighlighted_feedback": [
       {
-        "unhighlighted_text": "議論したいこと",
+        "unhighlighted_text": "報告がメインになるため，特になし",
         "suggestion": "あああ"
       },
       // ... 他の未ハイライトフィードバックデータ ...
       {
         "unhighlighted_text": "今後予定している実装",
         "suggestion": "選択可能にすることの具体的な利点は何か、他に考えられる改善点はありますか？"
+      },
+      {
+        "unhighlighted_text": "実装進捗の報告2025-11-04 松島丈翔",
+        "suggestion": "あああ"
+      },
+      {
+        "unhighlighted_text": "実装進捗報告議論したいこと・報告がメインになるため，特になし",
+        "suggestion": "あああ"
+      },
+      {
+        "unhighlighted_text": "pdf表示エリアにおいてハイライトをつける際に，入れ子構造や複数のハイライトに選択される場合の実装について",
+        "suggestion": "あああ"
       }
     ]
   };
@@ -152,9 +165,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           .map(item => ('str' in item) ? item.str : '')
           .join('');
       newPageData.textContent = text;
+      
+      // テキストアイテムの詳細情報を保存（座標情報付き）
+      setPageTextItems(p => ({ ...p, [n]: textContentResult.items }));
     } catch (error) {
       console.error(`Error extracting text content for page ${n}:`, error);
       newPageData.textContent = '';
+      setPageTextItems(p => ({ ...p, [n]: [] }));
     }
 
     try {
@@ -233,42 +250,51 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   // ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
   const renderHighlightVisuals = useCallback((page:number)=>{
-    if(!pageData[page]||!pageScales[page]) return null;
+    if(!pageData[page] || !pageScales[page]) return null;
     const scale = pageScales[page];
+    const pageHighlights = highlights.filter(h => h.type === 'pdf' && (h as PdfHighlight).rects.some(r => r.pageNum === page));
 
-    return highlights
-      .filter(h => h.rects.some(r => r.pageNum===page))
-      .flatMap(h => h.rects
-        .filter(r => r.pageNum===page)
-        .map((r,idx)=>{
-          const isActive = effectiveActiveHighlightId === h.id;
+    return pageHighlights.map((h) => {
+      const pdfH = h as PdfHighlight;
+      const pageRects = pdfH.rects.filter(r => r.pageNum === page);
+      
+      // AIによるハイライト（createdBy: 'AI'）は青色、その他は黄色
+      const isAIHighlight = h.createdBy === 'AI';
+      const baseBg = isAIHighlight ? 'rgba(52, 168, 224, 0.30)' : 'rgba(255, 235, 59, 0.40)';
+      const activeBg = isAIHighlight ? 'rgba(52, 168, 224, 0.50)' : 'rgba(255, 235, 59, 0.65)';
+      const baseBorderColor = isAIHighlight ? '#34a8e0' : '#ffeb3b';
+      const activeBorderColor = isAIHighlight ? '#1e88c6' : '#fbc02d';
 
-          // --- ハイライトの描画要素 (pointer-events: none) ---
-          const style={
-            position:'absolute' as const,
-            left:r.x1*scale,
-            top:r.y1*scale,
-            width:(r.x2-r.x1)*scale,
-            height:(r.y2-r.y1)*scale,
-            background: isActive ? 'rgba(255,200,0,0.65)' : 'rgba(255,235,59,0.35)',
-            borderRadius:2,
-            // pointer-events: none に設定し、全てのイベントを下層に透過させる
-            pointerEvents: 'none' as const,
-            // TextLayerより上に配置
-            zIndex: isActive ? 20 : 8,
-            boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : undefined,
-          };
+      const isActive = effectiveActiveHighlightId === h.id;
 
-          return (
-            <div
-              key={`${h.id}-${idx}-visual`}
-              data-highlight-id={h.id}
-              className='highlight-visual'
-              style={style}
-            />
-          );
-        }));
-  },[highlights,pageData,pageScales,effectiveActiveHighlightId]);
+      return pageRects.map((rect, idx) => (
+        <div
+          key={`${h.id}-${idx}`}
+          style={{
+            position: 'absolute',
+            left: `${rect.x1 * scale}px`,
+            top: `${rect.y1 * scale}px`,
+            width: `${(rect.x2 - rect.x1) * scale}px`,
+            height: `${(rect.y2 - rect.y1) * scale}px`,
+            backgroundColor: isActive ? activeBg : baseBg,
+            border: `${isActive ? 3 : 2}px solid ${isActive ? activeBorderColor : baseBorderColor}`,
+            borderRadius: '2px',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            boxSizing: 'border-box',
+            boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.12)' : undefined,
+            zIndex: isActive ? 50 : 10,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            // クリックで確実に active にする（外部 onHighlightClick も呼ぶ）
+            dispatch(setActiveHighlightId(h.id));
+            onHighlightClick?.(h.id);
+          }}
+        />
+      ));
+    });
+  },[highlights,pageData,pageScales,effectiveActiveHighlightId, onHighlightClick, dispatch]);
 
 
   // TextNode対応 helper
@@ -401,6 +427,157 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const pdfTextContent = useSelector((state: RootState) => state.editor.pdfTextContent);
 
+  // テキストをPDF内で検索し、マッチ箇所の正確な矩形座標を返す
+  const findTextInPdf = useCallback((searchText: string): PdfRectWithPage[] => {
+    if (!pdfTextContent || !searchText.trim()) return [];
+
+    const rects: PdfRectWithPage[] = [];
+    const normalizedSearch = searchText.trim().toLowerCase();
+    const normalizedContent = pdfTextContent.toLowerCase();
+
+    // テキストを検索
+    let startIndex = normalizedContent.indexOf(normalizedSearch);
+    if (startIndex === -1) return [];
+
+    // 全マッチを対象にするため、ループで複数マッチを処理
+    const allMatches: number[] = [];
+    let searchFromIndex = 0;
+    while (true) {
+      const matchIndex = normalizedContent.indexOf(normalizedSearch, searchFromIndex);
+      if (matchIndex === -1) break;
+      allMatches.push(matchIndex);
+      searchFromIndex = matchIndex + 1;
+    }
+
+    // 最初のマッチのみを処理（複数マッチが必要な場合は、ここでループを追加可能）
+    startIndex = allMatches[0];
+
+    // マッチしたテキスト位置からページと座標を推定
+    let currentPos = 0;
+    for (let pageNum = 1; pageNum <= (numPages || 0); pageNum++) {
+      const pageText = pageData[pageNum]?.textContent || '';
+      const pageLength = pageText.length;
+      const textItems = pageTextItems[pageNum] || [];
+
+      if (currentPos + pageLength > startIndex && currentPos <= startIndex) {
+        // このページにマッチテキストが開始する
+        const relativeStart = startIndex - currentPos;
+        const relativeEnd = relativeStart + searchText.length;
+
+        // テキストアイテムから座標情報を取得
+        if (textItems.length > 0) {
+          let charIndex = 0;
+          const matchRects: { x1: number; y1: number; x2: number; y2: number; y: number }[] = [];
+
+          for (const item of textItems) {
+            if (!('str' in item)) continue;
+
+            const itemStr = item.str;
+            const itemLength = itemStr.length;
+            const itemEnd = charIndex + itemLength;
+
+            // マッチ範囲とアイテムが重なっているかチェック
+            if (itemEnd > relativeStart && charIndex < relativeEnd) {
+              // アイテムの座標を取得（PDFテキストアイテムの座標システムは左下原点）
+              const pageHeight = pageData[pageNum]?.height || 0;
+              const x = item.transform[4] || 0; // x座標
+              const y = pageHeight - (item.transform[5] || 0); // y座標を反転
+              const width = item.width || 0;
+              const height = item.height || 0;
+
+              // マッチ範囲内の文字のみをハイライト対象にする
+              const charStartInItem = Math.max(0, relativeStart - charIndex);
+              const charEndInItem = Math.min(itemLength, relativeEnd - charIndex);
+              const charWidthPerChar = itemLength > 0 ? width / itemLength : 0;
+
+              const itemX1 = x + (charStartInItem * charWidthPerChar);
+              const itemX2 = x + (charEndInItem * charWidthPerChar);
+
+              matchRects.push({
+                x1: itemX1,
+                y1: y - height,
+                x2: itemX2,
+                y2: y,
+                y: y, // 行の判定用にy座標を保持
+              });
+            }
+
+            charIndex += itemLength;
+          }
+
+          // マッチしたアイテムがある場合、行ごとにグループ化して矩形を作成
+          if (matchRects.length > 0) {
+            // 同じ行（y座標が近い）のアイテムをグループ化
+            const lines: typeof matchRects[] = [];
+            const yThreshold = 3; // y座標の差がこの値以下なら同じ行と判定
+
+            matchRects.forEach((rect) => {
+              const existingLine = lines.find(
+                (line) => Math.abs(line[0].y - rect.y) < yThreshold
+              );
+
+              if (existingLine) {
+                existingLine.push(rect);
+              } else {
+                lines.push([rect]);
+              }
+            });
+
+            // 各行ごとに矩形を作成
+            lines.forEach((line) => {
+              const minX1 = Math.min(...line.map((r) => r.x1));
+              const maxX2 = Math.max(...line.map((r) => r.x2));
+              const minY1 = Math.min(...line.map((r) => r.y1));
+              const maxY2 = Math.max(...line.map((r) => r.y2));
+
+              rects.push({
+                pageNum,
+                x1: minX1,
+                y1: minY1,
+                x2: maxX2,
+                y2: maxY2,
+              });
+            });
+
+            // マッチ終了がこのページ内で完結しているかチェック
+            if (relativeEnd <= pageLength) {
+              return rects; // このページで完結
+            } else {
+              // 次ページに続くため、処理を続ける
+              currentPos += pageLength + 20;
+              startIndex = currentPos; // 次ページの開始位置を更新
+              continue;
+            }
+          }
+
+          // テキストアイテムの座標情報がない場合は、簡易座標を使用
+          const pageHeight = pageData[pageNum]?.height || 0;
+          const pageWidth = pageData[pageNum]?.width || 0;
+
+          if (pageHeight && pageWidth) {
+            const estimatedX1 = 50;
+            const estimatedY1 = (relativeStart / pageLength) * pageHeight;
+            const estimatedX2 = pageWidth - 50;
+            const estimatedY2 = estimatedY1 + 20;
+
+            rects.push({
+              pageNum,
+              x1: Math.max(0, estimatedX1),
+              y1: Math.max(0, estimatedY1),
+              x2: Math.min(pageWidth, estimatedX2),
+              y2: Math.min(pageHeight, estimatedY2),
+            });
+          }
+          return rects;
+        }
+      }
+
+      currentPos += pageLength + 20;
+    }
+
+    return rects;
+  }, [pdfTextContent, pageData, pageTextItems, numPages]);
+
   const handleCompletion = useCallback(async () => {
     const highlightCommentList: HighlightCommentList = [];
     for (const h of highlights) {
@@ -445,6 +622,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       // const responseData = JSON.parse(response.data.analysis);
       // console.log(responseData);
+
       const responseData = mockResponseData;
       if (responseData) {
         const highlight_feedback = responseData.highlight_feedback;
@@ -467,35 +645,43 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         });
 
-        // TODO: ハイライト無箇所に対して，ハイライトをつけてコメントを追加
-        // unhighlighted_feedback.forEach((uhf: any) => {
-        //   if ( uhf.unhighlighted_text && uhf.suggestion ) {
-        //     // テキスト情報からハイライト作成に必要な情報を取得
+        // ハイライト無箇所に対して，ハイライトをつけてコメントを追加
+        unhighlighted_feedback.forEach((uhf: any, index: number) => {
+          if (uhf.unhighlighted_text && uhf.suggestion) {
+            // PDFテキストからテキストを検索し、ハイライト矩形を取得
+            const foundRects = findTextInPdf(uhf.unhighlighted_text);
 
-        //     // ハイライトの作成とコメントの追加
-        //     const finalHighlight: Highlight = {
-        //       ...pendingHighlight,
-        //       uhf.suggestion,
-        //       createdAt: new Date().toISOString(),
-        //       createdBy: t("CommentPanel.comment-author-AI"),
-        //     };
+            if (foundRects.length > 0) {
+              // ハイライトIDを生成
+              const highlightId = `pdf-ai-${Date.now()}-${index}`;
 
-        //     const rootComment: CommentType = {
-        //       id: uuidv4(),
-        //       highlightId: id,
-        //       parentId: null,
-        //       author: t("CommentPanel.comment-author-AI"),
-        //       text: uhf.suggestion,
-        //       createdAt: new Date().toISOString(),
-        //       editedAt: null,
-        //       deleted: false,
-        //     };
+              // ハイライトオブジェクトを作成（青色マーク用に createdBy: 'AI' を設定）
+              const aiHighlight: PdfHighlight = {
+                id: highlightId,
+                type: "pdf",
+                text: uhf.unhighlighted_text,
+                rects: foundRects,
+                memo: "",
+                createdAt: new Date().toISOString(),
+                createdBy: 'AI',
+              };
 
-        //     dispatch(addHighlightWithComment({ highlight: finalHighlight, initialComment: rootComment }));
-        //     dispatch(setActiveHighlightId(null));
-        //     dispatch(updateHighlightMemo({ id, uhf.suggestion }));
-        //   }
-        // });
+              // ハイライトとコメントを一緒に追加
+              const rootComment: CommentType = {
+                id: uuidv4(),
+                highlightId: highlightId,
+                parentId: null,
+                author: 'AI',
+                text: uhf.suggestion,
+                createdAt: new Date().toISOString(),
+                editedAt: null,
+                deleted: false,
+              };
+
+              dispatch(addHighlightWithComment({ highlight: aiHighlight, initialComment: rootComment }));
+            }
+          }
+        });
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -504,7 +690,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           console.error('An unexpected error occurred:', error);
       }
     }
-  }, [highlights, comments, pdfTextContent, dispatch]);
+  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf]);
 
   return (
     <div
