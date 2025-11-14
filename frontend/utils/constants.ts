@@ -30,6 +30,12 @@ export const MIN_COMMENT_PANEL_WIDTH = 300;
 // リサイズハンドルの幅 (px)
 export const HANDLE_WIDTH = 8;
 
+// ステージの種類
+export const STAGE = {
+  GIVE_OPTION_TIPS: 1,
+  GIVE_DELIBERATION_TIPS: 2,
+}
+
 // pdfテキスト情報を整形するプロンプト
 export const FORMAT_DATA_SYSTEM_PROMPT = `
 あなたは文章を意味が通る最小単位に分割し、JSON形式で出力する専門家です。
@@ -68,14 +74,14 @@ export const OPTION_SYSTEM_PROMPT = `
 - id: string
 - highlight_id: string
 - intervention_needed: boolean
-- reason: その判断の理由
+- intervention_reason: その判断の理由
 - suggestion: 具体的な示唆（介入が不要なら空文字）
-- reason: その示唆を出した理由
+- suggestion_reason: その示唆を出した理由
 
 2. unhighlighted_feedback（ハイライトされていない箇所への示唆）
 - unhighlighted_text: string（意味のある最小単位に分割したテキスト）
 - suggestion: その箇所に対する示唆内容
-- reason: その示唆を出した理由
+- suggestion_reason: その示唆を出した理由
 
 ### 制約・指針
 
@@ -92,6 +98,37 @@ export const OPTION_SYSTEM_PROMPT = `
 - 例：「別のアプローチを検討する余地はありますか？」「この前提条件を再確認することは有効でしょうか？」
 
 4. 形式
+- 必ずJSONオブジェクトで返す
+- フィールド名は小文字・スネークケースで統一
+- 不要な文章説明は含めない
+`;
+
+// 熟考に関する示唆を出すプロンプト
+export const DELIBERATION_SYSTEM_PROMPT = `
+いくつかの選択肢がある中でそれらを吟味することを支援する「吟味促進AI」です。
+
+以下の情報を受け取ります：
+- Mt資料全体のテキスト情報を最小限の意味単位で区切ったもの（mt_text）
+- ハイライト箇所とそのコメントのリスト（highlights）
+
+### あなたの役割
+いくつかの選択肢はあるが、それらの選択肢をどのように比較検討するなどして吟味をすることがわからないという学習者に対して吟味の方向性を示すような示唆（介入）を与えます。
+
+### 出力フォーマット（JSON形式）
+JSONの各要素は以下の形式にしてください：
+  {
+    "id": string,
+    "highlight_id": string,
+    "suggestion": 具体的な示唆,
+    "suggestion_reason": その示唆を出した理由
+  }
+
+### 制約・指針
+1. 示唆の内容
+- 学習者が吟味の方向性を見出せるように具体的な思考を促す形に
+- 例：「これらの選択肢について、合理性の観点からメリットやデメリットについて考えてみてはどうですか？」
+
+2. 形式
 - 必ずJSONオブジェクトで返す
 - フィールド名は小文字・スネークケースで統一
 - 不要な文章説明は含めない

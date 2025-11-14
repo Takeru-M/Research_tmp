@@ -7,9 +7,9 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
 import { RootState } from '@/redux/store';
-import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState, HighlightCommentList } from '../redux/features/editor/editorTypes';
-import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo } from '../redux/features/editor/editorSlice';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
+import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo, setCompletionStage } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import LoadingOverlay from './LoadingOverlay';
@@ -17,7 +17,9 @@ import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from 'uuid';
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT } from '@/utils/constants';
+import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT } from '@/utils/constants';
+import { RESPONSE_SAMPLE_IN_STAGE1 } from '@/utils/test';
+import { STAGE } from '@/utils/constants';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -39,6 +41,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageTextItems, setPageTextItems] = useState<{ [n:number]:any[] }>({});
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
+  const [dividedMeetingTexts, setDividedMeetingTexts] = useState<DividedMeetingTexts | null>(null);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
@@ -51,6 +54,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeCommentId = useSelector(selectActiveCommentId);
+  const completionStage = useSelector(selectCompletionStage);
   const isLoading = useSelector((state: RootState) => state.loading.isLoading);
 
   const activeHighlightFromComment = React.useMemo(() => {
@@ -58,49 +62,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const c = comments.find((x) => x.id === activeCommentId);
     return c ? c.highlightId : null;
   }, [activeCommentId, comments]);
-
-  const mockResponseData = {
-    "highlight_feedback": [
-      // {
-      //   "id": "1f53f84e-5b84-44cc-988a-5bbd71083f11",
-      //   "highlight_id": "pdf-1762954464881",
-      //   "intervention_needed": true,
-      //   "reason": "UIの不便さについての懸念が表面的で具体的な解決策が示されていないため",
-      //   "suggestion": "この懸念を解消するためには、どのような改善策が考えられるでしょうか？別のアプローチが必要かもしれません。"
-      // },
-      // ... 他のハイライトフィードバックデータ ...
-      // {
-      //   "id": "132928f9-7ef9-442a-8ebc-be690b87f4da",
-      //   "highlight_id": "pdf-1762954555929",
-      //   "intervention_needed": false,
-      //   "reason": "UIの必要性について具体的な根拠が示されているため",
-      //   "suggestion": ""
-      // }
-    ],
-    "unhighlighted_feedback": [
-      {
-        "unhighlighted_text": "報告がメインになるため，特になし",
-        "suggestion": "あああ"
-      },
-      // ... 他の未ハイライトフィードバックデータ ...
-      {
-        "unhighlighted_text": "今後予定している実装",
-        "suggestion": "選択可能にすることの具体的な利点は何か、他に考えられる改善点はありますか？"
-      },
-      {
-        "unhighlighted_text": "実装進捗の報告2025-11-04 松島丈翔",
-        "suggestion": "あああ"
-      },
-      {
-        "unhighlighted_text": "実装進捗報告議論したいこと・報告がメインになるため，特になし",
-        "suggestion": "あああ"
-      },
-      {
-        "unhighlighted_text": "pdf表示エリアにおいてハイライトをつける際に，入れ子構造や複数のハイライトに選択される場合の実装について",
-        "suggestion": "あああ"
-      }
-    ]
-  };
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
 
@@ -610,120 +571,206 @@ const addHighlight = () => {
     // ローディング開始
     dispatch(startLoading(t('PdfViewer.analyzing')));
 
-    const highlightCommentList: HighlightCommentList = [];
-    for (const h of highlights) {
-      const related = comments.filter(c => c.highlightId === h.id);
-
-      if (related.length > 0) {
-        for (const c of related) {
-          highlightCommentList.push({
-            id: c.id,
-            highlightId: h.id,
-            highlight: h.text.trim(),
-            comment: c.text.trim(),
-          });
+    if (completionStage == STAGE.GIVE_OPTION_TIPS){
+      try {
+        const highlightCommentList: HighlightCommentList = [];
+        for (const h of highlights) {
+          const related = comments.filter(c => c.highlightId === h.id);
+          if (related.length > 0) {
+            for (const c of related) {
+              highlightCommentList.push({
+                id: c.id,
+                highlightId: h.id,
+                highlight: h.text.trim(),
+                comment: c.text.trim(),
+              });
+            }
+          } else {
+            highlightCommentList.push({
+              id: "",
+              highlightId: h.id,
+              highlight: h.text.trim(),
+              comment: "(none)",
+            });
+          }
         }
-      } else {
-        highlightCommentList.push({
-          id: "",
-          highlightId: h.id,
-          highlight: h.text.trim(),
-          comment: "(none)",
-        });
+
+        // const firstResponse = await axios.post('/api/format-data', {
+        //   formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
+        //   pdfTextData: pdfTextContent
+        // });
+        // console.log(firstResponse.data.analysis);
+        // const firstResponseData = JSON.parse(firstResponse.data.analysis);
+        // setDividedMeetingTexts(firstResponseData);
+
+        // const systemPrompt = OPTION_SYSTEM_PROMPT;
+        // const userInput = {
+        //   "mt_text": firstResponse.data.analysis,
+        //   "highlights": highlightCommentList,
+        // }
+
+        // const response = await axios.post('/api/option-analyze', {
+        //     systemPrompt: systemPrompt,
+        //     userInput: userInput,
+        // });
+
+        // const responseData = JSON.parse(response.data.analysis);
+        // console.log(responseData);
+
+        // テスト用
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const responseData = RESPONSE_SAMPLE_IN_STAGE1;
+
+        if (responseData) {
+          const highlight_feedback = responseData.highlight_feedback;
+          const unhighlighted_feedback = responseData.unhighlighted_feedback;
+
+          // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
+          highlight_feedback.forEach((hf: any) => {
+            if (hf.intervention_needed && hf.suggestion) {
+              dispatch(
+                addComment({
+                  id: `s-${Date.now()}`,
+                  highlightId: hf.highlight_id,
+                  parentId: hf.id,
+                  author: 'AI',
+                  text: hf.suggestion,
+                  createdAt: new Date().toISOString(),
+                  editedAt: null,
+                  deleted: false,
+              }));
+            }
+          });
+
+          // ハイライト無箇所に対して，ハイライトをつけてコメントを追加
+          unhighlighted_feedback.forEach((uhf: any, index: number) => {
+            if (uhf.unhighlighted_text && uhf.suggestion) {
+              // PDFテキストからテキストを検索し、ハイライト矩形を取得
+              const foundRects = findTextInPdf(uhf.unhighlighted_text);
+
+              if (foundRects.length > 0) {
+                // ハイライトIDを生成
+                const highlightId = `pdf-ai-${Date.now()}-${index}`;
+
+                // ハイライトオブジェクトを作成（青色マーク用に createdBy: 'AI' を設定）
+                const aiHighlight: PdfHighlight = {
+                  id: highlightId,
+                  type: "pdf",
+                  text: uhf.unhighlighted_text,
+                  rects: foundRects,
+                  memo: "",
+                  createdAt: new Date().toISOString(),
+                  createdBy: 'AI',
+                };
+
+                // ハイライトとコメントを一緒に追加
+                const rootComment: CommentType = {
+                  id: uuidv4(),
+                  highlightId: highlightId,
+                  parentId: null,
+                  author: 'AI',
+                  text: uhf.suggestion,
+                  createdAt: new Date().toISOString(),
+                  editedAt: null,
+                  deleted: false,
+                };
+
+                dispatch(addHighlightWithComment({ highlight: aiHighlight, initialComment: rootComment }));
+              }
+            }
+          });
+
+          dispatch(setCompletionStage(STAGE.GIVE_DELIBERATION_TIPS));
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('API Route Error:', error.response?.data || error.message);
+        } else {
+            console.error('An unexpected error occurred:', error);
+        }
+      } finally {
+        // ローディング終了
+        dispatch(stopLoading());
       }
     }
-
-    try {
-      // const firstResponse = await axios.post('/api/formatData', {
-      //   formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
-      //   pdfTextData: pdfTextContent
-      // });
-      // console.log(firstResponse.data);
-
-      // const systemPrompt = OPTION_SYSTEM_PROMPT;
-      // const userInput = {
-      //   "mt_text": firstResponse.data.analysis,
-      //   "highlights": highlightCommentList,
-      // }
-
-      // const response = await axios.post('/api/analyze', {
-      //     systemPrompt: systemPrompt,
-      //     userInput: userInput,
-      // });
-
-      // const responseData = JSON.parse(response.data.analysis);
-      // console.log(responseData);
-
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const responseData = mockResponseData;
-      if (responseData) {
-        const highlight_feedback = responseData.highlight_feedback;
-        const unhighlighted_feedback = responseData.unhighlighted_feedback;
-
-        // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
-        highlight_feedback.forEach((hf: any) => {
-          if (hf.intervention_needed && hf.suggestion) {
-            dispatch(
-              addComment({
-                id: `s-${Date.now()}`,
-                highlightId: hf.highlight_id,
-                parentId: hf.id,
-                author: 'AI',
-                text: hf.suggestion,
-                createdAt: new Date().toISOString(),
-                editedAt: null,
-                deleted: false,
-            }));
-          }
-        });
-
-        // ハイライト無箇所に対して，ハイライトをつけてコメントを追加
-        unhighlighted_feedback.forEach((uhf: any, index: number) => {
-          if (uhf.unhighlighted_text && uhf.suggestion) {
-            // PDFテキストからテキストを検索し、ハイライト矩形を取得
-            const foundRects = findTextInPdf(uhf.unhighlighted_text);
-
-            if (foundRects.length > 0) {
-              // ハイライトIDを生成
-              const highlightId = `pdf-ai-${Date.now()}-${index}`;
-
-              // ハイライトオブジェクトを作成（青色マーク用に createdBy: 'AI' を設定）
-              const aiHighlight: PdfHighlight = {
-                id: highlightId,
-                type: "pdf",
-                text: uhf.unhighlighted_text,
-                rects: foundRects,
-                memo: "",
-                createdAt: new Date().toISOString(),
-                createdBy: 'AI',
-              };
-
-              // ハイライトとコメントを一緒に追加
-              const rootComment: CommentType = {
-                id: uuidv4(),
-                highlightId: highlightId,
-                parentId: null,
-                author: 'AI',
-                text: uhf.suggestion,
-                createdAt: new Date().toISOString(),
-                editedAt: null,
-                deleted: false,
-              };
-
-              dispatch(addHighlightWithComment({ highlight: aiHighlight, initialComment: rootComment }));
+    else if (completionStage == STAGE.GIVE_DELIBERATION_TIPS){
+      try {
+        const systemPrompt = DELIBERATION_SYSTEM_PROMPT;
+        const highlightCommentsList: HighlightCommentsList = [];
+        for (const h of highlights) {
+          const related = comments.filter(c => c.highlightId === h.id);
+          // 最後のコメントを取得
+          const lastComment = related[related.length - 1];
+          if (related.length > 0) {
+            for (const c of related) {
+              // 最後のコメントがAIによるものの場合のみ追加
+              if (lastComment && lastComment.author === 'AI') {
+                highlightCommentsList.push({
+                id: lastComment ? lastComment.id : '',
+                highlightId: h.id,
+                highlight: h.text.trim(),
+                comments: related.map(c => ({
+                  comment: c.text,
+                })),
+              });
+              }
             }
+          } else {
+            highlightCommentsList.push({
+              id: "",
+              highlightId: h.id,
+              highlight: h.text.trim(),
+              comments: [],
+            });
           }
+        }
+        console.log(highlightCommentsList);
+
+        const userInput = {
+          "mt_text": dividedMeetingTexts,
+          "highlights": highlightCommentsList,
+        }
+
+        const response = await axios.post('/api/deliberation-analyze', {
+            systemPrompt: systemPrompt,
+            userInput: userInput,
         });
+
+        const responseData = JSON.parse(response.data.analysis);
+        console.log(responseData);
+
+        // テスト用
+        // await new Promise(resolve => setTimeout(resolve, 3000));
+        // const responseData = RESPONSE_SAMPLE_IN_STAGE1;
+
+        if (responseData) {
+          // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
+          responseData.suggestions.forEach((hf: any) => {
+            if (hf.intervention_needed && hf.suggestion) {
+              dispatch(
+                addComment({
+                  id: `s-${Date.now()}`,
+                  highlightId: hf.highlight_id,
+                  parentId: hf.id,
+                  author: 'AI',
+                  text: hf.suggestion,
+                  createdAt: new Date().toISOString(),
+                  editedAt: null,
+                  deleted: false,
+              }));
+            }
+          });
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error('API Route Error:', error.response?.data || error.message);
+        } else {
+            console.error('An unexpected error occurred:', error);
+        }
+      } finally {
+        // ローディング終了
+        dispatch(stopLoading());
       }
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-          console.error('API Route Error:', error.response?.data || error.message);
-      } else {
-          console.error('An unexpected error occurred:', error);
-      }
-    } finally {
-      // ローディング終了
-      dispatch(stopLoading());
     }
   }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t]);
 

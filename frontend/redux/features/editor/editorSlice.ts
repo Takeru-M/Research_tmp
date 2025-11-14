@@ -3,6 +3,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { EditorState, Highlight, Comment, ScrollTarget } from './editorTypes';
 // import { v4 as uuidv4 } from 'uuid';
+import { STAGE } from '@/utils/constants';
 
 const initialState: EditorState = {
   file: null,
@@ -17,6 +18,7 @@ const initialState: EditorState = {
   activeScrollTarget: null as ScrollTarget | null,
   pdfScale: 1.0,
   responses: {} as Record<string, string>,
+  completionStage: STAGE.GIVE_OPTION_TIPS,
 };
 
 const editorSlice = createSlice({
@@ -91,14 +93,11 @@ const editorSlice = createSlice({
     addComment(state, action: PayloadAction<Comment>) {
       const newComment = action.payload;
       state.comments.push(newComment);
-      console.log(newComment.highlightId);
-      console.log(newComment.parentId);
 
       // ✅ AIハイライトへのユーザー返信を検出
       if (newComment.highlightId && newComment.parentId) {
         const highlight = state.highlights.find(h => h.id === newComment.highlightId);
         const parentComment = state.comments.find(c => c.id === newComment.parentId);
-        console.log("AAA");
 
         // 条件: ハイライトがAIで、親コメントがAIで、新規コメントがユーザー
         if (
@@ -205,6 +204,10 @@ const editorSlice = createSlice({
       const { id, response } = action.payload;
       state.responses[id] = response;
     },
+
+    setCompletionStage(state, action: PayloadAction<number | undefined>) {
+      state.completionStage = action.payload;
+    }
   },
 });
 
@@ -227,6 +230,7 @@ export const {
   setPdfScale,
   clearAllState,
   addLLMResponse,
+  setCompletionStage,
 } = editorSlice.actions;
 
 export default editorSlice.reducer;

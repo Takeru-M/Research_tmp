@@ -65,3 +65,8 @@ export const makeSelectCommentsByHighlight = (highlightId?: string) =>
       return comments.filter((c) => c.highlightId === highlightId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     }
   );
+
+export const selectCompletionStage = createSelector(
+  selectEditorState,
+  (editor) => editor.completionStage
+);

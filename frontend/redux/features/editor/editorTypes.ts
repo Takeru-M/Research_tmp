@@ -75,6 +75,8 @@ export interface EditorState {
   activeScrollTarget: ScrollTarget | null;
   pdfScale: number;
   responses: Record<string, string>;
+  dividedMeetingTexts?: DividedMeetingTexts;
+  completionStage: number;
 }
 
 export type Comment = {
@@ -104,3 +106,19 @@ export type HighlightCommentList = {
   highlight: string;
   comment: string;
 }[]
+
+export type HighlightCommentsList = {
+  id: string;
+  highlightId: string;
+  highlight: string;
+  comments: {
+    comment: string;
+  }[];
+}[]
+
+export type DividedMeetingText = {
+  id: number;
+  text: string;
+}
+
+export type DividedMeetingTexts = DividedMeetingText[];

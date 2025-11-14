@@ -1,4 +1,4 @@
-// pages/api/analyze.ts
+// pages/api/deliberation-analyze.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
@@ -20,22 +20,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(405).end('Method Not Allowed');
     }
 
-    const { formatDataPrompt, pdfTextData } = req.body;
+    const { systemPrompt, userInput } = req.body;
 
-    if (!formatDataPrompt) {
-        return res.status(400).json({ error: 'Missing "formatDataPrompt" in request body.' });
-    } else if (!pdfTextData) {
-      return res.status(400).json({ error: 'Missing "pdfTextData" in request body.' });
+    if (!systemPrompt) {
+        return res.status(400).json({ error: 'Missing "systemInput" in request body.' });
+    } else if (!userInput) {
+      return res.status(400).json({ error: 'Missing "userInput" in request body.' });
     }
 
     try {
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
-            temperature: 0.1,
+            temperature: 0.7,
             messages: [
-              {role: "system", content: formatDataPrompt},
-              {role: "user", content: pdfTextData}
-            ]
+              {role: "system", content: systemPrompt},
+              {role: "user", content: JSON.stringify(userInput, null, 2)}
+            ],
+            response_format: {type: "json_object"},
         });
 
         const analysisResult = response.choices[0].message.content;

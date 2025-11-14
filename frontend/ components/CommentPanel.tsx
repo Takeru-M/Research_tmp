@@ -284,7 +284,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     setEditText("");
   };
 
-  const removeCommentFn = (id: string) => {
+const removeCommentFn = (id: string) => {
     if (!window.confirm(t("Alert.comment-delete"))) return;
 
     const comment = comments.find((c: Comment) => c.id === id);
