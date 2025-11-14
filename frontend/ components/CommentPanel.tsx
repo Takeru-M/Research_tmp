@@ -16,13 +16,10 @@ import "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD } from "@/utils/constants";
 
 // 動的なパディングを計算するヘルパー関数
-// ページ全体の半分まではスクロール可
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
   return (typeof viewerHeight !== 'number') ? 500 : viewerHeight;
 };
-// -------------------------------------------------------------------
 
-// TODO: CSS読み込みで対応
 const menuStyle: React.CSSProperties = {
   position: "relative",
   display: "inline-block",
@@ -31,13 +28,14 @@ const menuStyle: React.CSSProperties = {
 // CommentHeader コンポーネント
 const CommentHeader: React.FC<{
   comment: Comment;
+  highlightText?: string;
   editingId: string | null;
   toggleMenu: (id: string) => void;
   menuOpenMap: Record<string, boolean>;
   startEditing: (id: string, text: string) => void;
   removeCommentFn: (id: string) => void;
   menuRef: (element: HTMLDivElement | null) => void;
-}> = ({ comment, editingId, toggleMenu, menuOpenMap, startEditing, removeCommentFn, menuRef }) => {
+}> = ({ comment, highlightText, editingId, toggleMenu, menuOpenMap, startEditing, removeCommentFn, menuRef }) => {
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
@@ -50,14 +48,45 @@ const CommentHeader: React.FC<{
   }, [comment.createdAt]);
 
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-      <div style={{ display: "flex", alignItems: "baseline" }}>
-        <strong style={{ fontSize: 14 }}>{comment.author || "You"}</strong> {/* フォントサイズを14に変更 */}
-        <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}> {/* フォントサイズを12に変更 */}
-          {time}
-        </small>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+      <div style={{ flex: 1 }}>
+        {/* ユーザー情報と時刻 */}
+        <div style={{ display: "flex", alignItems: "baseline" }}>
+          <strong style={{ fontSize: 14 }}>{comment.author || "You"}</strong>
+          <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}>
+            {time}
+          </small>
+        </div>
+
+        {/* ハイライトテキスト表示 */}
+        {highlightText && (
+          <div
+            style={{
+              marginTop: 6,
+              padding: "6px 8px",
+              backgroundColor: "#f8f9fa",
+              borderLeft: "3px solid #8e8a83",
+              borderRadius: 4,
+              fontSize: 13,
+              color: "#555",
+              lineHeight: 1.4,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: 60,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+            }}
+            title={highlightText}
+          >
+            <em>{highlightText}</em>
+          </div>
+        )}
       </div>
 
+      {/* メニューボタン */}
       <div
         style={menuStyle}
         ref={menuRef}
@@ -68,7 +97,7 @@ const CommentHeader: React.FC<{
         <button
           style={{
             cursor: "pointer",
-            fontSize: 18, // フォントサイズを18に変更
+            fontSize: 18,
             color: "black",
             padding: "0.5% 1%",
             borderRadius: "50%",
@@ -76,6 +105,8 @@ const CommentHeader: React.FC<{
             background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
             border: 'none',
             transition: 'background-color 0.1s',
+            flexShrink: 0,
+            marginLeft: 8,
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -103,10 +134,10 @@ const CommentHeader: React.FC<{
             {!isEditing && (
               <button
                 style={{
-                  padding: "8px 12px", // パディングを調整
+                  padding: "8px 12px",
                   cursor: "pointer",
                   color: "black",
-                  fontSize: 14, // フォントサイズを14に変更
+                  fontSize: 14,
                   background: hoveredMenuItem === 'edit' ? '#f5f5f5' : '#fff',
                   borderBottom: "1px solid #eee",
                   textAlign: 'left',
@@ -125,10 +156,10 @@ const CommentHeader: React.FC<{
             )}
             <button
               style={{
-                padding: "8px 12px", // パディングを調整
+                padding: "8px 12px",
                 cursor: "pointer",
                 color: "red",
-                fontSize: 14, // フォントサイズを14に変更
+                fontSize: 14,
                 borderBottom: "none",
                 background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
                 textAlign: 'left',
@@ -150,7 +181,6 @@ const CommentHeader: React.FC<{
     </div>
   );
 };
-
 
 interface CommentPanelProps {
   viewerHeight: number | 'auto';
@@ -202,13 +232,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const rootComments: Comment[] = comments.filter((c: Comment) => c.parentId === null);
   const getReplies = (pid: string): Comment[] => comments.filter((c: Comment) => c.parentId === pid);
 
-  // ハイライトの縦位置（PDF座標）に基づいてルートコメントをソートするロジック
   const sortedRootComments = useMemo(() => {
     const getHighlightSortKey = (highlightId: string): number | null => {
       const highlight = (highlights as PdfHighlight[]).find((h) => h.id === highlightId);
       if (!highlight || highlight.rects.length === 0) return null;
 
-      // highlight.rects のコピーを作成してからソートする (読み取り専用エラー回避)
       const sortedRects = [...highlight.rects].sort((a, b) => {
         if (a.pageNum !== b.pageNum) {
           return a.pageNum - b.pageNum;
@@ -236,7 +264,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         return comment as Comment;
     });
   }, [rootComments, highlights]);
-
 
   const toggleCollapse = (rootId: string) => {
     setCollapsedMap(prev => ({
@@ -300,14 +327,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         <textarea
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
-          style={{ width: "100%", marginTop: 4, padding: 6, borderRadius: 4, border: "1px solid #ccc", boxSizing: 'border-box', fontSize: 14 }} // フォントサイズを14に変更
+          style={{ width: "100%", marginTop: 4, padding: 6, borderRadius: 4, border: "1px solid #ccc", boxSizing: 'border-box', fontSize: 14 }}
         />
         <button
           style={{
             marginTop: 4,
             marginRight: 2,
-            padding: "6px 12px", // パディングを調整
-            fontSize: 14, // フォントサイズを14に変更
+            padding: "6px 12px",
+            fontSize: 14,
             borderRadius: 4,
             background: "#1976d2",
             color: "#fff",
@@ -321,8 +348,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         <button
           style={{
             marginTop: 4,
-            padding: "6px 12px", // パディングを調整
-            fontSize: 14, // フォントサイズを14に変更
+            padding: "6px 12px",
+            fontSize: 14,
             borderRadius: 4,
             background: "#6c757d",
             color: "#fff",
@@ -335,11 +362,10 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         </button>
       </div>
     ) : (
-      <p style={{ marginTop: 2, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{comment.text}</p> // フォントサイズを14に変更
+      <p style={{ marginTop: 6, marginBottom: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{comment.text}</p>
     );
   };
 
-  // Helper: find root id for any comment id
   const findRootId = (commentId: string | null) => {
     if (!commentId) return null;
     const map = new Map<string, Comment>();
@@ -363,7 +389,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     return highlightInfo;
   }
 
-  // Auto-initialize collapsedMap (変更なし)
+  // ハイライトテキストを取得するヘルパー関数
+  const getHighlightText = (highlightId: string | null) => {
+    if (!highlightId) return null;
+    const highlight = highlights.find((h: PdfHighlight) => h.id === highlightId);
+    return highlight?.text || null;
+  };
+
   useEffect(() => {
     const newCollapsed: Record<string, boolean> = { ...collapsedMap };
     rootComments.forEach((root) => {
@@ -380,10 +412,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       });
     }
     setCollapsedMap(newCollapsed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comments.length]);
 
-  // Expand the thread when a corresponding highlight or comment is selected
   useEffect(() => {
     if (activeCommentId) {
       const rootId = findRootId(activeCommentId);
@@ -401,11 +431,9 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
   }, [activeHighlightId]);
 
-  // スクロールを強制するための動的パディングを計算
   const DYNAMIC_PADDING = getDynamicPadding(viewerHeight);
-  const DYNAMIC_PADDING_PX = `${DYNAMIC_PADDING }px`;
+  const DYNAMIC_PADDING_PX = `${DYNAMIC_PADDING}px`;
 
-  // activeScrollTarget に基づいたスクロールロジック
   useEffect(() => {
     let targetRootId: string | null = null;
     if (activeCommentId) {
@@ -417,19 +445,16 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       }
     }
 
-    // ヘッダーの高さを取得（デフォルト値は0）
     const header = document.querySelector("header");
     const headerHeight = header ? header.offsetHeight : 0;
 
     const targetElement = targetRootId && threadRefs.current[targetRootId];
-    // const scrollContainer = scrollContainerRef.current;
     const commentPanel = commentPanelRef.current;
     const targetHighlight = getHighlightInfo(activeHighlightId);
     if (targetElement instanceof HTMLDivElement) {
       const targetElement_y = targetElement.getBoundingClientRect().y;
       if (targetElement && commentPanel && targetHighlight) {
         commentPanel.scrollBy({
-          // 多分TODO: 現状は(スレッドのDOM位置) - (ハイライトのpdf位置)にしているので，DOM位置で計算する
           top: targetElement_y - targetHighlight.rects[0].y1,
           behavior: "smooth",
         })
@@ -442,7 +467,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       ref={commentPanelRef}
       style={{
         minWidth: "300px",
-        // borderLeft: "1px solid #ddd",
         padding: "1%",
         maxHeight: viewerHeight !== 'auto'
           ? `calc(${viewerHeight}px)`
@@ -451,7 +475,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       }}
       className="comment-panel"
     >
-      {/* <h3 style={{ marginBottom: 12, fontSize: 17 }}>コメント</h3> */}
       <div
         ref={scrollContainerRef}
         style={{
@@ -470,6 +493,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             : replies;
 
           const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
+          const rootHighlightText = getHighlightText(root.highlightId);
 
           return (
             <div
@@ -491,6 +515,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             >
               <CommentHeader
                 comment={root}
+                highlightText={rootHighlightText}
                 editingId={editingId}
                 toggleMenu={toggleMenu}
                 menuOpenMap={menuOpenMap}
@@ -523,6 +548,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                 >
                   <CommentHeader
                     comment={r}
+                    highlightText={undefined}
                     editingId={editingId}
                     toggleMenu={toggleMenu}
                     menuOpenMap={menuOpenMap}
