@@ -746,7 +746,8 @@ const addHighlight = () => {
         if (responseData) {
           // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
           responseData.suggestions.forEach((hf: any) => {
-            if (hf.intervention_needed && hf.suggestion) {
+            console.log(hf);
+            if (hf.suggestion) {
               dispatch(
                 addComment({
                   id: `s-${Date.now()}`,
