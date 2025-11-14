@@ -16,8 +16,8 @@
   "CommentPanel": {
     "comment-author-user": "ユーザー",
     "comment-author-AI": "AI",
-    "edit-comment": "編集",
-    "delete-comment": "削除",
+    "edit": "編集",
+    "delete": "削除",
     "save-reply": "保存",
     "cancel-reply": "キャンセル",
     "reply-placeholder": "返信を書く",

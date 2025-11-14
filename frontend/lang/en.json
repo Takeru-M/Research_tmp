@@ -16,8 +16,8 @@
   "CommentPanel": {
     "comment-author-user": "User",
     "comment-author-AI": "AI",
-    "edit-comment": "Edit",
-    "delete-comment": "Delete",
+    "edit": "Edit",
+    "delete": "Delete",
     "save-reply": "Save",
     "cancel-reply": "Cancel",
     "reply-placeholder": "Write a reply",

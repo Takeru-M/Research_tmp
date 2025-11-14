@@ -81,7 +81,6 @@ const editorSlice = createSlice({
       const removedCommentIds = state.comments.filter((c) => c.highlightId === id).map((c) => c.id);
       state.comments = state.comments.filter((c) => c.highlightId !== id);
       if (state.activeHighlightId === id) state.activeHighlightId = null;
-      // 💡 修正: activeScrollTarget のリセットを追加
       if (state.activeHighlightId === null) state.activeScrollTarget = null;
       if (state.activeCommentId && removedCommentIds.includes(state.activeCommentId)) {
         state.activeCommentId = null;
@@ -90,7 +89,28 @@ const editorSlice = createSlice({
 
     // === Comments ===
     addComment(state, action: PayloadAction<Comment>) {
-      state.comments.push(action.payload);
+      const newComment = action.payload;
+      state.comments.push(newComment);
+      console.log(newComment.highlightId);
+      console.log(newComment.parentId);
+
+      // ✅ AIハイライトへのユーザー返信を検出
+      if (newComment.highlightId && newComment.parentId) {
+        const highlight = state.highlights.find(h => h.id === newComment.highlightId);
+        const parentComment = state.comments.find(c => c.id === newComment.parentId);
+        console.log("AAA");
+
+        // 条件: ハイライトがAIで、親コメントがAIで、新規コメントがユーザー
+        if (
+          highlight &&
+          highlight.createdBy === 'AI' &&
+          parentComment &&
+          parentComment.author === 'AI' &&
+          newComment.author !== 'AI'  // ユーザーのコメント
+        ) {
+          highlight.hasUserReply = true;  // ✅ 色を緑に変更
+        }
+      }
     },
     setAllComments(state, action: PayloadAction<Comment[]>) {
       state.comments = action.payload;
@@ -104,10 +124,32 @@ const editorSlice = createSlice({
     },
     deleteComment(state, action: PayloadAction<{ id: string }>) {
       const id = action.payload.id;
+      const deletedComment = state.comments.find(c => c.id === id);
+
       state.comments = state.comments.filter((c) => c.id !== id);
+
+      // 💡 新規追加: 削除されたコメントがAI返信への唯一のユーザー返信だった場合、フラグをリセット
+      if (deletedComment && deletedComment.highlightId && deletedComment.author !== 'AI') {
+        const highlight = state.highlights.find(h => h.id === deletedComment.highlightId);
+        if (highlight && highlight.createdBy === 'AI') {
+          // この親コメント配下に、ユーザーの返信がもう残っているか確認
+          const parentComment = state.comments.find(c => c.id === deletedComment.parentId);
+          if (parentComment && parentComment.author === 'AI') {
+            const hasOtherUserReplies = state.comments.some(c =>
+              c.highlightId === deletedComment.highlightId &&
+              c.parentId === deletedComment.parentId &&
+              c.author !== 'AI' &&
+              c.id !== deletedComment.id
+            );
+            if (!hasOtherUserReplies) {
+              highlight.hasUserReply = false;
+            }
+          }
+        }
+      }
+
       if (state.activeCommentId === id) {
         state.activeCommentId = null;
-        // 💡 修正: activeCommentId が null になったら activeScrollTarget もリセット
         state.activeScrollTarget = null;
       }
     },
@@ -156,7 +198,7 @@ const editorSlice = createSlice({
       state.activeCommentId = null;
       state.activeHighlightMemo = null;
       state.pdfTextContent = null;
-      state.activeScrollTarget = null; // ★ 追加: リセット
+      state.activeScrollTarget = null;
     },
 
     addLLMResponse: (state, action) => {

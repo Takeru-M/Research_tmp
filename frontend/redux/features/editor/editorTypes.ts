@@ -34,6 +34,7 @@ interface BaseHighlight {
   memo: string;
   createdAt: string;
   createdBy: string;
+  hasUserReply?: boolean;
 }
 
 // PDF （ページを跨げる）

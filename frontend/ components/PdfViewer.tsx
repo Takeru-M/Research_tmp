@@ -261,12 +261,36 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
       
-      // AIによるハイライト（createdBy: 'AI'）は青色、その他は黄色
+      // AIによるハイライトの色を判定
       const isAIHighlight = h.createdBy === 'AI';
-      const baseBg = isAIHighlight ? 'rgba(52, 168, 224, 0.30)' : 'rgba(255, 235, 59, 0.40)';
-      const activeBg = isAIHighlight ? 'rgba(52, 168, 224, 0.50)' : 'rgba(255, 235, 59, 0.65)';
-      const baseBorderColor = isAIHighlight ? '#34a8e0' : '#ffeb3b';
-      const activeBorderColor = isAIHighlight ? '#1e88c6' : '#fbc02d';
+      
+      let baseBg: string;
+      let activeBg: string;
+      let baseBorderColor: string;
+      let activeBorderColor: string;
+
+      if (isAIHighlight) {
+        // AIハイライト: ユーザー返信有無で色を分ける
+        if (h.hasUserReply) {
+          // ユーザー返信あり → 緑色
+          baseBg = 'rgba(76, 175, 80, 0.30)';
+          activeBg = 'rgba(76, 175, 80, 0.50)';
+          baseBorderColor = '#4CAF50';
+          activeBorderColor = '#388E3C';
+        } else {
+          // ユーザー返信なし → 青色（元のAI色）
+          baseBg = 'rgba(52, 168, 224, 0.30)';
+          activeBg = 'rgba(52, 168, 224, 0.50)';
+          baseBorderColor = '#34a8e0';
+          activeBorderColor = '#1e88c6';
+        }
+      } else {
+        // ユーザーハイライト → 黄色
+        baseBg = 'rgba(255, 235, 59, 0.40)';
+        activeBg = 'rgba(255, 235, 59, 0.65)';
+        baseBorderColor = '#ffeb3b';
+        activeBorderColor = '#fbc02d';
+      }
 
       const isActive = effectiveActiveHighlightId === h.id;
 
@@ -290,7 +314,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }}
           onClick={(e) => {
             e.stopPropagation();
-            // クリックで確実に active にする（外部 onHighlightClick も呼ぶ）
             dispatch(setActiveHighlightId(h.id));
             onHighlightClick?.(h.id);
           }}

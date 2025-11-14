@@ -52,7 +52,7 @@ const CommentHeader: React.FC<{
       <div style={{ flex: 1 }}>
         {/* ユーザー情報と時刻 */}
         <div style={{ display: "flex", alignItems: "baseline" }}>
-          <strong style={{ fontSize: 14 }}>{comment.author || "You"}</strong>
+          <strong style={{ fontSize: 14 }}>{comment.author || t("CommentPanel.comment-author-user")}</strong>
           <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}>
             {time}
           </small>
@@ -151,7 +151,7 @@ const CommentHeader: React.FC<{
                   startEditing(comment.id, comment.text);
                 }}
               >
-                {t("CommentPanel.edit-comment")}
+                {t("CommentPanel.edit")}
               </button>
             )}
             <button
@@ -173,7 +173,7 @@ const CommentHeader: React.FC<{
                 removeCommentFn(comment.id);
               }}
             >
-              {t("CommentPanel.delete-comment")}
+              {t("CommentPanel.delete")}
             </button>
           </div>
         )}
@@ -285,27 +285,51 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   };
 
   const removeCommentFn = (id: string) => {
-    if (window.confirm(t("Alert.comment-delete"))) {
-      const comment = comments.find((c: Comment) => c.id === id);
-      if (!comment) return;
-      dispatch(deleteComment({ id }));
+    if (!window.confirm(t("Alert.comment-delete"))) return;
+
+    const comment = comments.find((c: Comment) => c.id === id);
+    if (!comment) return;
+
+    // ルートコメントを削除する場合はスレッド全体を削除し、
+    // 対応するハイライトがあればハイライト削除（ハイライト削除時に関連コメントも除去される）
+    if (comment.parentId === null) {
       if (comment.highlightId) {
         dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
+      } else {
+        // ハイライトが無いルートコメントは、そのルートに属する全コメントを個別に削除
+        const threadIds = comments
+          .filter(c => findRootId(c.id) === comment.id)
+          .map(c => c.id);
+        // ルート自身を含めて削除
+        threadIds.forEach(cid => dispatch(deleteComment({ id: cid })));
+        // ルート自身が上の filter に入っていない場合は明示的に削除
+        if (!threadIds.includes(comment.id)) {
+          dispatch(deleteComment({ id: comment.id }));
+        }
       }
-      closeMenu(id);
+    } else {
+      // 返信の削除は当該返信のみ
+      dispatch(deleteComment({ id }));
     }
+
+    closeMenu(id);
   };
 
   const sendReply = (parentId: string) => {
     const replyText = replyTextMap[parentId] || "";
     if (!replyText.trim()) return;
 
+    const parentComment = comments.find((c: Comment) => c.id === parentId);
+    if (!parentComment) {
+      return;
+    }
+
     dispatch(
       addComment({
         id: `c-${Date.now()}`,
         parentId,
-        highlightId: activeHighlightId,
-        author: "You",
+        highlightId: parentComment.highlightId,
+        author: t("CommentPanel.comment-author-user"),
         text: replyText,
         createdAt: new Date().toISOString(),
         editedAt: null,
