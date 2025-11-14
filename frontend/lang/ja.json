@@ -26,6 +26,7 @@
     "show-more": "全体を表示"
   },
   "Alert": {
+    "not_input_pdf": "PDFを読み込んでいません",
     "file-support": "現在，PDFとテキストファイルのみサポートしています",
     "comment-delete": "このコメントを削除してもよろしいですか？"
   },

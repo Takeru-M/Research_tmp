@@ -77,13 +77,13 @@ Research_tmp
 | --------------------- | ---------- |
 | PHP                   | 8.2        |
 | Laravel               | 12.0       |
-| MySQL                 |         |
-| Node.js               |     |
+| MySQL                 | 8.0.44     |
+| Node.js               | 20.19.5    |
 | React                 | 19.2.0     |
 | Next.js               | 16.0.0     |
 | Terraform             | 1.3.6      |
 
-その他のパッケージのバージョンは pyproject.toml と package.json を参照してください
+その他のパッケージのバージョンは composer.json と package.json を参照してください
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 

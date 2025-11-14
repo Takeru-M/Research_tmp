@@ -70,10 +70,12 @@ export const OPTION_SYSTEM_PROMPT = `
 - intervention_needed: boolean
 - reason: その判断の理由
 - suggestion: 具体的な示唆（介入が不要なら空文字）
+- reason: その示唆を出した理由
 
 2. unhighlighted_feedback（ハイライトされていない箇所への示唆）
 - unhighlighted_text: string（意味のある最小単位に分割したテキスト）
 - suggestion: その箇所に対する示唆内容
+- reason: その示唆を出した理由
 
 ### 制約・指針
 

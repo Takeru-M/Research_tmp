@@ -401,31 +401,31 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     sel.removeAllRanges();
   },[pageScales, highlights, dispatch, onHighlightClick, viewerRef]);
 
-  const addHighlight = ()=>{
-    if(selectionMenu.pendingHighlight){
-      onRequestAddHighlight?.(selectionMenu.pendingHighlight);
-      setSelectionMenu(s=>({...s,visible:false,pendingHighlight:null}));
-    }
-  };
-
   const handleRequestShapeHighlight = useCallback((rects: PdfRectWithPage[]) => {
     const firstRect = rects[0];
 
     setSelectionMenu({
-      x: window.innerWidth/2,
-      y: window.innerHeight/2,
-      visible: true,
-      pendingHighlight:{
-        id:`pdf-shape-${Date.now()}`,
-        type:"pdf",
-        text: `図形/画像ハイライト (P${firstRect.pageNum})`,
-        rects: rects,
-        memo:"",
-        createdAt: `${Date.now()}`,
-        createdBy: `${t("CommentPanel.comment-author-user")}`
-      }
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+        visible: true,
+        pendingHighlight: {
+            id: `pdf-shape-${Date.now()}`,
+            type: "pdf",
+            text: `図形/画像ハイライト (P${firstRect.pageNum})`,
+            rects: rects,
+            memo: "",
+            createdAt: `${Date.now()}`,
+            createdBy: `${t("CommentPanel.comment-author-user")}`
+        }
     });
-  }, [t]);
+}, [t]);
+
+const addHighlight = () => {
+    if (selectionMenu.pendingHighlight) {
+        onRequestAddHighlight?.(selectionMenu.pendingHighlight);
+        setSelectionMenu(s => ({ ...s, visible: false, pendingHighlight: null }));
+    }
+};
 
   const pdfTextContent = useSelector((state: RootState) => state.editor.pdfTextContent);
 
@@ -741,7 +741,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
         )}
         </Document>
-      ): <p style={{textAlign:'center'}}>PDFを読み込んでいません</p> }
+      ): <p style={{textAlign:'center'}}>{t("Alert.not_input_pdf")}</p> }
 
       {selectionMenu.visible && (
         <div className="pdf-add-menu"

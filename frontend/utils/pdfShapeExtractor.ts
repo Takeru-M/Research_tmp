@@ -1,6 +1,7 @@
 // src/utils/pdfShapeExtractor.ts
-import type { PDFPageProxy } from 'pdfjs-dist';
-import { PdfRectWithPage } from '../redux/features/editor/editorTypes';
+import type { PDFPageProxy, PageViewport } from 'pdfjs-dist';
+import { pdfjs } from 'react-pdf';
+import type { PdfRectWithPage } from '../redux/features/editor/editorTypes';
 
 /**
  * CTMに変換を適用するヘルパー関数
@@ -21,95 +22,70 @@ const transform = (x: number, y: number, matrix: number[]): [number, number] => 
  * * @param page - PDFPageProxy オブジェクト
  * @returns 抽出された図形情報の配列
  */
-export async function extractShapeData(page: PDFPageProxy): Promise<PdfRectWithPage[]> {
-  const opList = await page.getOperatorList();
-  const shapes: PdfRectWithPage[] = [];
-  const pageNum = page.pageNumber;
+// Legacy operator-list based extractor removed to avoid duplicate export.
+// The SVG-based extractShapeData implementation below is used instead.
 
-  // PDF座標系 (左下: (0,0)) のページ寸法（PDFのビューボックスから取得）
-  // PDFの座標は [左下x, 左下y, 右上x, 右上y]
-  const [, , , pageHeight] = page.view; 
-  let currentRectId = 0;
-
-  // Graphics State (簡易版: CTMのみ追跡)
-  let ctm = [1, 0, 0, 1, 0, 0]; // Current Transformation Matrix [a, b, c, d, e, f]
-
-  for (let i = 0; i < opList.fnArray.length; i++) {
-    const fn = opList.fnArray[i];
-    const args = opList.argsArray[i];
-
-    // CTMの変更 (concatenateMatrix)
-    if (fn === 4 /* opList.getOperator('concatenateMatrix') */ && args.length === 6) {
-        // CTMの乗算ロジック: new_ctm = old_ctm * args_matrix
-        const [a, b, c, d, e, f] = ctm;
-        const [a1, b1, c1, d1, e1, f1] = args as number[];
-        
-        ctm = [
-            a * a1 + b * c1,  // a'
-            a * b1 + b * d1,  // b'
-            c * a1 + d * c1,  // c'
-            c * b1 + d * d1,  // d'
-            e * a1 + f * c1 + e1,  // e'
-            e * b1 + f * d1 + f1   // f'
-        ];
-    }
-    
-    // Graphics State の保存 ('save') / 復元 ('restore') は、簡易化のためスキップ
-
-    // 1. 画像 (paintImageXObject)
-    if (fn === 33 /* opList.getOperator('paintImageXObject') */ || fn === 34 /* opList.getOperator('paintImageXObjectRepeat') */) { 
-      // CTMのe, f要素が左下隅のPDF座標に相当します。
-      const [x, y] = transform(0, 0, ctm);
-      
-      // 画像の幅と高さをCTMのaとdで仮定します (回転がないと仮定)
-      const width = ctm[0];
-      const height = ctm[3];
-      
-      const x_pdf_left = Math.min(x, x + width);
-      const y_pdf_bottom = Math.min(y, y + height);
-      const x_pdf_right = Math.max(x, x + width);
-      const y_pdf_top = Math.max(y, y + height);
-
-      // PDF左下原点 -> 左上原点に変換して保存
-      shapes.push({
-        pageNum,
-        x1: x_pdf_left, 
-        y1: pageHeight - y_pdf_top, 
-        x2: x_pdf_right, 
-        y2: pageHeight - y_pdf_bottom,
-        elementType: 'image',
-        elementId: `image-${pageNum}-${currentRectId++}`,
-      });
+/**
+ * ページ内の画像 / ベクタ図形の矩形を抽出して返す。
+ * 戻り値は PdfRectWithPage[] (pageNum, x1,y1,x2,y2)。
+ * x/y は PDF座標系（ページ左下原点）で返します。
+ */
+export const extractShapeData = async (page: PDFPageProxy): Promise<PdfRectWithPage[]> => {
+  try {
+    // operator list を取得して SVG に変換
+    const opList = await page.getOperatorList();
+    // SVGGraphics は pdfjs オブジェクトに含まれていることが多い
+    const SVGGraphicsCtor = (pdfjs as any).SVGGraphics;
+    if (!SVGGraphicsCtor) {
+      console.warn('SVGGraphics is not available on pdfjs. Ensure pdfjs-dist version supports SVGGraphics.');
+      return [];
     }
 
-    // 2. 矩形 (rectangle)
-    if (fn === 19 /* opList.getOperator('rectangle') */) {
-      // args: [x, y, w, h] (PDF座標)
-      if (args && args.length === 4) {
-        const [x, y, w, h] = args as [number, number, number, number];
-        
-        // 矩形の角の座標をCTMで変換
-        const [tx1, ty1] = transform(x, y, ctm);
-        const [tx2, ty2] = transform(x + w, y + h, ctm);
+    const svgG = new SVGGraphicsCtor(page.commonObjs, page.objs);
+    const viewport = page.getViewport({ scale: 1 });
+    const svg = await svgG.getSVG(opList, viewport);
 
-        const x_min = Math.min(tx1, tx2);
-        const y_min = Math.min(ty1, ty2);
-        const x_max = Math.max(tx1, tx2);
-        const y_max = Math.max(ty1, ty2);
-        
-        // CTM変換後の座標を左上原点に変換して保存
-        shapes.push({
-            pageNum,
-            x1: x_min,
-            y1: pageHeight - y_max, 
-            x2: x_max,
-            y2: pageHeight - y_min,
-            elementType: 'shape',
-            elementId: `shape-${pageNum}-${currentRectId++}`,
-        });
+    // 取得するタグを列挙
+    const nodeList = svg.querySelectorAll('image, path, rect, ellipse, polygon, polyline, circle');
+    const rects: PdfRectWithPage[] = [];
+    const pageNum = (page as any).pageNumber ?? 1;
+    const pageHeight = viewport.height;
+
+    nodeList.forEach((node) => {
+      // getBBox() が使える要素のみ
+      let bbox: DOMRect | null = null;
+      try {
+        // NOTE: svg がまだ DOM につながっていない場合に getBBox() が失敗することがあるので try/catch
+        bbox = (node as SVGGraphicsElement).getBBox();
+      } catch (e) {
+        bbox = null;
       }
-    }
-  }
+      if (!bbox || bbox.width === 0 || bbox.height === 0) return;
 
-  return shapes;
-}
+      // SVG の y は左上基準なので PDF の y (左下基準) に変換する
+      const svgX = bbox.x;
+      const svgY = bbox.y;
+      const svgW = bbox.width;
+      const svgH = bbox.height;
+
+      const x1 = svgX;
+      const x2 = svgX + svgW;
+      // PDF座標系 (左下原点)
+      const y2 = pageHeight - svgY; // top -> PDF y (上辺)
+      const y1 = pageHeight - (svgY + svgH); // bottom -> PDF y (下辺)
+
+      rects.push({
+        pageNum,
+        x1,
+        y1,
+        x2,
+        y2,
+      });
+    });
+
+    return rects;
+  } catch (err) {
+    console.error('extractShapeData error:', err);
+    return [];
+  }
+};

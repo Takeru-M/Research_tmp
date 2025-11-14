@@ -126,7 +126,19 @@ const FabricShapeLayer: React.FC<FabricShapeLayerProps> = ({
       });
       wrap.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        onSelectShape([shape]);
+        onSelectShape([shape]); // クリックした図形を選択
+        // ここでハイライトを追加するロジックを呼び出す
+        const highlightData = {
+          id: `shape-${Date.now()}`,
+          type: "shape",
+          text: "図形ハイライト",
+          rects: [shape], // 選択した図形の情報を使用
+          memo: "",
+          createdAt: `${Date.now()}`,
+          createdBy: 'User'
+        };
+        // onRequestAddHighlightを呼び出してハイライトを追加
+        onRequestAddHighlight?.(highlightData);
       });
 
       fCanvas.add(rect);
