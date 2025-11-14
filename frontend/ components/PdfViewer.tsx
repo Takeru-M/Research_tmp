@@ -10,7 +10,9 @@ import { RootState } from '@/redux/store';
 import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState, HighlightCommentList } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId } from '../redux/features/editor/editorSelectors';
 import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo } from '../redux/features/editor/editorSlice';
+import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import FabricShapeLayer from './FabricShapeLayer';
+import LoadingOverlay from './LoadingOverlay';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from 'uuid';
@@ -49,6 +51,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeCommentId = useSelector(selectActiveCommentId);
+  const isLoading = useSelector((state: RootState) => state.loading.isLoading);
 
   const activeHighlightFromComment = React.useMemo(() => {
     if (!activeCommentId) return null;
@@ -581,6 +584,9 @@ const addHighlight = () => {
   }, [pdfTextContent, pageData, pageTextItems, numPages]);
 
   const handleCompletion = useCallback(async () => {
+    // ローディング開始
+    dispatch(startLoading(t('PdfViewer.analyzing')));
+
     const highlightCommentList: HighlightCommentList = [];
     for (const h of highlights) {
       const related = comments.filter(c => c.highlightId === h.id);
@@ -625,6 +631,7 @@ const addHighlight = () => {
       // const responseData = JSON.parse(response.data.analysis);
       // console.log(responseData);
 
+      await new Promise(resolve => setTimeout(resolve, 3000));
       const responseData = mockResponseData;
       if (responseData) {
         const highlight_feedback = responseData.highlight_feedback;
@@ -691,8 +698,11 @@ const addHighlight = () => {
       } else {
           console.error('An unexpected error occurred:', error);
       }
+    } finally {
+      // ローディング終了
+      dispatch(stopLoading());
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf]);
+  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t]);
 
   return (
     <div
@@ -703,6 +713,9 @@ const addHighlight = () => {
         ref={viewerRef}
         onMouseUp={handleMouseUp}
       >
+      {/* ローディングオーバーレイ */}
+      <LoadingOverlay isVisible={isLoading} />
+
       {file?(
         <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
           {Array.from(new Array(numPages || 0), (_, i) =>
@@ -764,14 +777,16 @@ const addHighlight = () => {
       <div style={{textAlign:'center', padding: '20px 0'}}>
           <button
               onClick={handleCompletion}
+              disabled={isLoading}
               style={{
                   padding: '10px 20px',
                   fontSize: '16px',
-                  backgroundColor: '#4CAF50',
+                  backgroundColor: isLoading ? '#cccccc' : '#4CAF50',
                   color: 'white',
                   border: 'none',
                   borderRadius: '5px',
-                  cursor: 'pointer'
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  opacity: isLoading ? 0.6 : 1,
               }}
           >
               {t("PdfViewer.complete")}

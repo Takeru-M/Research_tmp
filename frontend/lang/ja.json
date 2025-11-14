@@ -33,5 +33,9 @@
   "Error": {
     "enter-memo": "メモを入力してください",
     "file-format-error": "このファイル形式はプレビューできません"
+  },
+  "LoadingOverlay": {
+    "analyzing": "解析しています...",
+    "please-wait": "しばらくお待ちください"
   }
 }

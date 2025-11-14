@@ -33,5 +33,9 @@
   "Error": {
     "enter-memo": "Please enter your memo.",
     "file-format": "This file format cannot be previewed"
+  },
+    "LoadingOverlay": {
+    "analyzing": "Analyzing...",
+    "please-wait": "Please wait a moment"
   }
 }
