@@ -34,6 +34,8 @@ export const HANDLE_WIDTH = 8;
 export const STAGE = {
   GIVE_OPTION_TIPS: 1,
   GIVE_DELIBERATION_TIPS: 2,
+  GIVE_MORE_DELIBERATION_TIPS: 3,
+  EXPORT: 4,
 }
 
 // pdfテキスト情報を整形するプロンプト

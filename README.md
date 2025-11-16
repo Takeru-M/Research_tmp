@@ -178,7 +178,7 @@ docker compose exec backend bash -c "php artisan migrate --env=testing && vendor
 
 ### 動作確認
 
-http://127.0.0.1:80 にアクセスできるか確認
+http://127.0.0.1:3000 にアクセスできるか確認
 アクセスできたら成功
 
 ### コンテナの停止

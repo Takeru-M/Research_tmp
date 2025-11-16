@@ -10,5 +10,8 @@ docker compose exec backend bash -c "php artisan migrate --env=testing && vendor
 // コンテナ削除
 docker compose down --remove-orphans
 
-// 初回リクエスト（nginxを経由してフロントエンドがレスポンスを返す）
-"localhost:80"にアクセス
+// 初回リクエスト
+"localhost:3000"にアクセス
+
+// マイグレーション
+npx prisma migrate dev --name init_schema

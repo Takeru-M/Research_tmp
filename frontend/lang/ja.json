@@ -5,7 +5,8 @@
   "file-upload-txt": "ファイルをアップロードしてください",
   "PdfViewer": {
     "add-comment": "コメントを追加",
-    "complete": "完了する"
+    "complete": "完了する",
+    "finish": "終了する"
   },
   "HighlightMemoModal": {
     "memo-title": "メモ",

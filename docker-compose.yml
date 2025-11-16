@@ -11,19 +11,23 @@ services:
     networks:
       - app-network
 
-  # --- Laravel (PHP-FPM) ---
+# --- FastAPI (バックエンド) ---
   backend:
+    # 既存のbackend/Dockerfileを使用
     build:
-      context: .
-      dockerfile: docker/backend/Dockerfile
-    container_name: laravel_backend
+      context: .  # Dockerfileの位置に合わせて修正
+      dockerfile: docker/backend/Dockerfile # ./backend/Dockerfile を指す
+    container_name: fastapi_backend # コンテナ名を変更
+    # アプリケーションコードのマウント（開発中にホスト側で編集したコードをコンテナに反映）
     volumes:
-      - ./backend:/var/www/html
+      - ./backend:/app # WORKDIR /app に合わせて修正
     networks:
       - app-network
     depends_on:
-      - db
-      - db_test
+      db:
+        condition: service_healthy
+      db_test:
+        condition: service_healthy
 
   # --- Nginx (Webサーバ/リバースプロキシ) ---
   nginx:
@@ -47,7 +51,11 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      TZ: 'Asia/Tokyo'
+    healthcheck: # DBのヘルスチェックを定義
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - db-data:/var/lib/mysql
     networks:
@@ -64,6 +72,11 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Asia/Tokyo'
+    healthcheck: # DBのヘルスチェックを定義
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - db-test-data:/var/lib/mysql
     networks:

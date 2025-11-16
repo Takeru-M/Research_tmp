@@ -17,9 +17,8 @@ import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from 'uuid';
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT } from '@/utils/constants';
+import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
 import { RESPONSE_SAMPLE_IN_STAGE1 } from '@/utils/test';
-import { STAGE } from '@/utils/constants';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -573,6 +572,20 @@ const addHighlight = () => {
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
+        const response = await fetch('/api/user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: 'test@example.com',
+            name: 'Test User',
+          }),
+        });
+
+        const data = await response.json();
+        console.log(data);
+
         const highlightCommentList: HighlightCommentList = [];
         for (const h of highlights) {
           const related = comments.filter(c => c.highlightId === h.id);
@@ -595,7 +608,7 @@ const addHighlight = () => {
           }
         }
 
-        // const firstResponse = await axios.post('/api/format-data', {
+        // const firstResponse = await axios.post('/api/openai/format-data', {
         //   formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
         //   pdfTextData: pdfTextContent
         // });
@@ -609,7 +622,7 @@ const addHighlight = () => {
         //   "highlights": highlightCommentList,
         // }
 
-        // const response = await axios.post('/api/option-analyze', {
+        // const response = await axios.post('/api/openai/option-analyze', {
         //     systemPrompt: systemPrompt,
         //     userInput: userInput,
         // });
@@ -724,14 +737,13 @@ const addHighlight = () => {
             });
           }
         }
-        console.log(highlightCommentsList);
 
         const userInput = {
           "mt_text": dividedMeetingTexts,
           "highlights": highlightCommentsList,
         }
 
-        const response = await axios.post('/api/deliberation-analyze', {
+        const response = await axios.post('/api/openai/deliberation-analyze', {
             systemPrompt: systemPrompt,
             userInput: userInput,
         });
@@ -746,7 +758,6 @@ const addHighlight = () => {
         if (responseData) {
           // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
           responseData.suggestions.forEach((hf: any) => {
-            console.log(hf);
             if (hf.suggestion) {
               dispatch(
                 addComment({
@@ -762,6 +773,7 @@ const addHighlight = () => {
             }
           });
         }
+        dispatch(setCompletionStage(STAGE.GIVE_MORE_DELIBERATION_TIPS));
       } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error('API Route Error:', error.response?.data || error.message);
@@ -858,10 +870,31 @@ const addHighlight = () => {
                   borderRadius: '5px',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   opacity: isLoading ? 0.6 : 1,
+                  marginRight: completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS ? '10px' : '0',
               }}
           >
               {t("PdfViewer.complete")}
           </button>
+          {completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS && (
+              <button
+                  onClick={() => {
+                      dispatch(setCompletionStage(STAGE.COMPLETED));
+                  }}
+                  disabled={isLoading}
+                  style={{
+                      padding: '10px 20px',
+                      fontSize: '16px',
+                      backgroundColor: isLoading ? '#cccccc' : '#666666',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      opacity: isLoading ? 0.6 : 1,
+                  }}
+              >
+                  {t("PdfViewer.finish")}
+              </button>
+          )}
       </div>
     </div>
   );

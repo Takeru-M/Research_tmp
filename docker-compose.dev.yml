@@ -9,16 +9,26 @@ services:
       - /app/node_modules
     ports:
       - "3000:3000"
+    environment:
+# HMRの接続ホストを自身のサービス名 'frontend' に設定
+      WDS_SOCKET_HOST: "frontend"
+      # Nginx経由ではなく直接3000ポートで接続していることを明示
+      WDS_SOCKET_PORT: "3000"
+      WDS_SOCKET_PATH: "/_next/webpack-hmr" # パスも明示的に設定
     command: npm run dev
 
   backend:
-    # 開発用にLaravelの.envなどを反映（環境に合わせて設定）
-    environment:
-      APP_ENV: local
-      DB_HOST: db
-      DB_DATABASE: laravel_db
-      DB_USERNAME: laravel_user
-      DB_PASSWORD: password
+      # 開発用にFastAPIの.envを反映
+      environment:
+        # FastAPIのコード内で参照する環境変数
+        DB_HOST: db
+        DB_PORT: 3306
+        DB_DATABASE: ${MYSQL_DATABASE}
+        DB_USERNAME: ${MYSQL_USER}
+        DB_PASSWORD: ${MYSQL_PASSWORD}
+        APP_ENV: development
+      # 開発時はホットリロード（--reload）を有効にするため、volumesマウントが必要です
+      command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   nginx:
     ports:

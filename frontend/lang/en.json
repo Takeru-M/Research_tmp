@@ -5,7 +5,8 @@
   "file-upload-txt": "Please upload a file",
   "PdfViewer": {
     "add-comment": "Add Comment",
-        "complete": "Complete"
+    "complete": "Complete",
+    "finish": "Finish"
   },
   "HighlightMemoModal": {
     "memo-title": "Memo",

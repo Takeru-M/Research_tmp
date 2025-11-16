@@ -1,28 +1,27 @@
-# 開発/本番 共通（LaravelはPHP-FPMを利用）
-FROM php:8.2-fpm-alpine
+# backend/Dockerfile
 
-# システムパッケージのインストール
-RUN apk add --no-cache \
-    $PHPIZE_DEPS \
-    icu-dev \
-    libxml2-dev \
-    oniguruma-dev \
-    libzip-dev \
-    git \
-    bash \
-    curl
+# Pythonの公式スリムイメージをベースとする
+FROM python:3.11-slim
 
-# PHP拡張のインストール
-RUN docker-php-ext-install pdo_mysql opcache intl pcntl zip
+# 作業ディレクトリの設定
+WORKDIR /app
 
-# Composerのインストール
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# 依存関係ファイルのコピーとインストール
+# ホスト側のbackendディレクトリにrequirements.txtを作成します
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-WORKDIR /var/www/html
+# アプリケーションコードをコピー
+COPY . .
 
-# 実行ユーザーの追加（セキュリティ向上）
-RUN addgroup -g 1000 laravel && adduser -u 1000 -G laravel -S laravel
-USER laravel
+# 実行ユーザーの追加（セキュリティ向上 - オプション）
+RUN adduser --disabled-password --gecos '' fastapiuser
+USER fastapiuser
 
-EXPOSE 9000
-CMD ["php-fpm"]
+# FastAPIのデフォルトポートを公開
+EXPOSE 8000
+
+# コンテナ起動時にUvicornを起動
+# 0.0.0.0でリッスンすることで、外部からのアクセスを許可
+# main:app は、main.pyファイルのappインスタンスを指します
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
