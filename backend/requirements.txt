@@ -2,7 +2,8 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 sqlmodel
-mysql-connector-python
+pymysql
+cryptography
 pydantic
 python-dotenv
 alembic

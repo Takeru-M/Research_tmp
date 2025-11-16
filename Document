@@ -14,4 +14,11 @@ docker compose down --remove-orphans
 "localhost:3000"にアクセス
 
 // マイグレーション
-npx prisma migrate dev --name init_schema
+alembic revision --autogenerate -m "コメント"
+alembic upgrade head
+
+// マイグレーションの取り消し
+alembic downgrade -1
+
+// シーディング
+（backendコンテナ内で）python app/scripts/seed.py
