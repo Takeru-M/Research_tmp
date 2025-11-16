@@ -2,9 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from typing import List
 from sqlmodel import Session
-from app.models import User, UserCreate, UserRead, UserUpdate
 from app.crud import create_user, get_user_by_id, get_users, update_user, delete_user
 from app.db.base import get_session
+from app.models import User
+# from app.models.user import User
+from app.schemas import UserCreate, UserRead, UserUpdate
+# from app.schemes.user import UserCreate, UserRead, UserUpdate
 
 router = APIRouter()
 

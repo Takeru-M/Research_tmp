@@ -1,9 +1,10 @@
 # app/crud.py
 from typing import List, Optional
 from sqlmodel import Session, select
-from app.models import User, UserCreate, UserUpdate
+from app.models import User
 import bcrypt # パスワードハッシュ化ライブラリ
 from datetime import datetime
+from app.schemas.user import UserCreate, UserUpdate
 
 def get_password_hash(password: str) -> str:
     """パスワードをハッシュ化します。"""

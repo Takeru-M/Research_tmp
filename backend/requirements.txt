@@ -4,6 +4,7 @@ sqlalchemy
 sqlmodel
 pymysql
 cryptography
+bcrypt
 pydantic
 python-dotenv
 alembic

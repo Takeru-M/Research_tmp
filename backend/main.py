@@ -1,5 +1,5 @@
 import os
-import mysql.connector
+# import mysql.connector
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware # Next.jsからのアクセスを許可するため
 from dotenv import load_dotenv

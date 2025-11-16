@@ -6,17 +6,18 @@ from sqlmodel import create_engine, Session
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
+from sqlmodel import SQLModel
 
 load_dotenv()
 sys.path.insert(0, os.path.abspath("."))
 
 # Userモデルの定義をインポートします
 # プロジェクトのルートディレクトリから実行する場合、このパスが正しいことを確認してください
-from app.models.user import User 
+from app.models import User
 
 # --- 設定 ---
 # Docker Composeで設定した完全なDB URLを環境変数から取得します
-DATABASE_URL = os.getenv("DATABASE_URL") 
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     # 環境変数が設定されていない場合のエラーメッセージ
@@ -56,6 +57,10 @@ def seed_database():
     print(f"Connecting to database at {DATABASE_URL.split('@')[-1]}...")
     engine = create_engine(DATABASE_URL)
     
+    print("Checking for tables and creating them if they don't exist...")
+    SQLModel.metadata.create_all(engine)
+    print("Tables are ready.")
+    
     users_to_add = create_users_data()
 
     with Session(engine) as session:
@@ -77,6 +82,7 @@ def seed_database():
 if __name__ == "__main__":
     try:
         seed_database()
+        create_users_data()
     except Exception as e:
         print(f"\n❌ An error occurred during seeding:")
         print(e)
