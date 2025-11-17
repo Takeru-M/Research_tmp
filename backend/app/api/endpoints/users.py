@@ -5,9 +5,7 @@ from sqlmodel import Session
 from app.crud import create_user, get_user_by_id, get_users, update_user, delete_user
 from app.db.base import get_session
 from app.models import User
-# from app.models.user import User
 from app.schemas import User, UserCreate, UserRead, UserUpdate
-# from app.schemes.user import UserCreate, UserRead, UserUpdate
 from app.api.deps import get_current_user
 
 router = APIRouter()

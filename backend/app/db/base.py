@@ -1,4 +1,4 @@
-# app/database.py
+# app/db/base.py
 from typing import Generator
 from sqlmodel import create_engine, Session, SQLModel
 from dotenv import load_dotenv

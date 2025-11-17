@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel
-from app.models.user import UserBase
+from backend.app.models.users import UserBase
 
 # APIでユーザー作成時に受け取るスキーマ (パスワードは平文で受け取る)
 class UserCreate(UserBase):

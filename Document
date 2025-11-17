@@ -4,11 +4,12 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 // 本番環境
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
-// テスト（Docker Composeネットワーク内でコマンドを実行）
+// テスト環境（Docker Composeネットワーク内でコマンドを実行）
 docker compose exec backend bash -c "php artisan migrate --env=testing && vendor/bin/phpunit"
 
 // キャッシュ削除
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --force-recreate -d
+docker system prune -a
 
 // コンテナ削除
 docker compose down --remove-orphans
@@ -20,14 +21,11 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 // 管理者でコンテナに入る
 docker compose exec -it --user root コンテナ名 sh
 
-// キャッシュ削除
-docker system prune -a
 
-// 初回リクエスト
-"localhost:3000"にアクセス
-
-// マイグレーション
+// モデルを追加・変更
 alembic revision --autogenerate -m "コメント"
+
+// マイグレーション実行
 alembic upgrade head
 
 // マイグレーションの取り消し
