@@ -3,6 +3,16 @@
   "app-description": "ファイルエディタアプリケーション",
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
+  "Login": {
+    "title": "ログイン",
+    "username": "ユーザ名",
+    "password": "パスワード",
+    "logging_in": "ログイン中...",
+    "button-text": "ログイン"
+  },
+  "Logout": {
+    "button-text": "ログアウト"
+  },
   "PdfViewer": {
     "add-comment": "コメントを追加",
     "complete": "完了する",

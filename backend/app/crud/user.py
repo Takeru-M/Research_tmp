@@ -1,32 +1,70 @@
-# app/crud.py
 from typing import List, Optional
 from sqlmodel import Session, select
-from app.models import User
-import bcrypt # パスワードハッシュ化ライブラリ
 from datetime import datetime
-from app.schemas.user import UserCreate, UserUpdate
-
-def get_password_hash(password: str) -> str:
-    """パスワードをハッシュ化します。"""
-    # bcryptのsalt生成とハッシュ化
-    salt = bcrypt.gensalt()
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed_password.decode('utf-8')
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """平文パスワードとハッシュを比較します。"""
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+from app.models import User
+from app.schemas import UserCreate, UserUpdate
+from app.core.security import get_password_hash, verify_password
+import logging
+logger = logging.getLogger(__name__)
 
 # --- CRUD Operations ---
 
+def get_user_by_username(session: Session, username: str) -> Optional[User]:
+    """ユーザー名に基づいてユーザーを取得します (認証ヘルパー)。"""
+    # ユーザー名で検索し、論理削除されていないことを確認
+    logger.debug(f"DB search started for username: {username}")
+    statement = select(User).where(User.name == username, User.deleted_at == None)
+    user = session.exec(statement).first()
+    if user:
+        logger.debug(f"User found: {username}")
+    else:
+        logger.debug(f"User not found: {username}")
+    return user
+
+def authenticate_user(session: Session, username: str, password: str) -> Optional[User]:
+    """ユーザー名とパスワードで認証します。"""
+    
+    # 1. ユーザーの存在確認 (ユーザー名でDBを検索)
+    user = get_user_by_username(session, username)
+    if not user:
+        logger.warning(f"Authentication flow: Username not found in DB: {username}")
+        return None
+    
+    # 2. パスワード検証
+    logger.debug(f"Authentication flow: User found, verifying password for: {username}")
+    # user.hashed_passwordはUserモデルに存在するフィールドと仮定
+    
+    # 💡 パスワード検証関数内でエラーが発生しないか、try-exceptで囲む
+    try:
+        is_password_valid = verify_password(password, user.hashed_password)
+    except Exception as e:
+        logger.error(f"Authentication flow: Error during password verification for {username}. Hash problem?", exc_info=True)
+        # 認証失敗として扱う (サーバー内部でハッシュに問題がある可能性)
+        return None 
+    
+    if not is_password_valid:
+        logger.warning(f"Authentication flow: Password mismatch for user: {username}")
+        return None
+    
+    # 3. 認証成功
+    logger.info(f"Authentication flow: Successfully authenticated user: {username}")
+    return user
+
 def create_user(session: Session, user_in: UserCreate) -> User:
     """新しいユーザーを作成し、データベースに保存します。"""
+    # 既存のユーザーチェック (ここでは省略されていますが、追加推奨)
+
     # パスワードをハッシュ化
     hashed_password = get_password_hash(user_in.password)
 
     # UserCreateからUserモデルを作成
     user_data = user_in.model_dump(exclude={"password"})
     db_user = User(**user_data, hashed_password=hashed_password)
+    
+    # created_at/updated_at はモデル定義側で default=datetime.utcnow() とするのが一般的ですが、
+    # ここで明示的に設定することも可能です（モデル定義に依存）。
+    # db_user.created_at = datetime.utcnow()
+    # db_user.updated_at = datetime.utcnow()
 
     session.add(db_user)
     session.commit()
@@ -35,6 +73,7 @@ def create_user(session: Session, user_in: UserCreate) -> User:
 
 def get_user_by_id(session: Session, user_id: int) -> Optional[User]:
     """IDに基づいてユーザーを取得します (論理削除されていないもの)。"""
+    # 論理削除チェック
     statement = select(User).where(User.id == user_id, User.deleted_at == None)
     return session.exec(statement).first()
 
@@ -49,14 +88,15 @@ def update_user(session: Session, user: User, user_in: UserUpdate) -> User:
 
     # パスワードが含まれていればハッシュ化して更新
     if "password" in update_data and update_data["password"]:
+        # hashed_passwordキーに置き換える
         update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
 
     # モデルを更新
     for key, value in update_data.items():
-        if key != "password": # passwordはすでにhashed_passwordとして処理済み
-            setattr(user, key, value)
+        setattr(user, key, value)
     
     # updated_atを現在時刻に更新
+    # 💡 モデル側でイベントフックや default_factory を使う方が望ましいが、ここでは明示的に設定
     user.updated_at = datetime.utcnow()
 
     session.add(user)

@@ -26,6 +26,8 @@ import {
 import { RootState, AppDispatch } from '../redux/store';
 import { Highlight, Comment as CommentType, PdfHighlight } from '../redux/features/editor/editorTypes';
 import dynamic from 'next/dynamic';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/router';
 import HighlightMemoModal from '../ components/HighlightMemoModal';
 import CommentPanel from '../ components/CommentPanel';
 import styles from '../styles/Home.module.css';
@@ -34,11 +36,14 @@ import "../lang/config";
 import { useTranslation } from "react-i18next";
 import { CSSProperties } from 'react'; // CSSPropertiesをインポート
 import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
+import LoginPage from './login';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 // const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
 
-const EditorPage: React.FC = () => {
+// -----------------------------------------------------
+// 既存の EditorPage のロジック部分をコンポーネントとして内包
+const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
   const { t } = useTranslation();
 
@@ -116,7 +121,7 @@ const EditorPage: React.FC = () => {
     const constrainedWidth = Math.max(MIN_PDF_WIDTH, Math.min(maxPdfWidth, newWidth));
 
     setPdfViewerWidth(constrainedWidth);
-  }, []); // 依存配列は空でOK
+  }, []);
 
   // マウスアップ時の処理 (ドラッグ終了)
   const handleMouseUp = useCallback(() => {
@@ -329,4 +334,30 @@ const EditorPage: React.FC = () => {
   );
 };
 
-export default EditorPage;
+// -----------------------------------------------------
+
+// ★ メインのエントリポイント (認証チェック)
+const IndexPage: React.FC = () => {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  const isAuthenticated = status === 'authenticated';
+  const isLoading = status === 'loading';
+
+  // ロード中は何もしない
+  if (isLoading) {
+    return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>;
+  }
+
+  // 未認証の場合はログインページへリダイレクト
+  if (!isAuthenticated) {
+    // router.push を使うことで、NextAuthの設定で指定したsignInページに飛ばす
+    router.push('/login');
+    return null;
+  }
+
+  // 認証済みであれば EditorPageContent を表示
+  return <EditorPageContent />;
+};
+
+export default IndexPage;

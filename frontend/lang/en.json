@@ -3,6 +3,16 @@
   "app-description": "File Editor Application",
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "Please upload a file",
+    "Login": {
+      "title": "Login",
+      "username": "Username",
+      "password": "Password",
+      "logging_in": "Logging in...",
+      "button-text": "Login"
+  },
+  "Logout": {
+    "button-text": "Logout"
+  },
   "PdfViewer": {
     "add-comment": "Add Comment",
     "complete": "Complete",

@@ -2,14 +2,19 @@
 
 import os
 import sys
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.join(script_dir, "..", "..")
+sys.path.insert(0, project_root)
+
 from sqlmodel import create_engine, Session
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
 from sqlmodel import SQLModel
+from app.core.security import get_password_hash
 
 load_dotenv()
-sys.path.insert(0, os.path.abspath("."))
 
 # Userモデルの定義をインポートします
 # プロジェクトのルートディレクトリから実行する場合、このパスが正しいことを確認してください
@@ -29,23 +34,25 @@ def create_users_data():
     """
     テスト用のユーザーデータリストを作成します。
     """
+    
+    plainpasswords = ["password", "password2", "password3"]
     # hashed_passwordは実際のハッシュ関数で生成されるべきですが、ここではプレースホルダーを使用
     return [
         User(
-            name="Alice Smith",
-            email="alice.test@example.com",
-            hashed_password="fake_hash_alice", 
+            name="Sample",
+            email="test.test@test.com",
+            hashed_password=get_password_hash(plainpasswords[0]),
             # created_at, updated_at は default_factory で自動設定されます
         ),
         User(
-            name="Bob Johnson",
-            email="bob.test@example.com",
-            hashed_password="fake_hash_bob",
+            name="Sample2",
+            email="test2.test@test.com",
+            hashed_password=get_password_hash(plainpasswords[1]),
         ),
         User(
-            name="Charlie Brown",
-            email="charlie.test@example.com",
-            hashed_password="fake_hash_charlie",
+            name="Sample3",
+            email="test3.test@test.com",
+            hashed_password=get_password_hash(plainpasswords[2]),
             deleted_at=datetime.utcnow() # 論理削除されたユーザーの例
         )
     ]

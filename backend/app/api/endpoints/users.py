@@ -6,10 +6,18 @@ from app.crud import create_user, get_user_by_id, get_users, update_user, delete
 from app.db.base import get_session
 from app.models import User
 # from app.models.user import User
-from app.schemas import UserCreate, UserRead, UserUpdate
+from app.schemas import User, UserCreate, UserRead, UserUpdate
 # from app.schemes.user import UserCreate, UserRead, UserUpdate
+from app.api.deps import get_current_user
 
 router = APIRouter()
+
+@router.get("/me", response_model=User)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    """
+    認証済みユーザーの情報を返す
+    """
+    return current_user
 
 @router.get("/", response_model=List[UserRead], tags=["Users"])
 def read_users(

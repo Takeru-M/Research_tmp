@@ -7,8 +7,21 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 // テスト（Docker Composeネットワーク内でコマンドを実行）
 docker compose exec backend bash -c "php artisan migrate --env=testing && vendor/bin/phpunit"
 
+// キャッシュ削除
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --force-recreate -d
+
 // コンテナ削除
 docker compose down --remove-orphans
+docker compose down -v
+
+// 再ビルド
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+// 管理者でコンテナに入る
+docker compose exec -it --user root コンテナ名 sh
+
+// キャッシュ削除
+docker system prune -a
 
 // 初回リクエスト
 "localhost:3000"にアクセス
@@ -22,3 +35,6 @@ alembic downgrade -1
 
 // シーディング
 （backendコンテナ内で）python app/scripts/seed.py
+
+// シーディング削除
+（backendコンテナ内で）python app/scripts/unseed.py

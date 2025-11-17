@@ -5,18 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware # Next.jsからのアクセ�
 from dotenv import load_dotenv
 from app.api.api import api_router
 from contextlib import asynccontextmanager
+import logging
+logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
-# 環境変数の読み込み
-# DB_HOST = os.getenv("MYSQL_HOST")
-# DB_USER = os.getenv("MYSQL_USER")
-# DB_ROOT = os.getenv("MYSQL_ROOT")
-# DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
-# DB_ROOT_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD")
-# DB_NAME = os.getenv("MYSQL_DATABASE")
-
-app = FastAPI()
+app = FastAPI(
+  title="FastAPI NextAuth JWT Backend",
+  # openapi_url="/api/openapi.json"
+)
 app.include_router(api_router)
 
 # TODO: docker用に変更
@@ -32,6 +29,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ----------------- ヘルスチェック -----------------
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to FastAPI backend"}
 
 # ライフサイクルイベント（アプリケーション起動・終了時の処理）
 # @asynccontextmanager
