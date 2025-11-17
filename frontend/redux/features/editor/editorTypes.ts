@@ -95,7 +95,7 @@ export type HighlightInfo = {
   createdBy: string;
   id: string;
   memo: string;
-  rects: PdfRect[];
+  rects: PdfRectWithPage[];
   text: string;
   type: 'pdf' | string;
 }
