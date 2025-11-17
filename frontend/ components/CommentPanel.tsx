@@ -408,7 +408,6 @@ const removeCommentFn = (id: string) => {
     if (!highlightId) return null;
     const map = new Map<string, HighlightInfo>();
     highlights.forEach(h => map.set(h.id, h));
-    console.log(highlights);
     const highlightInfo = map.get(highlightId);
     if (!highlightInfo) return null;
     return highlightInfo;

@@ -572,20 +572,6 @@ const addHighlight = () => {
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
-        const response = await fetch('/api/user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: 'test@example.com',
-            name: 'Test User',
-          }),
-        });
-
-        const data = await response.json();
-        console.log(data);
-
         const highlightCommentList: HighlightCommentList = [];
         for (const h of highlights) {
           const related = comments.filter(c => c.highlightId === h.id);
@@ -608,31 +594,31 @@ const addHighlight = () => {
           }
         }
 
-        // const firstResponse = await axios.post('/api/openai/format-data', {
-        //   formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
-        //   pdfTextData: pdfTextContent
-        // });
-        // console.log(firstResponse.data.analysis);
-        // const firstResponseData = JSON.parse(firstResponse.data.analysis);
-        // setDividedMeetingTexts(firstResponseData);
+        const firstResponse = await axios.post('/api/openai/format-data', {
+          formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
+          pdfTextData: pdfTextContent
+        });
+        console.log(firstResponse.data.analysis);
+        const firstResponseData = JSON.parse(firstResponse.data.analysis);
+        setDividedMeetingTexts(firstResponseData);
 
-        // const systemPrompt = OPTION_SYSTEM_PROMPT;
-        // const userInput = {
-        //   "mt_text": firstResponse.data.analysis,
-        //   "highlights": highlightCommentList,
-        // }
+        const systemPrompt = OPTION_SYSTEM_PROMPT;
+        const userInput = {
+          "mt_text": firstResponse.data.analysis,
+          "highlights": highlightCommentList,
+        }
 
-        // const response = await axios.post('/api/openai/option-analyze', {
-        //     systemPrompt: systemPrompt,
-        //     userInput: userInput,
-        // });
+        const response = await axios.post('/api/openai/option-analyze', {
+            systemPrompt: systemPrompt,
+            userInput: userInput,
+        });
 
-        // const responseData = JSON.parse(response.data.analysis);
-        // console.log(responseData);
+        const responseData = JSON.parse(response.data.analysis);
+        console.log(responseData);
 
         // テスト用
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        const responseData = RESPONSE_SAMPLE_IN_STAGE1;
+        // await new Promise(resolve => setTimeout(resolve, 3000));
+        // const responseData = RESPONSE_SAMPLE_IN_STAGE1;
 
         if (responseData) {
           const highlight_feedback = responseData.highlight_feedback;
