@@ -120,7 +120,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
                 year: new Date().getFullYear(),
               }}
               components={{
-                year: <>{new Date().getFullYear()}</>
+                year: <span>{new Date().getFullYear()}</span>
               }}
             />
             </p>

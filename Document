@@ -21,7 +21,6 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 // 管理者でコンテナに入る
 docker compose exec -it --user root コンテナ名 sh
 
-
 // モデルを追加・変更
 alembic revision --autogenerate -m "コメント"
 

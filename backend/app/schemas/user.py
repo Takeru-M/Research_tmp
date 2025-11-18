@@ -1,12 +1,16 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel
-from backend.app.models.users import UserBase
 
 # APIでユーザー作成時に受け取るスキーマ (パスワードは平文で受け取る)
-class UserCreate(UserBase):
+class UserCreate(SQLModel):
+    id: int
+    name: str
+    email: str
     # hashed_passwordの代わりにpasswordを使用
     password: str
+    created_at: datetime
+    updated_at: datetime
 
 # APIからユーザー情報を返すスキーマ (パスワードハッシュは含めない)
 class UserRead(SQLModel):

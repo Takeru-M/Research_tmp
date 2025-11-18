@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 from sqlmodel import SQLModel
-from app.schemas.highlight_rect import HighlightRectRead
+from .highlight_rect import HighlightRectRead
 
 class HighlightBase(SQLModel):
     project_file_id: int

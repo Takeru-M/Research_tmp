@@ -6,7 +6,7 @@ from .project import ProjectBase, ProjectCreate, ProjectUpdate, ProjectRead
 from .project_file import ProjectFileBase, ProjectFileCreate, ProjectFileUpdate, ProjectFileRead
 from .highlight import HighlightBase, HighlightCreate, HighlightUpdate, HighlightRead
 from .highlight_rect import HighlightRectBase, HighlightRectCreate, HighlightRectUpdate, HighlightRectRead
-from . comment import CommentBase, CommentCreate, CommentUpdate, CommentRead
+from .comment import CommentBase, CommentCreate, CommentUpdate, CommentRead
 
 # オプション: 外部から直接使えるようにするため
 __all__ = [
