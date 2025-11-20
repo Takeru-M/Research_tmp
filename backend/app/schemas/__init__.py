@@ -1,6 +1,6 @@
 # app/schemes/__init__.py
 
-from .auth import User, Token, TokenData
+from .auth import User, Token, TokenData, UserSignupSchema, LoginRequest
 from .user import UserCreate, UserRead, UserUpdate
 from .project import ProjectBase, ProjectCreate, ProjectUpdate, ProjectRead
 from .project_file import ProjectFileBase, ProjectFileCreate, ProjectFileUpdate, ProjectFileRead
@@ -14,6 +14,8 @@ __all__ = [
     "User",
     "Token",
     "TokenData",
+    "UserSignupSchema",
+    "LoginRequest",
 
     # user
     "UserCreate",

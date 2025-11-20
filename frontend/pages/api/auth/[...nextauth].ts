@@ -1,7 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-// 環境変数から秘密鍵とFastAPIのエンドポイントを取得
+// 環境変数からFastAPIのエンドポイントを取得
 const FASTAPI_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
 
 // NextAuthの設定
@@ -9,83 +9,83 @@ export const authOptions: NextAuthOptions = {
   // セッション戦略としてJWTを使用
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60, // 30日
   },
   
   providers: [
     CredentialsProvider({
       // ログインフォームの表示名
       name: "Credentials",
+      // フォームで送信される認証情報
       credentials: {
-        username: { label: "Username", type: "text" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       
-      async authorize(credentials, req) {
-        if (!credentials) return null;
+      async authorize(credentials) {
+        // 💡 credentials が存在しない場合は null を返す
+        if (!credentials?.email || !credentials?.password) return null;
 
-        // 💡 1. FastAPIのログインエンドポイントに認証情報を送信
-        // TODO: 環境変数を参照
-        // const response = await fetch(`${FASTAPI_URL}/auth/token`, {
+        // 💡 FastAPI のログインエンドポイントに認証情報を送信
         const response = await fetch("http://backend:8000/api/v1/auth/token", {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json', // JSONで送信
           },
-          // FastAPIのOAuth2PasswordRequestFormに合わせて、フォームデータを送信
-          body: new URLSearchParams({
-            username: credentials.username,
+          // FastAPI側の LoginRequest モデルに合わせて body を作成
+          body: JSON.stringify({
+            email: credentials.email,
             password: credentials.password,
           }),
         });
-        console.log(response);
 
-        // 💡 2. FastAPIからのレスポンスを処理
+        // 💡 レスポンスが OK でない場合は認証失敗として null を返す
         if (!response.ok) {
-          // 認証失敗
           console.error("FastAPI Authentication failed:", response.status);
           return null;
         }
 
+        // 💡 FastAPI からのレスポンスを JSON として取得
         const data = await response.json();
-        
-        // FastAPIが返すデータ構造（例：{"access_token": "...", "token_type": "bearer", "user_id": "..."}）に合わせて処理
 
-        // 💡 3. JWTトークンとユーザー情報を返す
-        if (data.access_token) {
-          // NextAuthのセッションに保存したい情報をここで返す
-          return {
-            id: data.user_id || credentials.username, // ユーザーID
-            name: credentials.username,
-            // トークンをJWT Callbackで使用するために、ユーザーオブジェクトに含めておく
-            accessToken: data.access_token, 
-          };
-        }
-        
-        return null;
+        // 💡 access_token と user_id が存在しない場合も null
+        if (!data.access_token || !data.user_id) return null;
+
+        // 💡 NextAuthのセッションに保存するユーザー情報を返す
+        return {
+          id: data.user_id,        // ユーザーID
+          name: data.name,         // ユーザー名
+          email: data.email,       // メールアドレス
+          accessToken: data.access_token, // JWTをセッションコールバックで利用
+        };
       },
     }),
   ],
 
-  // JWTをカスタマイズするためのコールバック
   callbacks: {
-    // JWTが生成される際 (ログイン時やセッション更新時) に呼ばれる
+    // 💡 JWTが生成される際 (ログイン時やセッション更新時) に呼ばれる
     async jwt({ token, user }) {
+      // 💡 authorize() が返した user 情報を JWT に追加
       if (user) {
-        // user は authorize() が返したオブジェクト
         token.id = user.id;
-        token.accessToken = (user as any).accessToken; // アクセストークンをトークンペイロードに追加
+        token.name = user.name;
+        token.email = user.email;
+        token.accessToken = (user as any).accessToken; // アクセストークン
       }
       return token;
     },
-    // セッションが呼ばれる際 (useSession()使用時) に呼ばれる
+    // 💡 セッション取得時 (useSession() 使用時) に呼ばれる
     async session({ session, token }) {
-      // セッションオブジェクトにトークン情報を追加し、クライアントからアクセスできるようにする
+      // 💡 クライアントからアクセスできるように JWT 情報を session に追加
       session.user.id = token.id as string;
-      session.accessToken = token.accessToken; // クライアントがFastAPIにアクセスする際に使用
+      session.user.name = token.name as string;
+      session.user.email = token.email as string;
+      session.accessToken = token.accessToken;
       return session;
     },
   },
+
+  // 💡 カスタムページ設定
   pages: {
     signIn: '/login', // ログインページをカスタムページに設定
   }

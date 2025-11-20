@@ -2,11 +2,10 @@ import React, { useState, useCallback, FormEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
-import styles from '../styles/Home.module.css';
 import Link from 'next/link';
 
 const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const { t } = useTranslation();
@@ -14,7 +13,6 @@ const LoginPage: React.FC = () => {
   const { status } = useSession();
   const loading = status === 'loading';
 
-  // 認証済みの場合はトップページにリダイレクト
   useEffect(() => {
     if (status === 'authenticated') {
       router.push('/');
@@ -26,7 +24,7 @@ const LoginPage: React.FC = () => {
     setAuthError(null);
 
     const result = await signIn('credentials', {
-      username,
+      email,
       password,
       redirect: false,
     });
@@ -35,7 +33,7 @@ const LoginPage: React.FC = () => {
       setAuthError(t('Login.error-message'));
       console.error("Login failed:", result.error);
     }
-  }, [username, password, t]);
+  }, [email, password, t]);
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -94,16 +92,32 @@ const LoginPage: React.FC = () => {
         )}
 
         <div>
-          <label htmlFor="username">{t('Login.username')}</label>
-          <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} style={inputStyle} required />
+          <label htmlFor="email">{t('Login.email')}</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={inputStyle}
+            required
+          />
         </div>
 
         <div>
           <label htmlFor="password">{t('Login.password')}</label>
-          <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} required />
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+            required
+          />
         </div>
 
-        <button type="submit" style={buttonStyle}>{loading ? t('Login.logging-in') : t('Login.button-text')}</button>
+        <button type="submit" style={buttonStyle}>
+          {loading ? t('Login.logging-in') : t('Login.button-text')}
+        </button>
       </form>
 
       <p style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.9rem', color: '#4b5563' }}>

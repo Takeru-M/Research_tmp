@@ -14,16 +14,26 @@
     "error": "ユーザー作成に失敗しました",
     "password-mismatch": "パスワードが一致しません",
     "has-account": "すでにアカウントをお持ちですか？",
-    "login-link-text": "こちらからログイン"
+    "login-link-text": "こちらからログイン",
+    "validation": {
+      "username-min": "ユーザ名は3文字以上で入力してください",
+      "email-invalid": "有効なメールアドレスを入力してください",
+      "password-min": "パスワードは8文字以上で入力してください",
+      "password-uppercase": "パスワードには少なくとも1つの大文字を含めてください",
+      "password-lowercase": "パスワードには少なくとも1つの小文字を含めてください",
+      "password-number": "パスワードには少なくとも1つの数字を含めてください",
+      "password-confirm": "パスワードが一致しません"
+    }
   },
   "Login": {
     "title": "ログイン",
-    "username": "ユーザ名",
+    "email": "メールアドレス",
     "password": "パスワード",
     "logging_in": "ログイン中...",
     "button-text": "ログイン",
     "no-account": "アカウントをお持ちでない方はこちら",
-    "signup-link-text": "サインアップ"
+    "signup-link-text": "サインアップ",
+    "error-message": "ログインエラー"
   },
   "Logout": {
     "button-text": "ログアウト"

@@ -1,13 +1,26 @@
+from fastapi import HTTPException, status
 from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 from app.models import User
 from app.schemas import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
+
 import logging
 logger = logging.getLogger(__name__)
 
 # --- CRUD Operations ---
+
+def get_user_by_email(session: Session, email: str) -> Optional[User]:
+    """メールアドレスでユーザーを取得します (論理削除されていないもの)。"""
+    logger.debug(f"DB search started for email: {email}")
+    statement = select(User).where(User.email == email, User.deleted_at == None)
+    user = session.exec(statement).first()
+    if user:
+        logger.debug(f"User found: {email}")
+    else:
+        logger.debug(f"User not found: {email}")
+    return user
 
 def get_user_by_username(session: Session, username: str) -> Optional[User]:
     """ユーザー名に基づいてユーザーを取得します (認証ヘルパー)。"""
@@ -21,9 +34,29 @@ def get_user_by_username(session: Session, username: str) -> Optional[User]:
         logger.debug(f"User not found: {username}")
     return user
 
+def authenticate_user_by_email(session: Session, email: str, password: str) -> Optional[User]:
+    """メールアドレスとパスワードで認証します。"""
+    user = get_user_by_email(session, email)
+    if not user:
+        logger.warning(f"Authentication flow: Email not found in DB: {email}")
+        return None
+
+    try:
+        is_password_valid = verify_password(password, user.hashed_password)
+    except Exception as e:
+        logger.error(f"Error during password verification for {email}", exc_info=True)
+        return None
+
+    if not is_password_valid:
+        logger.warning(f"Authentication flow: Password mismatch for user: {email}")
+        return None
+
+    logger.info(f"Authentication flow: Successfully authenticated user: {email}")
+    return user
+
 def authenticate_user(session: Session, username: str, password: str) -> Optional[User]:
-    """ユーザー名とパスワードで認証します。"""
-    
+    """emailとパスワードで認証します。"""
+
     # 1. ユーザーの存在確認 (ユーザー名でDBを検索)
     user = get_user_by_username(session, username)
     if not user:
@@ -40,7 +73,7 @@ def authenticate_user(session: Session, username: str, password: str) -> Optiona
     except Exception as e:
         logger.error(f"Authentication flow: Error during password verification for {username}. Hash problem?", exc_info=True)
         # 認証失敗として扱う (サーバー内部でハッシュに問題がある可能性)
-        return None 
+        return None
     
     if not is_password_valid:
         logger.warning(f"Authentication flow: Password mismatch for user: {username}")
@@ -52,20 +85,26 @@ def authenticate_user(session: Session, username: str, password: str) -> Optiona
 
 def create_user(session: Session, user_in: UserCreate) -> User:
     """新しいユーザーを作成し、データベースに保存します。"""
-    # 既存のユーザーチェック (ここでは省略されていますが、追加推奨)
+
+    # メール重複チェック
+    if get_user_by_email(session, user_in.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already registered"
+        )
 
     # パスワードをハッシュ化
     hashed_password = get_password_hash(user_in.password)
 
     # UserCreateからUserモデルを作成
     user_data = user_in.model_dump(exclude={"password"})
-    db_user = User(**user_data, hashed_password=hashed_password)
-    
-    # created_at/updated_at はモデル定義側で default=datetime.utcnow() とするのが一般的ですが、
-    # ここで明示的に設定することも可能です（モデル定義に依存）。
-    # db_user.created_at = datetime.utcnow()
-    # db_user.updated_at = datetime.utcnow()
+    db_user = User(
+        name=user_in.username,
+        email=user_in.email,
+        hashed_password=hashed_password,
+    )
 
+    # DBに保存
     session.add(db_user)
     session.commit()
     session.refresh(db_user)

@@ -1,5 +1,7 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, Annotated
+import re
+
 
 # ログイン後のユーザー情報のレスポンススキーマ
 class User(BaseModel):
@@ -21,3 +23,14 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
     # JWT ID (jti) など、必要に応じて追加
+
+# サインアップ用の入力スキーマ
+class UserSignupSchema(BaseModel):
+    username: Annotated[str, Field(min_length=3, max_length=50)]
+    email: EmailStr
+    password: Annotated[str, Field(min_length=8, max_length=128)]
+    confirm_password: Annotated[str, Field(min_length=8, max_length=128)]
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
