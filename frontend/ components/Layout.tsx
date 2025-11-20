@@ -5,6 +5,7 @@ import styles from '../styles/Home.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
 import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
 import { setPdfScale } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
@@ -12,6 +13,7 @@ import { SCALE_OPTIONS } from '@/utils/constants';
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const router = useRouter();
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
@@ -23,7 +25,11 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
   const handleLogout = useCallback(() => {
     signOut({ callbackUrl: '/login' });
-  }, []);
+  }, [session]);
+
+  const handleBackToProjects = useCallback(() => {
+    router.push('/projects');
+  }, [router]);
 
   const headerContainerStyle: React.CSSProperties = {
     display: 'flex',
@@ -36,7 +42,8 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     return null;
   }
 
-  const isAuthPage = ['/login', '/signup'].includes(window.location.pathname);
+  const isAuthPage = ['/login', '/signup'].includes(router.pathname);
+  const isProjectsPage = router.pathname === '/projects';
 
   return (
     <>
@@ -52,6 +59,38 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
           <div className={styles.container || 'container'} style={headerContainerStyle}>
             <h1>{t("main-title")}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              {/* プロジェクト一覧に戻るボタン (projectsページ以外で表示) */}
+              {!isProjectsPage && (
+                <button
+                  onClick={handleBackToProjects}
+                  style={{
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    backgroundColor: '#f1f3f5',
+                    border: '1px solid #d0d7de',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    color: '#333',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e9ecef';
+                    e.currentTarget.style.borderColor = '#c1c8ce';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f1f3f5';
+                    e.currentTarget.style.borderColor = '#d0d7de';
+                  }}
+                >
+                  <span>←</span>
+                  <span>プロジェクト一覧</span>
+                </button>
+              )}
+
               {/* PDF倍率変更UI */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <label htmlFor="pdf-scale-select">{t("Scale")}:</label>

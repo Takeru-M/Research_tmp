@@ -122,3 +122,11 @@ export type DividedMeetingText = {
 }
 
 export type DividedMeetingTexts = DividedMeetingText[];
+
+export type Project = {
+  id: number;
+  project_name: string;
+  stage: number;
+  created_at: string;
+  updated_at: string | null;
+};

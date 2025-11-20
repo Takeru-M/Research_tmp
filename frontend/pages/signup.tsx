@@ -32,7 +32,7 @@ const SignupPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/');
+      router.push('/projects'); // サインアップ後の遷移先を変更
     }
   }, [status, router]);
 
@@ -86,7 +86,7 @@ const SignupPage: React.FC = () => {
       });
 
       if (loginResult?.ok) {
-        router.push('/');
+        router.push('/projects'); // サインアップ直後の自動ログイン時も遷移先を変更
       } else {
         // ログイン失敗時にフォームエラー表示も可
         setFormError(t('Signup.login-failed'));

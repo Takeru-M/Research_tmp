@@ -44,7 +44,12 @@ def signup(
         expires_delta=access_token_expires
     )
 
-    return Token(access_token=access_token, user_id=db_user.id)
+    return Token(
+        access_token=access_token,
+        user_id=str(db_user.id),
+        name=db_user.name,
+        email=db_user.email
+    )
 
 @router.post("/token", response_model=Token)
 def login_for_access_token(
@@ -67,8 +72,18 @@ def login_for_access_token(
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"user_id": user.id, "name": user.name, "email": user.email},
+        data={
+            "user_id": user.id,
+            "name": user.name,
+            "email": user.email
+        },
         expires_delta=access_token_expires
     )
     
-    return Token(access_token=access_token, user_id=user.id)
+    # 💡 NextAuth でそのままセッションに入れるようにユーザー情報も返す
+    return Token(
+        access_token=access_token,
+        user_id=str(user.id),
+        name=user.name,
+        email=user.email
+    )

@@ -1,28 +1,27 @@
 from typing import Optional
 from datetime import datetime
-from sqlmodel import SQLModel
+from pydantic import BaseModel
 
-# APIでユーザー作成時に受け取るスキーマ (パスワードは平文で受け取る)
-class UserCreate(SQLModel):
-    id: int
+# ユーザー新規作成時のスキーマ（id, created_at, updated_atは不要）
+class UserCreate(BaseModel):
     name: str
     email: str
-    # hashed_passwordの代わりにpasswordを使用
-    password: str
-    created_at: datetime
-    updated_at: datetime
+    password: str  # 平文で受け取る
 
-# APIからユーザー情報を返すスキーマ (パスワードハッシュは含めない)
-class UserRead(SQLModel):
+# ユーザー情報返却用スキーマ（パスワードは含めない）
+class UserRead(BaseModel):
     id: int
     name: str
     email: str
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
 
-# APIでユーザー更新時に受け取るスキーマ
-class UserUpdate(SQLModel):
+    class Config:
+        from_attributes = True  # Pydantic v2対応
+
+# ユーザー更新時のスキーマ
+class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None

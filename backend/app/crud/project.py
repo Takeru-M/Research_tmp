@@ -19,6 +19,10 @@ def get_projects(session: Session, offset: int = 0, limit: int = 100) -> List[Pr
     statement = select(Project).offset(offset).limit(limit)
     return session.exec(statement).all()
 
+def get_projects_by_user(session: Session, user_id: int, offset: int = 0, limit: int = 100) -> List[Project]:
+    statement = select(Project).where(Project.user_id == user_id).offset(offset).limit(limit)
+    return session.exec(statement).all()
+
 def update_project(session: Session, project: Project, project_in: ProjectUpdate) -> Project:
     update_data = project_in.model_dump(exclude_unset=True)
     for key, value in update_data.items():

@@ -16,8 +16,12 @@ class User(BaseModel):
 # JWTトークンのレスポンススキーマ
 class Token(BaseModel):
     access_token: str
-    token_type: str = "bearer"
-    user_id: int # NextAuthのauthorize関数に渡すためにユーザーIDを追加
+    user_id: str
+    name: str
+    email: str
+
+    class Config:
+        orm_mode = True
 
 # JWTペイロード（トークン内に格納される情報）
 class TokenData(BaseModel):

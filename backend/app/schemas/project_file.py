@@ -1,22 +1,28 @@
-from datetime import datetime
 from typing import Optional
-from sqlmodel import SQLModel
+from datetime import datetime
+from pydantic import BaseModel
 
-class ProjectFileBase(SQLModel):
+class ProjectFileBase(BaseModel):
     project_id: int
-    filename: str
+    file_name: str
+    s3_key: str
+    s3_bucket: Optional[str] = None
     file_type: str
-    content: Optional[str] = None  # Blob URLやテキスト
+    file_size: Optional[int] = None
 
 class ProjectFileCreate(ProjectFileBase):
     pass
 
-class ProjectFileUpdate(SQLModel):
-    filename: Optional[str] = None
+class ProjectFileUpdate(BaseModel):
+    file_name: Optional[str] = None
+    s3_key: Optional[str] = None
+    s3_bucket: Optional[str] = None
     file_type: Optional[str] = None
-    content: Optional[str] = None
+    file_size: Optional[int] = None
 
 class ProjectFileRead(ProjectFileBase):
     id: int
     created_at: datetime
-    updated_at: datetime
+
+    class Config:
+        from_attributes = True

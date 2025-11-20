@@ -1,25 +1,25 @@
 from datetime import datetime
 from typing import Optional, List
-from sqlmodel import SQLModel
+from pydantic import BaseModel
 from .highlight_rect import HighlightRectRead
 
-class HighlightBase(SQLModel):
+class HighlightBase(BaseModel):
     project_file_id: int
-    created_by: str
-    text: str
+    created_by: str  # 'user' | 'ai'
     memo: Optional[str] = None
-    type: str = "pdf"  # デフォルトはPDF
+    text: Optional[str] = None
 
 class HighlightCreate(HighlightBase):
-    rects: Optional[List[int]] = None  # highlight_rect のIDリスト
+    pass
 
-class HighlightUpdate(SQLModel):
-    text: Optional[str] = None
+class HighlightUpdate(BaseModel):
     memo: Optional[str] = None
-    type: Optional[str] = None
+    text: Optional[str] = None
 
 class HighlightRead(HighlightBase):
     id: int
     created_at: datetime
-    updated_at: datetime
     rects: Optional[List[HighlightRectRead]] = None
+
+    class Config:
+        from_attributes = True

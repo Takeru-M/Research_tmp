@@ -35,7 +35,7 @@ def create_users_data():
     テスト用のユーザーデータリストを作成します。
     """
     
-    plainpasswords = ["password", "password2", "password3"]
+    plainpasswords = ["Password1", "Password2", "Password3"]
     # hashed_passwordは実際のハッシュ関数で生成されるべきですが、ここではプレースホルダーを使用
     return [
         User(

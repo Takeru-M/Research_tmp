@@ -15,7 +15,7 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/');
+      router.push('/projects'); // ログイン後の遷移先を変更
     }
   }, [status, router]);
 
