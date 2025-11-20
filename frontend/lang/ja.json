@@ -3,12 +3,27 @@
   "app-description": "ファイルエディタアプリケーション",
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
+  "Signup": {
+    "title": "アカウント作成",
+    "username": "ユーザ名",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "confirm-password": "パスワード（確認用）",
+    "button-text": "サインアップ",
+    "success": "ユーザー作成に成功しました。ログインページへ移動します。",
+    "error": "ユーザー作成に失敗しました",
+    "password-mismatch": "パスワードが一致しません",
+    "has-account": "すでにアカウントをお持ちですか？",
+    "login-link-text": "こちらからログイン"
+  },
   "Login": {
     "title": "ログイン",
     "username": "ユーザ名",
     "password": "パスワード",
     "logging_in": "ログイン中...",
-    "button-text": "ログイン"
+    "button-text": "ログイン",
+    "no-account": "アカウントをお持ちでない方はこちら",
+    "signup-link-text": "サインアップ"
   },
   "Logout": {
     "button-text": "ログアウト"

@@ -13,4 +13,4 @@ class User(SQLModel, table=True):
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
 
-    # projects: List["Project"] = Relationship(back_populates="user")
+    projects: List["Project"] = Relationship(back_populates="user")

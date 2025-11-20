@@ -2,13 +2,11 @@ from typing import List, Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
 
-
 class Highlight(SQLModel, table=True):
     __tablename__ = "highlights"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     project_file_id: int = Field(foreign_key="project_files.id")
-
     created_by: str  # 'user' | 'ai'
     memo: Optional[str] = None
     text: Optional[str] = None

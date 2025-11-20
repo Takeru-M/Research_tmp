@@ -6,7 +6,6 @@ class HighlightRect(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     highlight_id: int = Field(foreign_key="highlights.id")
-
     page_num: int
     x1: float
     y1: float
