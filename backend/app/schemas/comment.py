@@ -1,22 +1,25 @@
 from datetime import datetime
 from typing import Optional
-from sqlmodel import SQLModel
+from pydantic import BaseModel
 
-class CommentBase(SQLModel):
+class CommentBase(BaseModel):
     project_file_id: int
     highlight_id: Optional[int] = None
     parent_id: Optional[int] = None
-    author: str
+    author: str  # 'user' | 'ai'
     text: str
 
 class CommentCreate(CommentBase):
     pass
 
-class CommentUpdate(SQLModel):
+class CommentUpdate(BaseModel):
     text: Optional[str] = None
 
 class CommentRead(CommentBase):
     id: int
     created_at: datetime
-    edited_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     deleted: Optional[bool] = False
+
+    class Config:
+        from_attributes = True

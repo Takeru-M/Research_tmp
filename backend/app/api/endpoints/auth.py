@@ -3,11 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from sqlmodel import Session
+from app.crud import create_user, authenticate_user_by_email
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
-from app.core.security import create_access_token
+from app.core.security import create_access_token, get_password_hash
 from app.crud import authenticate_user
-from app.schemas import Token
+from app.schemas import Token, UserSignupSchema, LoginRequest
 from app.api.deps import get_db
+from app.utils.validators import validate_email, validate_username, validate_password, validate_confirm_password
 
 import logging # 💡 ロギングモジュールをインポート
 logger = logging.getLogger(__name__) # 💡 このモジュール専用のロガーを作成
@@ -18,49 +20,70 @@ router = APIRouter()
 def test_auth_route():
     return {"message": "Auth route is working"}
 
+@router.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
+def signup(
+    user_in: UserSignupSchema,
+    session: Session = Depends(get_db)
+):
+    """新規ユーザー作成 + JWT発行"""
+    validate_email(user_in.email)
+    validate_username(user_in.username)
+    validate_password(user_in.password)
+    validate_confirm_password(user_in.password, user_in.confirm_password)
+
+    db_user = create_user(session=session, user_in=user_in)
+    logger.info(f"User {db_user.email} created successfully with ID {db_user.id}")
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={
+            "user_id": db_user.id,
+            "name": db_user.name,
+            "email": db_user.email,
+        },
+        expires_delta=access_token_expires
+    )
+
+    return Token(
+        access_token=access_token,
+        user_id=str(db_user.id),
+        name=db_user.name,
+        email=db_user.email
+    )
+
 @router.post("/token", response_model=Token)
 def login_for_access_token(
-    session: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
+    login_req: LoginRequest,
+    session: Session = Depends(get_db)
 ):
-    """
-    JWT Access Tokenを発行するためのログインエンドポイント。
-    """
-    
-    # 💡 sessionがジェネレータでないか確認するログを追加
-    logger.info(f"Type of session passed: {type(session)}") # ログを追加
-    
-    # 💡 処理開始のログ
-    logger.info(f"Attempting to log in user: {form_data.username}")
+    """メールアドレス + パスワードでJWTを発行"""
+    logger.info(f"Attempting to log in user: {login_req.email}")
 
-    try:
-        # 認証処理の呼び出し
-        user = authenticate_user(session, form_data.username, form_data.password)
-    except Exception as e:
-        # 💡 authenticate_user内で予期せぬエラーが発生した場合のログ
-        logger.error(f"Error during authentication for user {form_data.username}: {e}", exc_info=True)
-        # 認証失敗として扱う
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="認証処理中に内部エラーが発生しました",
-        )
-    
+    user = authenticate_user_by_email(session, login_req.email, login_req.password)
     if not user:
-        # 💡 認証失敗のログ
-        logger.warning(f"Authentication failed for user: {form_data.username} (Invalid credentials)")
+        logger.warning(f"Authentication failed for user: {login_req.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ユーザー名またはパスワードが正しくありません",
+            detail="メールアドレスまたはパスワードが正しくありません",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # 💡 認証成功のログ
+
     logger.info(f"User {user.name} (ID: {user.id}) successfully authenticated.")
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.name},
+        data={
+            "user_id": user.id,
+            "name": user.name,
+            "email": user.email
+        },
         expires_delta=access_token_expires
     )
     
-    return Token(access_token=access_token, user_id=user.id)
+    # 💡 NextAuth でそのままセッションに入れるようにユーザー情報も返す
+    return Token(
+        access_token=access_token,
+        user_id=str(user.id),
+        name=user.name,
+        email=user.email
+    )

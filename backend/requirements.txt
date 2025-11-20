@@ -5,6 +5,7 @@ sqlmodel
 pymysql
 cryptography
 pydantic
+pydantic[email]
 python-dotenv
 alembic
 httpx

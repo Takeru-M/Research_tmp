@@ -2,10 +2,10 @@ import React, { useState, useCallback, FormEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
-import styles from '../styles/Home.module.css';
+import Link from 'next/link';
 
 const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const { t } = useTranslation();
@@ -13,10 +13,9 @@ const LoginPage: React.FC = () => {
   const { status } = useSession();
   const loading = status === 'loading';
 
-  // 既に認証済みの場合はメインページにリダイレクト
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/');
+      router.push('/projects'); // ログイン後の遷移先を変更
     }
   }, [status, router]);
 
@@ -25,58 +24,16 @@ const LoginPage: React.FC = () => {
     setAuthError(null);
 
     const result = await signIn('credentials', {
-      username,
+      email,
       password,
-      redirect: false, // ページ遷移は自分で行う
+      redirect: false,
     });
 
-    if (result && result.error) {
-      // FastAPIからの認証エラーまたはネットワークエラー
+    if (result?.error) {
       setAuthError(t('Login.error-message'));
       console.error("Login failed:", result.error);
-    } else if (result && result.ok) {
-      // 認証成功時、NextAuth.jsが自動でセッションを設定し、ページがリフレッシュされます。
-      // useEffectでリダイレクトされるため、ここでは何もしません。
     }
-
-  }, [username, password, t]);
-
-  // スタイルの定義 (既存のまま)
-const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100vh',
-    backgroundColor: '#f3f4f6',
-    padding: '20px',
-  };
-
-  const cardStyle: React.CSSProperties = {
-    width: '100%',
-    maxWidth: '360px',
-    padding: '30px',
-    borderRadius: '16px',
-    backgroundColor: '#ffffff',
-    boxShadow: '0 8px 24px rgba(149, 157, 165, 0.2)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-  };
-
-  const titleStyle: React.CSSProperties = {
-    textAlign: 'center',
-    fontSize: '1.6rem',
-    fontWeight: 600,
-    marginBottom: '5px',
-    color: '#333',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: '0.9rem',
-    fontWeight: 500,
-    marginBottom: '4px',
-    color: '#4b5563',
-  };
+  }, [email, password, t]);
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -84,12 +41,6 @@ const containerStyle: React.CSSProperties = {
     borderRadius: '8px',
     border: '1px solid #d1d5db',
     outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-  };
-
-  const inputFocusStyle: React.CSSProperties = {
-    borderColor: '#3b82f6',
-    boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.2)',
   };
 
   const buttonStyle: React.CSSProperties = {
@@ -102,18 +53,37 @@ const containerStyle: React.CSSProperties = {
     fontSize: '1rem',
     fontWeight: 600,
     cursor: loading ? 'not-allowed' : 'pointer',
-    transition: 'background-color 0.2s',
   };
 
-  // NextAuthのロード中はスピナーなどを表示可能
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '50px' }}>{t('Loading...')}</div>;
   }
 
   return (
-    <div style={containerStyle}>
-      <form style={cardStyle} onSubmit={handleLogin}>
-        <h2 style={titleStyle}>{t('Login.title')}</h2>
+    <div style={{
+      display: 'flex',
+      width: '100%',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      backgroundColor: '#f3f4f6',
+      padding: '20px',
+    }}>
+      <form style={{
+        width: '100%',
+        maxWidth: '400px',
+        padding: '30px',
+        borderRadius: '16px',
+        backgroundColor: '#fff',
+        boxShadow: '0 8px 24px rgba(149, 157, 165, 0.2)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px',
+      }} onSubmit={handleLogin}>
+        <h2 style={{ textAlign: 'center', fontSize: '1.6rem', fontWeight: 600, color: '#333' }}>
+          {t('Login.title')}
+        </h2>
 
         {(authError || router.query.error) && (
           <p style={{ color: '#dc2626', textAlign: 'center' }}>
@@ -122,51 +92,40 @@ const containerStyle: React.CSSProperties = {
         )}
 
         <div>
-          <label style={labelStyle} htmlFor="username">
-            {t('Login.username')}
-          </label>
+          <label htmlFor="email">{t('Login.email')}</label>
           <input
-            id="username"
-            type="text"
-            value={username}
-            onFocus={(e) =>
-              Object.assign(e.target.style, inputFocusStyle)
-            }
-            onBlur={(e) =>
-              Object.assign(e.target.style, inputStyle)
-            }
-            onChange={(e) => setUsername(e.target.value)}
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             style={inputStyle}
-            disabled={loading}
             required
           />
         </div>
 
         <div>
-          <label style={labelStyle} htmlFor="password">
-            {t('Login.password')}
-          </label>
+          <label htmlFor="password">{t('Login.password')}</label>
           <input
             id="password"
             type="password"
             value={password}
-            onFocus={(e) =>
-              Object.assign(e.target.style, inputFocusStyle)
-            }
-            onBlur={(e) =>
-              Object.assign(e.target.style, inputStyle)
-            }
             onChange={(e) => setPassword(e.target.value)}
             style={inputStyle}
-            disabled={loading}
             required
           />
         </div>
 
-        <button type="submit" style={buttonStyle} disabled={loading}>
+        <button type="submit" style={buttonStyle}>
           {loading ? t('Login.logging-in') : t('Login.button-text')}
         </button>
       </form>
+
+      <p style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.9rem', color: '#4b5563' }}>
+        {t('Login.no-account')}<br />
+        <Link href="/signup" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
+          {t('Login.signup-link-text')}
+        </Link>
+      </p>
     </div>
   );
 };

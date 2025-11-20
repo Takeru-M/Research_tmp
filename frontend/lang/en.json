@@ -3,12 +3,37 @@
   "app-description": "File Editor Application",
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "Please upload a file",
-    "Login": {
+  "Signup": {
+    "title": "Create Account",
+    "username": "Username",
+    "email": "Email",
+    "password": "Password",
+    "confirm-password": "Confirm Password",
+    "button-text": "Sign Up",
+    "success": "User created successfully! Redirecting to login...",
+    "error": "Failed to create user",
+    "password-mismatch": "Passwords do not match",
+    "has-account": "Already have an account?",
+    "login-link-text": "Login here",
+    "validation": {
+      "username-min": "Username must be at least 3 characters",
+      "email-invalid": "Please enter a valid email address",
+      "password-min": "Password must be at least 8 characters",
+      "password-uppercase": "Password must contain at least one uppercase letter",
+      "password-lowercase": "Password must contain at least one lowercase letter",
+      "password-number": "Password must contain at least one number",
+      "password-confirm": "Passwords do not match"
+    }
+  },
+  "Login": {
       "title": "Login",
-      "username": "Username",
+      "email": "Email",
       "password": "Password",
       "logging_in": "Logging in...",
-      "button-text": "Login"
+      "button-text": "Login",
+      "has-account": "Already have an account?",
+      "login-link-text": "Login here",
+      "error-message": "Login Error"
   },
   "Logout": {
     "button-text": "Logout"
