@@ -404,14 +404,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             createdBy: `${t("CommentPanel.comment-author-user")}`
         }
     });
-}, [t]);
+  }, [t]);
 
-const addHighlight = () => {
-    if (selectionMenu.pendingHighlight) {
-        onRequestAddHighlight?.(selectionMenu.pendingHighlight);
-        setSelectionMenu(s => ({ ...s, visible: false, pendingHighlight: null }));
-    }
-};
+  const addHighlight = () => {
+      if (selectionMenu.pendingHighlight) {
+          onRequestAddHighlight?.(selectionMenu.pendingHighlight);
+          setSelectionMenu(s => ({ ...s, visible: false, pendingHighlight: null }));
+      }
+  };
 
   const pdfTextContent = useSelector((state: RootState) => state.editor.pdfTextContent);
 
@@ -626,7 +626,7 @@ const addHighlight = () => {
 
           // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
           highlight_feedback.forEach((hf: any) => {
-            if (hf.intervention_needed && hf.suggestion) {
+            if (hf.intervention_needed) {
               dispatch(
                 addComment({
                   id: `s-${Date.now()}`,
@@ -771,7 +771,7 @@ const addHighlight = () => {
         dispatch(stopLoading());
       }
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t]);
+  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, file]);
 
   return (
     <div

@@ -1,12 +1,13 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
-# データベースセッションを定義したファイルからSessionLocalをインポートすることを想定
 from app.db.session import SessionLocal
 from app.core.security import decode_access_token
-from app.crud import get_user_by_username
+from app.crud import get_user_by_id, get_user_by_email
 from app.schemas import User
-from app.schemas import TokenData
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------
 # データベースセッションを取得し、クローズする
@@ -24,7 +25,7 @@ def get_db():
 
 # Bearerトークンを取得するためのセキュリティスキームを定義
 # tokenUrlはトークンを発行するエンドポイントをFastAPIに教える
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 def get_current_user(
     session: Session = Depends(get_db),
@@ -32,36 +33,51 @@ def get_current_user(
 ) -> User:
     """JWTを検証し、認証済みユーザーを返す依存関数"""
     
+    logger.info(f"Received token (first 20 chars): {token[:20]}...")
+    
     # 1. トークン検証とデコード
     payload = decode_access_token(token)
     
+    logger.info(f"Decoded payload: {payload}")
+    
     if payload is None:
+        logger.error("Token decode failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="無効な認証情報です",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # ペイロードからユーザー名を取得 (JWT生成時に "sub" に設定した値)
-    username: str = payload.get("sub")
+    # ペイロードからユーザー情報を取得
+    # 'sub'フィールドまたは'user_id'フィールドからユーザーIDを取得
+    user_id = payload.get("user_id")
+    email = payload.get("email")
     
-    if username is None:
+    logger.info(f"Extracted user_id: {user_id}, email: {email}")
+    
+    if not user_id and not email:
+        logger.error("No user_id or email in token payload")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="無効な認証情報です",
+            detail="トークンにユーザー情報が含まれていません",
             headers={"WWW-Authenticate": "Bearer"},
         )
-        
-    token_data = TokenData(username=username) # TokenDataの利用は冗長なので削除可だが、残す
     
-    # 2. ユーザー情報の取得
-    user = get_user_by_username(session, token_data.username)
+    # データベースからユーザーを取得
+    if user_id:
+        user = get_user_by_id(session, user_id)
+        logger.info(f"User found by ID: {user}")
+    else:
+        user = get_user_by_email(session, email)
+        logger.info(f"User found by email: {user}")
     
     if user is None:
+        logger.error(f"User not found: user_id={user_id}, email={email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="無効な認証情報です",
+            detail="ユーザーが見つかりません",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    logger.info(f"Authentication successful for user: {user.email}")
     return user

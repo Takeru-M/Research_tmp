@@ -5,7 +5,7 @@ from app.db.base import get_session
 from app.crud import comment as crud_comment
 from app.schemas import CommentCreate, CommentUpdate, CommentRead
 
-router = APIRouter(prefix="/comments", tags=["comments"])
+router = APIRouter()
 
 @router.post("/", response_model=CommentRead)
 def create_comment(comment_in: CommentCreate, session: Session = Depends(get_session)):

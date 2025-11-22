@@ -3,6 +3,7 @@ import re
 from fastapi import HTTPException, status
 
 def validate_email(email: str):
+    # TODO: バリデーションを有効に
     # try:
     #     EmailStr.validate(str(email))
     # except Exception:

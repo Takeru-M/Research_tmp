@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
-from app.models.projects import Project
+from app.models import Project
 from app.schemas import ProjectCreate, ProjectUpdate
 
 def create_project(session: Session, project_in: ProjectCreate) -> Project:
@@ -11,7 +11,8 @@ def create_project(session: Session, project_in: ProjectCreate) -> Project:
     session.refresh(db_project)
     return db_project
 
-def get_project_by_id(session: Session, project_id: int) -> Optional[Project]:
+def get_project(session: Session, project_id: int) -> Optional[Project]:
+    """プロジェクトIDで特定のプロジェクトを取得"""
     statement = select(Project).where(Project.id == project_id)
     return session.exec(statement).first()
 

@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
-            temperature: 0.1,
+            temperature: 0,
             messages: [
               {role: "system", content: formatDataPrompt},
               {role: "user", content: pdfTextData}

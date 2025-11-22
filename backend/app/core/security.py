@@ -1,14 +1,20 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from passlib.context import CryptContext
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
-
-from app.core.config import SECRET_KEY, ALGORITHM
 from app.db.base import get_session
-from app.models.users import User  # ⭐Userモデルを忘れずに
+from app.models.users import User
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30日
 
 # パスワードハッシュ化の設定 (Bcrypt)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -25,15 +31,39 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=30))
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    logger.info(f"Created token with payload: {to_encode}")
+    logger.info(f"Token expires at: {expire}")
+    return encoded_jwt
 
 def decode_access_token(token: str) -> Optional[dict]:
     try:
+        logger.info(f"Decoding token with SECRET_KEY: {SECRET_KEY[:10]}...")
+        # options で exp チェックを無効化して、トークンの内容を確認
+        payload_no_verify = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        logger.info(f"Token payload (no verify): {payload_no_verify}")
+        
+        if "exp" in payload_no_verify:
+            exp_timestamp = payload_no_verify["exp"]
+            exp_datetime = datetime.fromtimestamp(exp_timestamp)
+            now = datetime.utcnow()
+            logger.info(f"Token expiration: {exp_datetime}, Current time: {now}")
+            
+            if exp_datetime < now:
+                logger.error(f"Token has expired. Expired at: {exp_datetime}, Current: {now}")
+                return None
+        
+        # 正常にデコード
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logger.info(f"Successfully decoded payload: {payload}")
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT decode error: {e}")
         return None
 
 # OAuth2 のトークンスキーム
@@ -50,7 +80,7 @@ def get_current_user(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="トークンが無効または期限切れです",
         )
 
     user_id: int = payload.get("user_id")

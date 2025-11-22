@@ -5,7 +5,7 @@ from app.db.base import get_session
 from app.crud import highlight as crud_highlight
 from app.schemas import HighlightCreate, HighlightUpdate, HighlightRead
 
-router = APIRouter(prefix="/highlights", tags=["highlights"])
+router = APIRouter()
 
 @router.post("/", response_model=HighlightRead)
 def create_highlight(highlight_in: HighlightCreate, session: Session = Depends(get_session)):
