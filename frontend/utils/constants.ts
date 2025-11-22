@@ -105,7 +105,7 @@ export const OPTION_SYSTEM_PROMPT = `
 - 不要な文章説明は含めない
 `;
 
-// 熟考に関する示唆を出すプロンプト
+// 吟味に関する示唆を出すプロンプト
 export const DELIBERATION_SYSTEM_PROMPT = `
 いくつかの選択肢がある中でそれらを吟味することを支援する「吟味促進AI」です。
 

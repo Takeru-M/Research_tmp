@@ -1,37 +1,125 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import Session, select
 from typing import List
 from app.db.base import get_session
-from app.crud import project_file as crud_file
-from app.schemas import ProjectFileCreate, ProjectFileUpdate, ProjectFileRead
+from app.api.deps import get_current_user, get_db
+from app.models import User, ProjectFile
+from app.schemas import ProjectFileCreate, ProjectFileRead, ProjectFileUpdate
+from app.crud import create_project_file, get_project_file, get_project_files, delete_project_file
+from app.crud import create_project, get_project, get_projects, update_project, delete_project
 
-router = APIRouter(prefix="/files", tags=["project_files"])
+router = APIRouter()
 
-@router.post("/", response_model=ProjectFileRead)
-def create_file(file_in: ProjectFileCreate, session: Session = Depends(get_session)):
-    return crud_file.create_project_file(session, file_in)
+@router.post("/", response_model=ProjectFileRead, status_code=status.HTTP_201_CREATED)
+def create_project_file(
+    *,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    file_in: ProjectFileCreate
+) -> ProjectFile:
+    """
+    プロジェクトファイルを作成
+    """
+    # プロジェクトの存在確認とアクセス権限チェック
+    project = get_project(session, file_in.project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    if project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # ファイル作成
+    return create_project_file(session, file_in)
+
 
 @router.get("/project/{project_id}", response_model=List[ProjectFileRead])
-def read_files_by_project(project_id: int, session: Session = Depends(get_session)):
-    return crud_file.get_project_files(session, project_id)
+def read_files_by_project(
+    *,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    project_id: int
+) -> List[ProjectFile]:
+    """
+    プロジェクトIDに紐づくファイル一覧を取得（作成日時の降順）
+    """
+    # プロジェクトの存在確認とアクセス権限チェック
+    project = get_project(session, project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    if project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # ファイル一覧を取得（作成日時の降順でソート）
+    files = get_project_files(session, project_id)
+    return files
+
 
 @router.get("/{file_id}", response_model=ProjectFileRead)
-def read_file(file_id: int, session: Session = Depends(get_session)):
-    file = crud_file.get_project_file_by_id(session, file_id)
+def read_project_file(
+    *,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    file_id: int
+) -> ProjectFile:
+    """
+    ファイルIDで特定のファイルを取得
+    """
+    file = get_project_file(session, file_id)
     if not file:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found"
+        )
+    
+    # プロジェクトへのアクセス権限チェック
+    project = get_project(session, file.project_id)
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
     return file
 
-@router.put("/{file_id}", response_model=ProjectFileRead)
-def update_file(file_id: int, file_in: ProjectFileUpdate, session: Session = Depends(get_session)):
-    file = crud_file.get_project_file_by_id(session, file_id)
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-    return crud_file.update_project_file(session, file, file_in)
 
-@router.delete("/{file_id}", response_model=ProjectFileRead)
-def delete_file(file_id: int, session: Session = Depends(get_session)):
-    file = crud_file.get_project_file_by_id(session, file_id)
+@router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_file(
+    *,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    file_id: int
+):
+    """
+    ファイルを削除
+    """
+    file = get_project_file(session, file_id)
     if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-    return crud_file.delete_project_file(session, file)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found"
+        )
+    
+    # プロジェクトへのアクセス権限チェック
+    project = get_project(session, file.project_id)
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # ファイル削除（S3からの削除は別途実装が必要）
+    delete_project_file(session, file_id)
+    return None

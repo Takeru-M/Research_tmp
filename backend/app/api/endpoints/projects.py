@@ -42,7 +42,7 @@ def read_project(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    project = crud_project.get_project_by_id(session, project_id)
+    project = crud_project.get_project(session, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     if project.user_id != current_user.id:
@@ -56,7 +56,7 @@ def update_project(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    project = crud_project.get_project_by_id(session, project_id)
+    project = crud_project.get_project(session, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     if project.user_id != current_user.id:
@@ -69,7 +69,7 @@ def delete_project(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    project = crud_project.get_project_by_id(session, project_id)
+    project = crud_project.get_project(session, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     if project.user_id != current_user.id:

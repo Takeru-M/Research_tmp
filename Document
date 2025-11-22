@@ -15,9 +15,6 @@ docker system prune -a
 docker compose down --remove-orphans
 docker compose down -v
 
-// 再ビルド
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-
 // 管理者でコンテナに入る
 docker compose exec -it --user root コンテナ名 sh
 

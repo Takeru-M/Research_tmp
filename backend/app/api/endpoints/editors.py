@@ -6,7 +6,7 @@ from app.db.base import get_session
 from app.models import ProjectFile, Highlight, HighlightRect, Comment
 from datetime import datetime
 
-router = APIRouter(prefix="/api/v1/editor", tags=["editor"])
+router = APIRouter()
 
 @router.post("/save")
 def save_editor_state(editor_in: EditorStateIn, session: Session = Depends(get_session)) -> Any:

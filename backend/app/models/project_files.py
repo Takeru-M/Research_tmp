@@ -7,14 +7,20 @@ class ProjectFile(SQLModel, table=True):
     __tablename__ = "project_files"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    project_id: Optional[int] = Field(foreign_key="projects.id")
-    # S3 対応
-    file_name: str                         # ユーザーがアップロードした元ファイル名
-    s3_key: str                           # S3 オブジェクトキー
-    s3_bucket: Optional[str] = None       # バケット名（単一なら不要だが念のため）
-    file_type: str                        # MIME or カテゴリ
-    file_size: Optional[int] = None       # バイトサイズ（任意）
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    project_id: int = Field(foreign_key="projects.id", nullable=False)
+    file_name: str = Field(max_length=255, nullable=False)
+    file_key: str = Field(max_length=500, nullable=False)  # S3 object key
+    file_url: Optional[str] = Field(default=None, max_length=500)  # optional (public files only)
+    mime_type: Optional[str] = Field(default=None, max_length=100)
+    file_size: Optional[int] = Field(default=None)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        nullable=False
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        nullable=False
+    )
 
     # Relationship
     project: Optional["Project"] = Relationship(back_populates="project_file")

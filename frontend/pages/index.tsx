@@ -37,6 +37,7 @@ import { useTranslation } from "react-i18next";
 import { CSSProperties } from 'react'; // CSSPropertiesをインポート
 import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
 import LoginPage from './login';
+import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 // const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
@@ -46,6 +47,7 @@ const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false
 const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
   const { t } = useTranslation();
+  const router = useRouter();
 
   const file = useSelector(selectFile);
   const fileType = useSelector(selectFileType);
@@ -58,6 +60,142 @@ const EditorPageContent: React.FC = () => {
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
+  const [isFileUploaded, setIsFileUploaded] = useState(false);
+
+  // cookieからprojectIdを取得するヘルパー
+  const getProjectIdFromCookie = (): number | null => {
+    const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
+  // プロジェクトのファイルを取得
+  const fetchProjectFile = useCallback(async (projectId: number) => {
+    try {
+      dispatch(startLoading('Loading project file...'));
+
+      const response = await fetch(`/api/project-files/${projectId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch project files');
+      }
+
+      const files = await response.json();
+      
+      if (files && files.length > 0) {
+        // 最新のファイルを取得（最初のファイル）
+        const latestFile = files[0];
+        
+        // S3からファイルを取得
+        const fileResponse = await fetch(latestFile.file_url);
+        if (!fileResponse.ok) {
+          throw new Error('Failed to fetch file from S3');
+        }
+
+        const blob = await fileResponse.blob();
+        const file = new File([blob], latestFile.file_name, { type: latestFile.mime_type });
+        const fileUrl = URL.createObjectURL(blob);
+
+        dispatch(setFile({
+          file: file,
+          fileType: latestFile.mime_type,
+          fileContent: fileUrl
+        }));
+
+        setIsFileUploaded(true);
+        console.log('Project file loaded:', latestFile);
+      } else {
+        console.log('No files found for this project');
+        setIsFileUploaded(false);
+      }
+    } catch (error: any) {
+      console.error('Failed to load project file:', error.message);
+      setIsFileUploaded(false);
+    } finally {
+      dispatch(stopLoading());
+    }
+  }, [dispatch]);
+
+  // コンポーネントマウント時にプロジェクトファイルを取得
+  useEffect(() => {
+    const projectId = getProjectIdFromCookie();
+    if (projectId) {
+      fetchProjectFile(projectId);
+    } else {
+      console.warn('No project ID found in cookies');
+      // プロジェクト選択ページにリダイレクト
+      router.push('/projects');
+    }
+  }, [fetchProjectFile, router]);
+
+  // ---------------------------
+  // S3アップロード + バックエンド保存
+  // ---------------------------
+  const uploadPdfToS3AndSave = async (file: File, filetype: string, filesize: number) => {
+    if (!file) return;
+
+    // 既にファイルがアップロード済みの場合は処理を中断
+    if (isFileUploaded) {
+      alert(t('Alert.file-already-uploaded') || 'ファイルは既にアップロード済みです');
+      return;
+    }
+
+    dispatch(startLoading('Uploading PDF...'));
+
+    try {
+      // 1. Next.js API 経由で FastAPI に送信
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const s3Response = await fetch('/api/s3/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!s3Response.ok) {
+        const errorData = await s3Response.json();
+        throw new Error(errorData.message || 'Failed to upload PDF');
+      }
+
+      const s3Data = await s3Response.json();
+      console.log('PDF uploaded to S3 via Next.js API:', s3Data);
+
+      const project_id = getProjectIdFromCookie();
+      if (!project_id) throw new Error('Project ID not found in cookies');
+
+      // 2. DB保存（Next.js API経由）
+      const dbResponse = await fetch('/api/project-files/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          project_id: project_id,
+          file_name: file.name,
+          file_key: s3Data.s3_key,
+          file_url: s3Data.s3_url,
+          mime_type: filetype,
+          file_size: filesize,
+        }),
+      });
+
+      if (!dbResponse.ok) {
+        const errorData = await dbResponse.json();
+        throw new Error(errorData.message || 'Failed to save PDF to DB');
+      }
+
+      const dbData = await dbResponse.json();
+      console.log('PDF saved to DB:', dbData);
+
+      // アップロード成功後、フラグを立てる
+      setIsFileUploaded(true);
+
+    } catch (error: any) {
+      console.error('PDF upload/save failed:', error.message);
+    } finally {
+      dispatch(stopLoading());
+    }
+  };
+
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
     if (typeof window === 'undefined') return 800;
@@ -165,23 +303,32 @@ const EditorPageContent: React.FC = () => {
   // === Upload File ===
   const handleFileUpload = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
+      // 既にファイルがアップロード済みの場合は処理を中断
+      if (isFileUploaded) {
+        alert(t('Alert.file-already-uploaded') || 'ファイルは既にアップロード済みです');
+        event.target.value = ''; // input をリセット
+        return;
+      }
+
       const uploadedFile = event.target.files?.[0];
       if (!uploadedFile) return;
 
       if (uploadedFile.type === 'application/pdf') {
+        uploadPdfToS3AndSave(uploadedFile, uploadedFile.type, uploadedFile.size);
         const content = URL.createObjectURL(uploadedFile);
         dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: content }));
       } else if (uploadedFile.type.startsWith('text/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
           dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: e.target?.result as string }));
+          setIsFileUploaded(true);
         };
         reader.readAsText(uploadedFile);
       } else {
         alert(t("Alert.file-support"));
       }
     },
-    [dispatch, t]
+    [dispatch, t, isFileUploaded]
   );
 
   // === Request highlight (open memo modal) ===
@@ -289,9 +436,12 @@ const EditorPageContent: React.FC = () => {
           flexDirection: 'column',
         }}
       >
-        <div className={styles.fileInputSection}>
-          <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
-        </div>
+        {/* ファイルアップロード済みの場合は表示しない */}
+        {!isFileUploaded && (
+          <div className={styles.fileInputSection}>
+            <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
+          </div>
+        )}
 
         {/* Viewerコンテンツ部分 */}
         <div className={styles.viewerContainer} ref={viewerContentRef} style={{minWidth: MIN_PDF_WIDTH, overflowX: "auto",}}>

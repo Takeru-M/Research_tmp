@@ -5,7 +5,7 @@ from app.db.base import get_session
 from app.crud import highlight_rect as crud_rect
 from app.schemas import HighlightRectCreate, HighlightRectUpdate, HighlightRectRead
 
-router = APIRouter(prefix="/highlight-rects", tags=["highlight_rects"])
+router = APIRouter()
 
 @router.post("/", response_model=HighlightRectRead)
 def create_rect(rect_in: HighlightRectCreate, session: Session = Depends(get_session)):
