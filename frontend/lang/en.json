@@ -3,6 +3,9 @@
   "app-description": "File Editor Application",
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "Please upload a file",
+  "header": {
+    "back-to-document-list": "Back to Document List"
+  },
   "Signup": {
     "title": "Create Account",
     "username": "Username",
@@ -38,6 +41,14 @@
   "Logout": {
     "button-text": "Logout"
   },
+  "Document": {
+    "document-list": "Document List",
+    "non-document": "No documents available. Please create a new document.",
+    "create-new-document": "Create New Document",
+    "project-name-placeholder": "Enter document name",
+    "create-button-text": "Create",
+    "loading-text": "Loading documents..."
+  },
   "PdfViewer": {
     "add-comment": "Add Comment",
     "complete": "Complete",
@@ -62,6 +73,7 @@
     "show-more": "show more"
   },
   "Alert": {
+    "loading_pdf": "Loading PDF...",
     "not_input_pdf": "PDF is not loaded",
     "file-support": "Currently, only PDF and text files are supported",
     "comment-delete": "Are you sure you want to delete this comment?",

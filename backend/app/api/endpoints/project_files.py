@@ -5,13 +5,18 @@ from app.db.base import get_session
 from app.api.deps import get_current_user, get_db
 from app.models import User, ProjectFile
 from app.schemas import ProjectFileCreate, ProjectFileRead, ProjectFileUpdate
-from app.crud import create_project_file, get_project_file, get_project_files, delete_project_file
-from app.crud import create_project, get_project, get_projects, update_project, delete_project
+from app.crud import (
+    create_project_file as crud_create_project_file,
+    get_project_file as crud_get_project_file,
+    get_project_files as crud_get_project_files,
+    delete_project_file as crud_delete_project_file
+)
+from app.crud import get_project
 
 router = APIRouter()
 
 @router.post("/", response_model=ProjectFileRead, status_code=status.HTTP_201_CREATED)
-def create_project_file(
+def create_file_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -35,11 +40,11 @@ def create_project_file(
         )
     
     # ファイル作成
-    return create_project_file(session, file_in)
+    return crud_create_project_file(session, file_in)
 
 
 @router.get("/project/{project_id}", response_model=List[ProjectFileRead])
-def read_files_by_project(
+def read_files_by_project_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -63,12 +68,12 @@ def read_files_by_project(
         )
     
     # ファイル一覧を取得（作成日時の降順でソート）
-    files = get_project_files(session, project_id)
+    files = crud_get_project_files(session, project_id)
     return files
 
 
 @router.get("/{file_id}", response_model=ProjectFileRead)
-def read_project_file(
+def read_project_file_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -77,7 +82,7 @@ def read_project_file(
     """
     ファイルIDで特定のファイルを取得
     """
-    file = get_project_file(session, file_id)
+    file = crud_get_project_file(session, file_id)
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -96,7 +101,7 @@ def read_project_file(
 
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project_file(
+def delete_file_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -105,7 +110,7 @@ def delete_project_file(
     """
     ファイルを削除
     """
-    file = get_project_file(session, file_id)
+    file = crud_get_project_file(session, file_id)
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -121,5 +126,5 @@ def delete_project_file(
         )
     
     # ファイル削除（S3からの削除は別途実装が必要）
-    delete_project_file(session, file_id)
+    crud_delete_project_file(session, file_id)
     return None

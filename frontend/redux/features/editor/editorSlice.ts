@@ -1,8 +1,7 @@
 // src/redux/features/editor/editorSlice.ts (修正後)
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { EditorState, Highlight, Comment, ScrollTarget } from './editorTypes';
-// import { v4 as uuidv4 } from 'uuid';
+import { EditorState, Highlight, Comment, ScrollTarget, PdfHighlight } from './editorTypes';
 import { STAGE } from '@/utils/constants';
 
 const initialState: EditorState = {
@@ -10,6 +9,8 @@ const initialState: EditorState = {
   fileType: null,
   fileContent: null,
   highlights: [],
+  pdfHighlights: [],
+  textHighlights: [], // 追加（必要に応じて）
   comments: [],
   activeHighlightId: null,
   activeCommentId: null,
@@ -39,6 +40,10 @@ const editorSlice = createSlice({
     // === Highlights ===
     addHighlight(state, action: PayloadAction<Highlight>) {
       state.highlights.push(action.payload);
+      // type別に振り分け
+      if (action.payload.type === 'pdf') {
+        state.pdfHighlights.push(action.payload as PdfHighlight);
+      }
     },
 
     addHighlightWithComment(
@@ -50,6 +55,11 @@ const editorSlice = createSlice({
     ) {
       const { highlight, initialComment } = action.payload;
       state.highlights.push(highlight);
+      
+      // type別に振り分け
+      if (highlight.type === 'pdf') {
+        state.pdfHighlights.push(highlight as PdfHighlight);
+      }
 
       if (initialComment && initialComment.text && initialComment.text.trim().length > 0) {
         // uuidv4 を使用しない既存のロジックを維持 (ここでは Date.now() ベース)
@@ -72,14 +82,40 @@ const editorSlice = createSlice({
 
     setAllHighlights(state, action: PayloadAction<Highlight[]>) {
       state.highlights = action.payload;
+      // type別に振り分け
+      state.pdfHighlights = action.payload.filter(h => h.type === 'pdf') as PdfHighlight[];
+      state.textHighlights = action.payload.filter(h => h.type === 'text');
     },
+
+    setHighlights: (state, action: PayloadAction<PdfHighlight[]>) => {
+      console.log('setHighlights called with:', action.payload);
+      state.pdfHighlights = action.payload;
+      // highlightsにも追加
+      state.highlights = [
+        ...state.highlights.filter(h => h.type !== 'pdf'),
+        ...action.payload
+      ];
+    },
+
+    setComments: (state, action: PayloadAction<Comment[]>) => {
+      console.log('setComments called with:', action.payload);
+      state.comments = action.payload;
+    },
+
     updateHighlightMemo(state, action: PayloadAction<{ id: string; memo: string }>) {
       const h = state.highlights.find((x) => x.id === action.payload.id);
       if (h) h.memo = action.payload.memo;
+      
+      // pdfHighlightsも更新
+      const ph = state.pdfHighlights.find((x) => x.id === action.payload.id);
+      if (ph) ph.memo = action.payload.memo;
     },
+
     deleteHighlight(state, action: PayloadAction<{ id: string }>) {
       const id = action.payload.id;
       state.highlights = state.highlights.filter((h) => h.id !== id);
+      state.pdfHighlights = state.pdfHighlights.filter((h) => h.id !== id);
+      
       const removedCommentIds = state.comments.filter((c) => c.highlightId === id).map((c) => c.id);
       state.comments = state.comments.filter((c) => c.highlightId !== id);
       if (state.activeHighlightId === id) state.activeHighlightId = null;
@@ -107,13 +143,19 @@ const editorSlice = createSlice({
           parentComment.author === 'AI' &&
           newComment.author !== 'AI'  // ユーザーのコメント
         ) {
-          highlight.hasUserReply = true;  // ✅ 色を緑に変更
+          highlight.hasUserReply = true;
+          
+          // pdfHighlightsも更新
+          const pdfHighlight = state.pdfHighlights.find(h => h.id === newComment.highlightId);
+          if (pdfHighlight) pdfHighlight.hasUserReply = true;
         }
       }
     },
+
     setAllComments(state, action: PayloadAction<Comment[]>) {
       state.comments = action.payload;
     },
+
     updateComment(state, action: PayloadAction<{ id: string; text: string }>) {
       const c = state.comments.find((x) => x.id === action.payload.id);
       if (c) {
@@ -121,6 +163,7 @@ const editorSlice = createSlice({
         c.editedAt = new Date().toISOString();
       }
     },
+
     deleteComment(state, action: PayloadAction<{ id: string }>) {
       const id = action.payload.id;
       const deletedComment = state.comments.find(c => c.id === id);
@@ -142,6 +185,10 @@ const editorSlice = createSlice({
             );
             if (!hasOtherUserReplies) {
               highlight.hasUserReply = false;
+              
+              // pdfHighlightsも更新
+              const pdfHighlight = state.pdfHighlights.find(h => h.id === deletedComment.highlightId);
+              if (pdfHighlight) pdfHighlight.hasUserReply = false;
             }
           }
         }
@@ -158,22 +205,20 @@ const editorSlice = createSlice({
       state.activeHighlightId = action.payload;
       if (action.payload === null) {
         state.activeCommentId = null;
-        // 💡 修正: activeHighlightId が null になったら activeScrollTarget もリセット
         state.activeScrollTarget = null;
       }
     },
+
     setActiveCommentId(state, action: PayloadAction<string | null>) {
       state.activeCommentId = action.payload;
       if (action.payload) {
         const c = state.comments.find((x) => x.id === action.payload);
         if (c) state.activeHighlightId = c.highlightId;
       } else {
-        // 💡 修正: activeCommentId が null になったら activeScrollTarget もリセット
         state.activeScrollTarget = null;
       }
     },
 
-    // 💡 修正2: 新しい reducer を追加 - スクロールターゲットの設定
     setActiveScrollTarget(state, action: PayloadAction<ScrollTarget | null>) {
       state.activeScrollTarget = action.payload;
     },
@@ -192,6 +237,8 @@ const editorSlice = createSlice({
       state.fileType = null;
       state.fileContent = null;
       state.highlights = [];
+      state.pdfHighlights = [];
+      state.textHighlights = [];
       state.comments = [];
       state.activeHighlightId = null;
       state.activeCommentId = null;
@@ -227,6 +274,8 @@ export const {
   setActiveCommentId,
   setActiveScrollTarget,
   setActiveHighlightMemo,
+  setHighlights,
+  setComments,
   setPdfScale,
   clearAllState,
   addLLMResponse,

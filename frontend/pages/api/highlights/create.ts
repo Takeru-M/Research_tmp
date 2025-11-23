@@ -3,9 +3,15 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
 type Data = {
-  success: boolean;
+  success?: boolean;
   message?: string;
-  savedFile?: any;
+  id?: number;
+  project_file_id?: number;
+  created_by?: string;
+  memo?: string;
+  text?: string;
+  created_at?: string;
+  rects?: any[];
 };
 
 export default async function handler(
@@ -18,25 +24,23 @@ export default async function handler(
 
   try {
     const {
-      project_id,
-      file_name,
-      file_key,
-      file_url,
-      mime_type,
-      file_size,
+      project_file_id,
+      created_by,
+      memo,
+      text,
+      rects,
+      element_type
     } = req.body;
 
     console.log('Request body:', req.body);
 
-    if (!project_id || !file_name || !file_key) {
+    // バリデーション
+    if (!project_file_id || !created_by || !memo || !rects || !Array.isArray(rects)) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     // セッション取得
     const session = await getServerSession(req, res, authOptions) as any;
-    
-    console.log('Session:', session);
-    console.log('Access Token:', session?.accessToken);
     
     if (!session?.user?.email) {
       return res.status(401).json({ success: false, message: 'Unauthorized: No session' });
@@ -46,20 +50,26 @@ export default async function handler(
       return res.status(401).json({ success: false, message: 'Unauthorized: No access token' });
     }
 
-    // FastAPIのDB保存エンドポイントに送信
+    // FastAPIのエンドポイントに送信
     const backendUrl = process.env.BACKEND_URL;
     const payload = {
-      project_id: parseInt(project_id.toString(), 10), // 数値に変換
-      file_name,
-      file_key,
-      file_url: file_url || null,
-      mime_type: mime_type || 'application/pdf',
-      file_size: file_size ? parseInt(file_size.toString(), 10) : null, // 数値に変換
+      project_file_id: parseInt(project_file_id.toString(), 10),
+      created_by,
+      memo,
+      text: text || null,
+      rects: rects.map((rect: any) => ({
+        page_num: parseInt(rect.page_num.toString(), 10),
+        x1: parseFloat(rect.x1.toString()),
+        y1: parseFloat(rect.y1.toString()),
+        x2: parseFloat(rect.x2.toString()),
+        y2: parseFloat(rect.y2.toString()),
+      })),
+      element_type: element_type || 'unknown',
     };
 
     console.log('Sending to FastAPI:', payload);
 
-    const response = await fetch(`http://backend:8000/api/v1/project-files/`, {
+    const response = await fetch(`http://backend:8000/api/v1/highlights/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,17 +91,17 @@ export default async function handler(
 
       return res.status(response.status).json({
         success: false,
-        message: errorData.detail || 'Failed to save file to DB via FastAPI',
+        message: errorData.detail || 'Failed to create highlight',
       });
     }
 
-    const savedFile = await response.json();
-    console.log('Saved file:', savedFile);
+    const savedHighlight = await response.json();
+    console.log('Highlight saved:', savedHighlight);
 
-    return res.status(200).json({ success: true, savedFile });
+    return res.status(200).json(savedHighlight);
 
   } catch (err: any) {
-    console.error('Error saving file to DB:', err);
+    console.error('Error creating highlight:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }

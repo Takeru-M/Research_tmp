@@ -12,6 +12,7 @@ import {
 import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
 import { Comment } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
+import { useSession } from "next-auth/react";
 import "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD } from "@/utils/constants";
 
@@ -35,10 +36,23 @@ const CommentHeader: React.FC<{
   startEditing: (id: string, text: string) => void;
   removeCommentFn: (id: string) => void;
   menuRef: (element: HTMLDivElement | null) => void;
-}> = ({ comment, highlightText, editingId, toggleMenu, menuOpenMap, startEditing, removeCommentFn, menuRef }) => {
+  currentUserName?: string | null;
+}> = ({
+  comment,
+  highlightText,
+  editingId,
+  toggleMenu,
+  menuOpenMap,
+  startEditing,
+  removeCommentFn,
+  menuRef,
+  currentUserName,
+}) => {
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
+  const displayAuthor =
+    currentUserName ?? comment.author ?? t("CommentPanel.comment-author-user");
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
   const { t } = useTranslation();
 
@@ -189,6 +203,7 @@ interface CommentPanelProps {
 export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProps) {
   const dispatch = useDispatch();
   const { t } = useTranslation();
+  const { data: session } = useSession();
 
   const { comments, activeHighlightId, activeCommentId, highlights } = useSelector((s: any) => s.editor);
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
@@ -329,7 +344,7 @@ const removeCommentFn = (id: string) => {
         id: `c-${Date.now()}`,
         parentId,
         highlightId: parentComment.highlightId,
-        author: t("CommentPanel.comment-author-user"),
+        author: session?.user?.name || t("CommentPanel.comment-author-user"),
         text: replyText,
         createdAt: new Date().toISOString(),
         editedAt: null,
@@ -539,48 +554,50 @@ const removeCommentFn = (id: string) => {
             >
               <CommentHeader
                 comment={root}
-                highlightText={rootHighlightText}
+                highlightText={getHighlightText(root.highlightId)}
                 editingId={editingId}
                 toggleMenu={toggleMenu}
                 menuOpenMap={menuOpenMap}
                 startEditing={startEditing}
                 removeCommentFn={removeCommentFn}
                 menuRef={(el) => (menuRefs.current[root.id] = el)}
+                currentUserName={session?.user?.name || null}
               />
 
               {renderCommentBody(root)}
 
-              {visibleReplies.map((r) => (
+              {visibleReplies.map((reply) => (
                 <div
-                  key={r.id}
+                  key={reply.id}
                   style={{
                     marginLeft: 14,
                     marginTop: 6,
                     borderLeft: "2px solid #eee",
                     paddingLeft: 8,
-                    background: activeCommentId === r.id ? "#e6f3ff" : "transparent",
+                    background: activeCommentId === reply.id ? "#e6f3ff" : "transparent",
                     paddingTop: 4,
                     paddingBottom: 4,
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    dispatch(setActiveCommentId(r.id));
-                    dispatch(setActiveHighlightId(r.highlightId));
-                    const rootId = findRootId(r.id);
+                    dispatch(setActiveCommentId(reply.id));
+                    dispatch(setActiveHighlightId(reply.highlightId));
+                    const rootId = findRootId(reply.id);
                     if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
                   }}
                 >
                   <CommentHeader
-                    comment={r}
-                    highlightText={undefined}
+                    comment={reply}
+                    highlightText={getHighlightText(reply.highlightId)}
                     editingId={editingId}
                     toggleMenu={toggleMenu}
                     menuOpenMap={menuOpenMap}
                     startEditing={startEditing}
                     removeCommentFn={removeCommentFn}
-                    menuRef={(el) => (menuRefs.current[r.id] = el)}
+                    menuRef={(el) => (menuRefs.current[reply.id] = el)}
+                    currentUserName={session?.user?.name || null}
                   />
-                  {renderCommentBody(r)}
+                  {renderCommentBody(reply)}
                 </div>
               ))}
 

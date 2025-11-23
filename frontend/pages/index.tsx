@@ -10,6 +10,8 @@ import {
   deleteComment,
   deleteHighlight,
   updateComment,
+  setHighlights, // 追加
+  setComments,   // 追加
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -61,12 +63,81 @@ const EditorPageContent: React.FC = () => {
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const [isFileUploaded, setIsFileUploaded] = useState(false);
+  const [currentFileId, setCurrentFileId] = useState<number | null>(null);
 
   // cookieからprojectIdを取得するヘルパー
   const getProjectIdFromCookie = (): number | null => {
     const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   };
+
+  // ハイライトとコメントを取得
+  const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
+    try {
+      dispatch(startLoading('Loading highlights and comments...'));
+
+      // ハイライトとコメントを取得
+      const response = await fetch(`/api/highlights/file/${fileId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch highlights and comments');
+      }
+
+      const data = await response.json();
+      console.log('Fetched highlights and comments:', data);
+
+      // データをReduxに保存
+      if (data && Array.isArray(data)) {
+        // バックエンドから取得したデータをフロントエンドの形式に変換
+        const highlights: PdfHighlight[] = data.map((item: any) => ({
+          id: item.id.toString(),
+          type: item.rects[0]?.element_type || 'pdf',
+          text: item.text || '',
+          memo: item.memo || '',
+          createdAt: item.created_at,
+          createdBy: item.created_by === 'user' ? t("CommentPanel.comment-author-user") : item.created_by,
+          rects: item.rects.map((rect: any) => ({
+            // PdfViewerが期待する形式
+            pageNumber: rect.page_num,
+            x: rect.x1,
+            y: rect.y1,
+            width: rect.x2 - rect.x1,
+            height: rect.y2 - rect.y1,
+            // バックエンドのデータも保持
+            pageNum: rect.page_num,
+            x1: rect.x1,
+            y1: rect.y1,
+            x2: rect.x2,
+            y2: rect.y2,
+          })),
+          elementType: item.element_type || 'unknown',
+        }));
+
+        console.log('Converted highlights:', highlights);
+        dispatch(setHighlights(highlights));
+
+        // コメントを取得
+        const comments: CommentType[] = data.map((item: any) => ({
+          id: item.id.toString(),
+          highlightId: item.id.toString(),
+          parentId: null,
+          author: item.created_by === 'user' ? t("CommentPanel.comment-author-user") : item.created_by,
+          text: item.memo,
+          createdAt: item.created_at,
+          editedAt: null,
+          deleted: false,
+        }));
+
+        console.log('Converted comments:', comments);
+        dispatch(setComments(comments));
+      }
+
+    } catch (error: any) {
+      console.error('Failed to load highlights and comments:', error.message);
+    } finally {
+      dispatch(stopLoading());
+    }
+  }, [dispatch, t]);
 
   // プロジェクトのファイルを取得
   const fetchProjectFile = useCallback(async (projectId: number) => {
@@ -80,40 +151,58 @@ const EditorPageContent: React.FC = () => {
       }
 
       const files = await response.json();
+      console.log('Fetched files:', files);
       
-      if (files && files.length > 0) {
-        // 最新のファイルを取得（最初のファイル）
-        const latestFile = files[0];
-        
-        // S3からファイルを取得
-        const fileResponse = await fetch(latestFile.file_url);
-        if (!fileResponse.ok) {
-          throw new Error('Failed to fetch file from S3');
-        }
-
-        const blob = await fileResponse.blob();
-        const file = new File([blob], latestFile.file_name, { type: latestFile.mime_type });
-        const fileUrl = URL.createObjectURL(blob);
-
-        dispatch(setFile({
-          file: file,
-          fileType: latestFile.mime_type,
-          fileContent: fileUrl
-        }));
-
-        setIsFileUploaded(true);
-        console.log('Project file loaded:', latestFile);
-      } else {
+      if (!files || files.length === 0) {
         console.log('No files found for this project');
         setIsFileUploaded(false);
+        return;
       }
+
+      const latestFile = files[0];
+      console.log('Latest file:', latestFile);
+      setCurrentFileId(latestFile.id);
+
+      const fileResponse = await fetch(`/api/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`);
+      
+      if (!fileResponse.ok) {
+        const errorText = await fileResponse.text();
+        console.error('S3 fetch error:', fileResponse.status, errorText);
+        throw new Error(`Failed to fetch file from S3: ${fileResponse.status}`);
+      }
+
+      const blob = await fileResponse.blob();
+      console.log('Blob received:', blob.size, 'bytes, type:', blob.type);
+      
+      // BlobからFileオブジェクトを作成
+      const file = new File([blob], latestFile.file_name, { 
+        type: latestFile.mime_type || 'application/pdf' 
+      });
+
+      // FileオブジェクトまたはURL文字列として保存
+      // react-pdfはFile, Blob, ArrayBuffer, URL文字列をサポート
+      const fileUrl = URL.createObjectURL(blob);
+
+      dispatch(setFile({
+        file: file,
+        fileType: latestFile.mime_type || 'application/pdf',
+        fileContent: fileUrl // URL文字列を使用
+      }));
+
+      console.log('File saved to Redux');
+      setIsFileUploaded(true);
+
+      await fetchHighlightsAndComments(latestFile.id);
+
     } catch (error: any) {
-      console.error('Failed to load project file:', error.message);
+      console.error('Failed to load project file:', error);
+      console.error('Error stack:', error.stack);
+      alert(`Failed to load file: ${error.message}`);
       setIsFileUploaded(false);
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch]);
+  }, [dispatch, fetchHighlightsAndComments]);
 
   // コンポーネントマウント時にプロジェクトファイルを取得
   useEffect(() => {
@@ -162,6 +251,15 @@ const EditorPageContent: React.FC = () => {
       const project_id = getProjectIdFromCookie();
       if (!project_id) throw new Error('Project ID not found in cookies');
 
+      console.log('Preparing to save:', {
+        project_id,
+        file_name: file.name,
+        file_key: s3Data.s3_key,
+        file_url: s3Data.s3_url,
+        mime_type: filetype,
+        file_size: filesize
+      });
+
       // 2. DB保存（Next.js API経由）
       const dbResponse = await fetch('/api/project-files/save', {
         method: 'POST',
@@ -169,7 +267,7 @@ const EditorPageContent: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: project_id,
+          project_id: parseInt(project_id.toString(), 10),
           file_name: file.name,
           file_key: s3Data.s3_key,
           file_url: s3Data.s3_url,
@@ -180,6 +278,7 @@ const EditorPageContent: React.FC = () => {
 
       if (!dbResponse.ok) {
         const errorData = await dbResponse.json();
+        console.error('DB save error:', errorData);
         throw new Error(errorData.message || 'Failed to save PDF to DB');
       }
 
@@ -191,6 +290,7 @@ const EditorPageContent: React.FC = () => {
 
     } catch (error: any) {
       console.error('PDF upload/save failed:', error.message);
+      alert(`Upload failed: ${error.message}`);
     } finally {
       dispatch(stopLoading());
     }
@@ -340,35 +440,87 @@ const EditorPageContent: React.FC = () => {
 
   // === Save memo + add highlight + add root comment ===
   const handleSaveMemo = useCallback(
-    (id: string, memo: string) => {
+    async (id: string, memo: string) => {
       if (pendingHighlight && pendingHighlight.id === id) {
-        console.log(pendingHighlight);
-        const finalHighlight: Highlight = {
-          ...pendingHighlight,
-          memo,
-          createdAt: new Date().toISOString(),
-          createdBy: t("CommentPanel.comment-author-user"),
-        };
+        try {
+          dispatch(startLoading('Saving highlight and memo...'));
+          console.log(pendingHighlight);
+          console.log(memo);
 
-        const rootComment: CommentType = {
-          id: uuidv4(),
-          highlightId: id,
-          parentId: null,
-          author: t("CommentPanel.comment-author-user"),
-          text: memo.trim(),
-          createdAt: new Date().toISOString(),
-          editedAt: null,
-          deleted: false,
-        };
+          // プロジェクトファイルIDを取得
+          const projectId = getProjectIdFromCookie();
+          if (!projectId) {
+            throw new Error('Project ID not found');
+          }
+          console.log(pendingHighlight);
 
-        dispatch(addHighlightWithComment({ highlight: finalHighlight, initialComment: rootComment }));
+          // バックエンドにハイライトとメモを保存
+          const response = await fetch('/api/highlights/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              project_file_id: projectId,
+              created_by: 'user',
+              memo: memo.trim(),
+              text: pendingHighlight.text || '',
+              rects: pendingHighlight.rects.map(rect => ({
+                page_num: rect.pageNum,
+                x1: rect.x1,
+                y1: rect.y1,
+                x2: rect.x2,
+                y2: rect.y2,
+              })),
+              element_type: pendingHighlight.type || 'unknown',
+            }),
+          });
 
-        setPendingHighlight(null);
-        setShowMemoModal(false);
-        dispatch(setActiveHighlightId(null));
-        return;
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save highlight');
+          }
+
+          const savedHighlight = await response.json();
+          console.log('Highlight saved:', savedHighlight);
+
+          // Reduxストアに追加
+          const finalHighlight: Highlight = {
+            ...pendingHighlight,
+            memo,
+            createdAt: savedHighlight.created_at,
+            createdBy: t("CommentPanel.comment-author-user"),
+          };
+
+          const rootComment: CommentType = {
+            id: savedHighlight.id.toString(), // バックエンドのIDを使用
+            highlightId: id,
+            parentId: null,
+            author: t("CommentPanel.comment-author-user"),
+            text: memo.trim(),
+            createdAt: savedHighlight.created_at,
+            editedAt: null,
+            deleted: false,
+          };
+
+          dispatch(addHighlightWithComment({ highlight: finalHighlight, initialComment: rootComment }));
+
+          setPendingHighlight(null);
+          setShowMemoModal(false);
+          dispatch(setActiveHighlightId(null));
+          
+          dispatch(stopLoading());
+          return;
+
+        } catch (error: any) {
+          console.error('Failed to save highlight:', error);
+          alert(t('Error.save-highlight-failed') || 'ハイライトの保存に失敗しました');
+          dispatch(stopLoading());
+          return;
+        }
       }
 
+      // 既存のハイライトのメモ更新
       dispatch(updateHighlightMemo({ id, memo }));
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
@@ -386,6 +538,9 @@ const EditorPageContent: React.FC = () => {
     if (!file) return <p>{t("file-upload-txt")}</p>;
 
     if (fileType === 'application/pdf') {
+      // デバッグ用ログ
+      console.log('Rendering PdfViewer with highlights:', pdfHighlights);
+      console.log('Number of highlights:', pdfHighlights.length);
 
       return (
         <PdfViewer
@@ -398,18 +553,6 @@ const EditorPageContent: React.FC = () => {
         />
       );
     }
-
-    // 仮TODO: textファイルを扱う場合には実装
-    // if (fileType?.startsWith("text/")) {
-    //   return (
-    //     <TextViewer
-    //       content={fileContent || ''}
-    //       highlights={textHighlights}
-    //       onRequestAddHighlight={handleRequestAddHighlight}
-    //       onHighlightClick={handleHighlightClick}
-    //     />
-    //   );
-    // }
 
     return <p>{t("Error.file-format")}</p>;
   };

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]';
+import { authOptions } from '../../auth/[...nextauth]';
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,10 +11,10 @@ export default async function handler(
   }
 
   try {
-    const { projectId } = req.query;
+    const { fileId } = req.query;
 
-    if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({ message: 'Project ID is required' });
+    if (!fileId || typeof fileId !== 'string') {
+      return res.status(400).json({ message: 'File ID is required' });
     }
 
     const session = await getServerSession(req, res, authOptions) as any;
@@ -24,7 +24,7 @@ export default async function handler(
     }
 
     const backendUrl = process.env.BACKEND_URL;
-    const response = await fetch(`http://backend:8000/api/v1/project-files/project/${projectId}/`, {
+    const response = await fetch(`http://backend:8000/api/v1/highlights/file/${fileId}`, {
       headers: {
         'Authorization': `Bearer ${session.accessToken}`,
       },
@@ -35,11 +35,13 @@ export default async function handler(
       return res.status(response.status).json(errorData);
     }
 
-    const files = await response.json();
-    return res.status(200).json(files);
+    const highlights = await response.json();
+    console.log('Fetched highlights from backend:', highlights);
+    
+    return res.status(200).json(highlights);
 
   } catch (error: any) {
-    console.error('Error fetching project files:', error);
+    console.error('Error fetching highlights:', error);
     return res.status(500).json({ message: error.message });
   }
 }

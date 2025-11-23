@@ -87,7 +87,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
                   }}
                 >
                   <span>←</span>
-                  <span>プロジェクト一覧</span>
+                  <span>{t("header.back-to-document-list")}</span>
                 </button>
               )}
 
@@ -144,7 +144,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
           display: 'flex',
           justifyContent: isAuthPage ? 'center' : 'flex-start',
           alignItems: isAuthPage ? 'center' : 'flex-start',
-          minHeight: isAuthPage ? '100vh' : 'auto',
+          minHeight: isAuthPage ? '100%' : 'auto',
           padding: isAuthPage ? '0 20px' : undefined,
           backgroundColor: '#f3f4f6',
         }}

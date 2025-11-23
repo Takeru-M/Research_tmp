@@ -25,8 +25,6 @@ class HighlightRectUpdate(BaseModel):
 
 class HighlightRectRead(HighlightRectBase):
     id: int
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

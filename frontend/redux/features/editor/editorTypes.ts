@@ -65,11 +65,13 @@ export interface ScrollTarget {
 export interface EditorState {
   file: File | null;
   fileType: string | null;
-  fileContent: string | null; // PDFの場合はBlob URL、テキストの場合は文字列
+  fileContent: string | ArrayBuffer | Uint8Array | null; // ★ Uint8Arrayを追加
   highlights: Highlight[];
+  pdfHighlights: PdfHighlight[];
+  textHighlights: TextHighlight[];
   comments: Comment[];
   activeHighlightId: string | null;
-  activeCommentId: string | null,
+  activeCommentId: string | null;
   activeHighlightMemo: string | null;
   pdfTextContent: string | null;
   activeScrollTarget: ScrollTarget | null;
