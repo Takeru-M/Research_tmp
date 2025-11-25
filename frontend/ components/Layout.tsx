@@ -87,26 +87,28 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
                   }}
                 >
                   <span>←</span>
-                  <span>プロジェクト一覧</span>
+                  <span>{t("header.back-to-document-list")}</span>
                 </button>
               )}
 
-              {/* PDF倍率変更UI */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label htmlFor="pdf-scale-select">{t("Scale")}:</label>
-                <select
-                  id="pdf-scale-select"
-                  value={pdfScale.toString()}
-                  onChange={handleScaleChange}
-                  style={{ padding: '5px', minWidth: '80px' }}
-                >
-                  {SCALE_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* PDF倍率変更UI (projectsページ以外で表示) */}
+              {!isProjectsPage && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <label htmlFor="pdf-scale-select">{t("Scale")}:</label>
+                  <select
+                    id="pdf-scale-select"
+                    value={pdfScale.toString()}
+                    onChange={handleScaleChange}
+                    style={{ padding: '5px', minWidth: '80px' }}
+                  >
+                    {SCALE_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* ユーザー情報とログアウトボタン */}
               {session?.user?.name && <span style={{ marginRight: '10px' }}>{session.user.name}</span>}
@@ -144,7 +146,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
           display: 'flex',
           justifyContent: isAuthPage ? 'center' : 'flex-start',
           alignItems: isAuthPage ? 'center' : 'flex-start',
-          minHeight: isAuthPage ? '100vh' : 'auto',
+          minHeight: isAuthPage ? '100%' : 'auto',
           padding: isAuthPage ? '0 20px' : undefined,
           backgroundColor: '#f3f4f6',
         }}

@@ -11,7 +11,6 @@ class HighlightRect(SQLModel, table=True):
     y1: float
     x2: float
     y2: float
-
     element_type: Optional[str] = None  # 'image' | 'shape' | 'unknown'
 
     # Relationship

@@ -50,6 +50,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -74,11 +75,24 @@ def run_migrations_online() -> None:
     # url = (
     #   f"mysql+pymysql://{DB_ROOT}:{DB_ROOT_PASSWORD}@{DB_HOST}/{DB_NAME}"
     # )
+    
+    # TODO: 環境変数から接続URLを構築（charset付き）
+    db_url = "mysql+pymysql://root:Suntory@db:3306/mysql_db?charset=utf8mb4&collation=utf8mb4_unicode_ci"
+    if db_url and "charset" not in db_url:
+        db_url += "?charset=utf8mb4&collation=utf8mb4_unicode_ci"
+    
+    # alembic.iniのURLを上書き
+    if db_url:
+        config.set_main_option("sqlalchemy.url", db_url)
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={
+            "charset": "utf8mb4",
+            "use_unicode": True,
+        }
     )
     # connectable = create_engine(
     #     url,
@@ -87,7 +101,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata, render_as_batch=True,
         )
 
         with context.begin_transaction():

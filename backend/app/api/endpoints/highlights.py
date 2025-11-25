@@ -2,36 +2,219 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from typing import List
 from app.db.base import get_session
+from pydantic import BaseModel
+import json
+import logging
+
 from app.crud import highlight as crud_highlight
-from app.schemas import HighlightCreate, HighlightUpdate, HighlightRead
+from app.schemas import (
+    HighlightCreate,
+    HighlightRead,
+    CommentCreate,
+    HighlightRectCreate,
+)
+from app.crud import (
+    create_highlight,
+    get_highlights_by_file,
+    create_comment,
+    create_highlight_rect,
+    get_rects_by_highlight,
+)
+
+# ロガーの設定
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
+class RectData(BaseModel):
+    page_num: int
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    element_type: str | None = None
+
+class HighlightWithMemoCreate(BaseModel):
+    """ハイライトとメモを同時に作成するためのスキーマ"""
+    project_file_id: int
+    created_by: str
+    memo: str
+    text: str | None = None
+    rects: List[RectData]
+    element_type: str | None = None
+
 @router.post("/", response_model=HighlightRead)
-def create_highlight(highlight_in: HighlightCreate, session: Session = Depends(get_session)):
-    return crud_highlight.create_highlight(session, highlight_in)
+def create_highlight_with_memo(
+    *,
+    session: Session = Depends(get_session),
+    highlight_data: HighlightWithMemoCreate
+):
+    """ハイライトとメモ(ルートコメント)を同時に作成"""
+    try:
+        # === データ受信の確認ログ ===
+        logger.info("=" * 80)
+        logger.info("Received highlight creation request")
+        logger.info("=" * 80)
+        
+        # 受信データ全体をJSON形式で出力
+        logger.info(f"Full request data:\n{json.dumps(highlight_data.model_dump(), indent=2, ensure_ascii=False)}")
+        
+        # 各フィールドを個別に確認
+        logger.info(f"project_file_id: {highlight_data.project_file_id} (type: {type(highlight_data.project_file_id)})")
+        logger.info(f"created_by: {highlight_data.created_by} (type: {type(highlight_data.created_by)})")
+        logger.info(f"memo: {highlight_data.memo} (type: {type(highlight_data.memo)})")
+        logger.info(f"memo length: {len(highlight_data.memo)} characters")
+        logger.info(f"text: {highlight_data.text} (type: {type(highlight_data.text)})")
+        logger.info(f"element_type (top level): {highlight_data.element_type}")
+        logger.info(f"Number of rects: {len(highlight_data.rects)}")
+        
+        # 各矩形データを詳細に確認
+        for idx, rect in enumerate(highlight_data.rects):
+            logger.info(f"\nRect #{idx + 1}:")
+            logger.info(f"  page_num: {rect.page_num} (type: {type(rect.page_num)})")
+            logger.info(f"  x1: {rect.x1} (type: {type(rect.x1)})")
+            logger.info(f"  y1: {rect.y1} (type: {type(rect.y1)})")
+            logger.info(f"  x2: {rect.x2} (type: {type(rect.x2)})")
+            logger.info(f"  y2: {rect.y2} (type: {type(rect.y2)})")
+            logger.info(f"  element_type: {highlight_data.element_type} (type: {type(highlight_data.element_type)})")
+        
+        logger.info("=" * 80)
+        
+        # 1. ハイライトを作成
+        logger.info("Creating highlight in database...")
+        highlight_in = HighlightCreate(
+            project_file_id=highlight_data.project_file_id,
+            created_by=highlight_data.created_by,
+            memo=highlight_data.memo,
+            text=highlight_data.text
+        )
+        logger.info(f"Highlight input data: {highlight_in.model_dump()}")
+        
+        db_highlight = create_highlight(session, highlight_in)
+        logger.info(f"Highlight created with ID: {db_highlight.id}")
+        
+        # 2. ハイライト矩形を作成
+        logger.info(f"Creating {len(highlight_data.rects)} highlight rectangles...")
+        for idx, rect_data in enumerate(highlight_data.rects):
+            # 使用するelement_typeを決定（トップレベル > rect個別 > デフォルト）
+            final_element_type = highlight_data.element_type or rect_data.element_type or 'unknown'
+            
+            logger.info(f"\nCreating rect #{idx + 1} with element_type: {final_element_type}")
+            
+            rect_in = HighlightRectCreate(
+                highlight_id=db_highlight.id,
+                page_num=rect_data.page_num,
+                x1=rect_data.x1,
+                y1=rect_data.y1,
+                x2=rect_data.x2,
+                y2=rect_data.y2,
+                element_type=final_element_type
+            )
+            logger.info(f"Rect input data: {rect_in.model_dump()}")
+            
+            db_rect = create_highlight_rect(session, rect_in)
+            logger.info(f"Rect created with ID: {db_rect.id}")
+        
+        # 3. ルートコメント(メモ)を作成
+        logger.info("Creating root comment...")
+        comment_in = CommentCreate(
+            highlight_id=db_highlight.id,
+            parent_id=None,
+            author=highlight_data.created_by,
+            text=highlight_data.memo
+        )
+        logger.info(f"Comment input data: {comment_in.model_dump()}")
+        
+        db_comment = create_comment(session, comment_in)
+        logger.info(f"Comment created with ID: {db_comment.id}")
+        
+        # 4. 作成したハイライトと矩形を返す
+        logger.info("Fetching created highlight and rects...")
+        session.refresh(db_highlight)
+        rects = get_rects_by_highlight(session, db_highlight.id)
+        
+        logger.info(f"Retrieved {len(rects)} rects for highlight {db_highlight.id}")
+        
+        result = HighlightRead(
+            id=db_highlight.id,
+            project_file_id=db_highlight.project_file_id,
+            created_by=db_highlight.created_by,
+            memo=db_highlight.memo,
+            text=db_highlight.text,
+            created_at=db_highlight.created_at,
+            rects=rects
+        )
+        
+        logger.info(f"Returning response:\n{json.dumps(result.model_dump(), indent=2, default=str, ensure_ascii=False)}")
+        logger.info("=" * 80)
+        
+        return result
+        
+    except Exception as e:
+        logger.error("=" * 80)
+        logger.error(f"ERROR occurred during highlight creation:")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        logger.error(f"Error details:", exc_info=True)
+        logger.error("=" * 80)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/file/{file_id}", response_model=List[HighlightRead])
-def read_highlights(file_id: int, session: Session = Depends(get_session)):
-    return crud_highlight.get_highlights_by_file(session, file_id)
+def get_highlights_by_file_endpoint(
+    *,
+    session: Session = Depends(get_session),
+    file_id: int
+):
+    """特定ファイルのすべてのハイライトを取得"""
+    logger.info(f"Fetching highlights for file_id: {file_id}")
+    
+    highlights = get_highlights_by_file(session, file_id)
+    logger.info(f"Found {len(highlights)} highlights")
+    
+    result = []
+    for highlight in highlights:
+        rects = get_rects_by_highlight(session, highlight.id)
+        logger.info(f"Highlight {highlight.id} has {len(rects)} rects")
+        
+        result.append(
+            HighlightRead(
+                id=highlight.id,
+                project_file_id=highlight.project_file_id,
+                created_by=highlight.created_by,
+                memo=highlight.memo,
+                text=highlight.text,
+                created_at=highlight.created_at,
+                rects=rects
+            )
+        )
+    
+    logger.info(f"Returning {len(result)} highlights")
+    return result
 
-@router.get("/{highlight_id}", response_model=HighlightRead)
-def read_highlight(highlight_id: int, session: Session = Depends(get_session)):
-    highlight = crud_highlight.get_highlight_by_id(session, highlight_id)
-    if not highlight:
-        raise HTTPException(status_code=404, detail="Highlight not found")
-    return highlight
-
-@router.put("/{highlight_id}", response_model=HighlightRead)
-def update_highlight(highlight_id: int, highlight_in: HighlightUpdate, session: Session = Depends(get_session)):
-    highlight = crud_highlight.get_highlight_by_id(session, highlight_id)
-    if not highlight:
-        raise HTTPException(status_code=404, detail="Highlight not found")
-    return crud_highlight.update_highlight(session, highlight, highlight_in)
-
-@router.delete("/{highlight_id}", response_model=HighlightRead)
-def delete_highlight(highlight_id: int, session: Session = Depends(get_session)):
-    highlight = crud_highlight.get_highlight_by_id(session, highlight_id)
-    if not highlight:
-        raise HTTPException(status_code=404, detail="Highlight not found")
-    return crud_highlight.delete_highlight(session, highlight)
+@router.delete("/{highlight_id}", status_code=204)
+def delete_highlight_endpoint(
+    *,
+    session: Session = Depends(get_session),
+    highlight_id: int
+):
+    """ハイライトと関連コメントを削除"""
+    try:
+        logger.info(f"Deleting highlight {highlight_id} and related comments")
+        
+        # ハイライトの存在確認
+        highlight = crud_highlight.get_highlight_by_id(session, highlight_id)
+        if not highlight:
+            raise HTTPException(status_code=404, detail="Highlight not found")
+        
+        # ハイライトを削除（関連コメントも削除される）
+        crud_highlight.delete_highlight(session, highlight_id)
+        
+        logger.info(f"Highlight {highlight_id} deleted successfully")
+        return None
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting highlight {highlight_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

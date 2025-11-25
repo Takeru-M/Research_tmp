@@ -4,8 +4,10 @@ import { useSession } from 'next-auth/react';
 import { STAGE } from '../utils/constants';
 import type { Project } from '../redux/features/editor/editorTypes';
 import Cookies from 'js-cookie';
+import { useTranslation } from 'react-i18next';
 
 const Projects: React.FC = () => {
+  const { t } = useTranslation();
   const [projects, setProjects] = useState<Project[]>([]);
   const [newProjectName, setNewProjectName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -26,7 +28,7 @@ const Projects: React.FC = () => {
       setError(null);
       try {
         const res = await fetch('/api/projects');
-        if (!res.ok) throw new Error('プロジェクト一覧の取得に失敗しました');
+        if (!res.ok) throw new Error('ドキュメント一覧の取得に失敗しました');
         const data: Project[] = await res.json();
         setProjects(data);
       } catch (err: any) {
@@ -39,7 +41,7 @@ const Projects: React.FC = () => {
   }, [session, status, router]);
 
   const handleSelectProject = (projectId: number) => {
-    // 選択したプロジェクトIDをクッキーに保存
+    // 選択したドキュメントIDをクッキーに保存
     Cookies.set('projectId', projectId.toString(), { expires: 7, sameSite: 'lax', secure: true });
     router.push('/');
   };
@@ -57,12 +59,12 @@ const Projects: React.FC = () => {
           stage: STAGE.GIVE_OPTION_TIPS,
         }),
       });
-      if (!res.ok) throw new Error('プロジェクト作成に失敗しました');
+      if (!res.ok) throw new Error('ドキュメント作成に失敗しました');
       const newProject: Project = await res.json();
       setProjects([...projects, newProject]);
       setNewProjectName('');
 
-      // 新規作成したプロジェクトIDをクッキーに保存してトップページへ遷移
+      // 新規作成したドキュメントIDをクッキーに保存してトップページへ遷移
       Cookies.set('projectId', newProject.id.toString(), { expires: 7, sameSite: 'lax', secure: true });
       router.push('/');
     } catch (err: any) {
@@ -110,7 +112,7 @@ const Projects: React.FC = () => {
           borderBottom: '3px solid #3b82f6',
           paddingBottom: '16px'
         }}>
-          プロジェクト一覧
+          {t("Document.document-list")}
         </h2>
 
         {error && (
@@ -146,8 +148,7 @@ const Projects: React.FC = () => {
             borderRadius: '12px',
             fontSize: '1rem'
           }}>
-            プロジェクトがありません。<br />
-            新しいプロジェクトを作成してください。
+            {t("Document.non-document")}
           </div>
         ) : (
           <div style={{
@@ -219,13 +220,13 @@ const Projects: React.FC = () => {
             color: '#374151',
             marginBottom: '16px'
           }}>
-            新しいプロジェクトを作成
+            {t("Document.create-new-document")}
           </h3>
           <input
             type="text"
             value={newProjectName}
             onChange={e => setNewProjectName(e.target.value)}
-            placeholder="プロジェクト名を入力"
+            placeholder={t("Document.project-name-placeholder")}
             style={{
               width: '100%',
               padding: '14px 16px',
@@ -272,12 +273,12 @@ const Projects: React.FC = () => {
               e.currentTarget.style.boxShadow = creating || !newProjectName.trim() ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.4)';
             }}
           >
-            {creating ? '作成中...' : 'プロジェクトを作成'}
+            {creating ? t("Document.loading-text") : t("Document.create-button-text")}
           </button>
         </div>
       </div>
 
-      {/* プロジェクト一覧に戻るボタン (projectsページ以外で表示) */}
+      {/* ドキュメント一覧に戻るボタン (projectsページ以外で表示) */}
       {!isProjectsPage && (
         <button
           onClick={() => router.push('/projects')}
@@ -306,7 +307,7 @@ const Projects: React.FC = () => {
           }}
         >
           <span>←</span>
-          <span>プロジェクト一覧</span>
+          <span>{t("Document.document-list")}</span>
         </button>
       )}
 

@@ -12,6 +12,7 @@ import {
 import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
 import { Comment } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
+import { useSession } from "next-auth/react";
 import "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD } from "@/utils/constants";
 
@@ -35,12 +36,26 @@ const CommentHeader: React.FC<{
   startEditing: (id: string, text: string) => void;
   removeCommentFn: (id: string) => void;
   menuRef: (element: HTMLDivElement | null) => void;
-}> = ({ comment, highlightText, editingId, toggleMenu, menuOpenMap, startEditing, removeCommentFn, menuRef }) => {
+  currentUserName?: string | null;
+}> = ({
+  comment,
+  highlightText,
+  editingId,
+  toggleMenu,
+  menuOpenMap,
+  startEditing,
+  removeCommentFn,
+  menuRef,
+  currentUserName,
+}) => {
+  const { t } = useTranslation();
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
+  
+  // セッション情報から取得したユーザー名を優先的に使用
+  const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
-  const { t } = useTranslation();
 
   const time = useMemo(() => {
     const date = new Date(comment.createdAt);
@@ -52,7 +67,7 @@ const CommentHeader: React.FC<{
       <div style={{ flex: 1 }}>
         {/* ユーザー情報と時刻 */}
         <div style={{ display: "flex", alignItems: "baseline" }}>
-          <strong style={{ fontSize: 14 }}>{comment.author || t("CommentPanel.comment-author-user")}</strong>
+          <strong style={{ fontSize: 14 }}>{displayAuthor}</strong>
           <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}>
             {time}
           </small>
@@ -189,6 +204,7 @@ interface CommentPanelProps {
 export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProps) {
   const dispatch = useDispatch();
   const { t } = useTranslation();
+  const { data: session } = useSession();
 
   const { comments, activeHighlightId, activeCommentId, highlights } = useSelector((s: any) => s.editor);
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
@@ -278,44 +294,147 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     closeMenu(id);
   };
 
-  const saveEdit = (id: string) => {
-    dispatch(updateComment({ id, text: editText }));
-    setEditingId(null);
-    setEditText("");
+  const saveEdit = async (id: string) => {
+    try {
+      // バックエンドにコメント更新を送信
+      const response = await fetch('/api/comments/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment_id: parseInt(id, 10),
+          text: editText,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update comment');
+      }
+
+      const updatedComment = await response.json();
+      console.log('Comment updated:', updatedComment);
+
+      // Reduxストアを更新
+      dispatch(updateComment({ id, text: editText }));
+      setEditingId(null);
+      setEditText("");
+    } catch (error: any) {
+      console.error('Failed to update comment:', error);
+      alert(t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
+    }
   };
 
-const removeCommentFn = (id: string) => {
-    if (!window.confirm(t("Alert.comment-delete"))) return;
+const removeCommentFn = async (id: string) => {
+  if (!window.confirm(t("Alert.comment-delete"))) return;
 
-    const comment = comments.find((c: Comment) => c.id === id);
-    if (!comment) return;
+  const comment = comments.find((c: Comment) => c.id === id);
+  if (!comment) return;
 
-    // ルートコメントを削除する場合はスレッド全体を削除し、
-    // 対応するハイライトがあればハイライト削除（ハイライト削除時に関連コメントも除去される）
+  try {
+    // ルートコメントを削除する場合
     if (comment.parentId === null) {
       if (comment.highlightId) {
+        // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
+        const response = await fetch('/api/highlights/delete', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            highlight_id: parseInt(comment.highlightId, 10),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to delete highlight');
+        }
+
+        console.log('Highlight and related comments deleted');
+        
+        // Reduxストアからハイライトを削除（関連コメントも自動削除される）
         dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
       } else {
-        // ハイライトが無いルートコメントは、そのルートに属する全コメントを個別に削除
-        const threadIds = comments
-          .filter(c => findRootId(c.id) === comment.id)
-          .map(c => c.id);
-        // ルート自身を含めて削除
-        threadIds.forEach(cid => dispatch(deleteComment({ id: cid })));
-        // ルート自身が上の filter に入っていない場合は明示的に削除
-        if (!threadIds.includes(comment.id)) {
+        // ハイライトが無いルートコメントは、そのルートに属する全コメントを削除
+        const threadComments = comments.filter(c => findRootId(c.id) === comment.id);
+        
+        // バックエンドから全てのコメントを削除
+        for (const threadComment of threadComments) {
+          const response = await fetch('/api/comments/delete', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              comment_id: parseInt(threadComment.id, 10),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete comment');
+          }
+        }
+
+        // ルート自身も削除
+        if (!threadComments.find(c => c.id === comment.id)) {
+          const response = await fetch('/api/comments/delete', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              comment_id: parseInt(comment.id, 10),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete comment');
+          }
+        }
+
+        console.log('Thread comments deleted');
+
+        // Reduxストアから削除
+        threadComments.forEach(c => dispatch(deleteComment({ id: c.id })));
+        if (!threadComments.find(c => c.id === comment.id)) {
           dispatch(deleteComment({ id: comment.id }));
         }
       }
     } else {
-      // 返信の削除は当該返信のみ
+      // 返信の削除
+      const response = await fetch('/api/comments/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment_id: parseInt(id, 10),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete comment');
+      }
+
+      console.log('Reply comment deleted');
+
+      // Reduxストアから削除
       dispatch(deleteComment({ id }));
     }
 
     closeMenu(id);
-  };
+  } catch (error: any) {
+    console.error('Failed to delete comment:', error);
+    alert(t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
+  }
+};
 
-  const sendReply = (parentId: string) => {
+  const sendReply = async (parentId: string) => {
     const replyText = replyTextMap[parentId] || "";
     if (!replyText.trim()) return;
 
@@ -324,20 +443,51 @@ const removeCommentFn = (id: string) => {
       return;
     }
 
-    dispatch(
-      addComment({
-        id: `c-${Date.now()}`,
-        parentId,
-        highlightId: parentComment.highlightId,
-        author: t("CommentPanel.comment-author-user"),
-        text: replyText,
-        createdAt: new Date().toISOString(),
-        editedAt: null,
-        deleted: false,
-      })
-    );
-    setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
-    setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
+    try {
+      const userName = session?.user?.name || t("CommentPanel.comment-author-user");
+
+      // バックエンドにコメントを保存
+      const response = await fetch('/api/comments/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          highlight_id: parentComment.highlightId ? parseInt(parentComment.highlightId, 10) : null,
+          parent_id: parseInt(parentId, 10),
+          author: userName,
+          text: replyText.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create comment');
+      }
+
+      const savedComment = await response.json();
+      console.log('Comment saved:', savedComment);
+
+      // Reduxストアに追加
+      dispatch(
+        addComment({
+          id: savedComment.id.toString(),
+          parentId,
+          highlightId: parentComment.highlightId,
+          author: userName,
+          text: replyText.trim(),
+          createdAt: savedComment.created_at,
+          editedAt: null,
+          deleted: false,
+        })
+      );
+
+      setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
+      setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
+    } catch (error: any) {
+      console.error('Failed to save reply:', error);
+      alert(t('Error.save-reply-failed') || '返信の保存に失敗しました');
+    }
   };
 
   const handleReplyTextChange = (parentId: string, text: string) => {
@@ -539,48 +689,50 @@ const removeCommentFn = (id: string) => {
             >
               <CommentHeader
                 comment={root}
-                highlightText={rootHighlightText}
+                highlightText={getHighlightText(root.highlightId)}
                 editingId={editingId}
                 toggleMenu={toggleMenu}
                 menuOpenMap={menuOpenMap}
                 startEditing={startEditing}
                 removeCommentFn={removeCommentFn}
                 menuRef={(el) => (menuRefs.current[root.id] = el)}
+                currentUserName={session?.user?.name || null}
               />
 
               {renderCommentBody(root)}
 
-              {visibleReplies.map((r) => (
+              {visibleReplies.map((reply) => (
                 <div
-                  key={r.id}
+                  key={reply.id}
                   style={{
                     marginLeft: 14,
                     marginTop: 6,
                     borderLeft: "2px solid #eee",
                     paddingLeft: 8,
-                    background: activeCommentId === r.id ? "#e6f3ff" : "transparent",
+                    background: activeCommentId === reply.id ? "#e6f3ff" : "transparent",
                     paddingTop: 4,
                     paddingBottom: 4,
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    dispatch(setActiveCommentId(r.id));
-                    dispatch(setActiveHighlightId(r.highlightId));
-                    const rootId = findRootId(r.id);
+                    dispatch(setActiveCommentId(reply.id));
+                    dispatch(setActiveHighlightId(reply.highlightId));
+                    const rootId = findRootId(reply.id);
                     if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
                   }}
                 >
                   <CommentHeader
-                    comment={r}
-                    highlightText={undefined}
+                    comment={reply}
+                    highlightText={getHighlightText(reply.highlightId)}
                     editingId={editingId}
                     toggleMenu={toggleMenu}
                     menuOpenMap={menuOpenMap}
                     startEditing={startEditing}
                     removeCommentFn={removeCommentFn}
-                    menuRef={(el) => (menuRefs.current[r.id] = el)}
+                    menuRef={(el) => (menuRefs.current[reply.id] = el)}
+                    currentUserName={session?.user?.name || null}
                   />
-                  {renderCommentBody(r)}
+                  {renderCommentBody(reply)}
                 </div>
               ))}
 

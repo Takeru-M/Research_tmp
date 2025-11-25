@@ -23,3 +23,10 @@ class HighlightRead(HighlightBase):
 
     class Config:
         from_attributes = True
+
+class HighlightDelete(BaseModel):
+    """ハイライト削除時のレスポンス"""
+    message: str
+    deleted_highlight_id: int
+    deleted_comments_count: int
+    deleted_rects_count: int
