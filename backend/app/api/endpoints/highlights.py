@@ -191,3 +191,30 @@ def get_highlights_by_file_endpoint(
     
     logger.info(f"Returning {len(result)} highlights")
     return result
+
+@router.delete("/{highlight_id}", status_code=204)
+def delete_highlight_endpoint(
+    *,
+    session: Session = Depends(get_session),
+    highlight_id: int
+):
+    """ハイライトと関連コメントを削除"""
+    try:
+        logger.info(f"Deleting highlight {highlight_id} and related comments")
+        
+        # ハイライトの存在確認
+        highlight = crud_highlight.get_highlight_by_id(session, highlight_id)
+        if not highlight:
+            raise HTTPException(status_code=404, detail="Highlight not found")
+        
+        # ハイライトを削除（関連コメントも削除される）
+        crud_highlight.delete_highlight(session, highlight_id)
+        
+        logger.info(f"Highlight {highlight_id} deleted successfully")
+        return None
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting highlight {highlight_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

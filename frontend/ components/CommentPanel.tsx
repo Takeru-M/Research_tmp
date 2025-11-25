@@ -326,38 +326,115 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
   };
 
-const removeCommentFn = (id: string) => {
-    if (!window.confirm(t("Alert.comment-delete"))) return;
+const removeCommentFn = async (id: string) => {
+  if (!window.confirm(t("Alert.comment-delete"))) return;
 
-    const comment = comments.find((c: Comment) => c.id === id);
-    if (!comment) return;
+  const comment = comments.find((c: Comment) => c.id === id);
+  if (!comment) return;
 
-    // ルートコメントを削除する場合はスレッド全体を削除し、
-    // 対応するハイライトがあればハイライト削除（ハイライト削除時に関連コメントも除去される）
+  try {
+    // ルートコメントを削除する場合
     if (comment.parentId === null) {
       if (comment.highlightId) {
+        // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
+        const response = await fetch('/api/highlights/delete', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            highlight_id: parseInt(comment.highlightId, 10),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to delete highlight');
+        }
+
+        console.log('Highlight and related comments deleted');
+        
+        // Reduxストアからハイライトを削除（関連コメントも自動削除される）
         dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
       } else {
-        // ハイライトが無いルートコメントは、そのルートに属する全コメントを個別に削除
-        const threadIds = comments
-          .filter(c => findRootId(c.id) === comment.id)
-          .map(c => c.id);
-        // ルート自身を含めて削除
-        threadIds.forEach(cid => dispatch(deleteComment({ id: cid })));
-        // ルート自身が上の filter に入っていない場合は明示的に削除
-        if (!threadIds.includes(comment.id)) {
+        // ハイライトが無いルートコメントは、そのルートに属する全コメントを削除
+        const threadComments = comments.filter(c => findRootId(c.id) === comment.id);
+        
+        // バックエンドから全てのコメントを削除
+        for (const threadComment of threadComments) {
+          const response = await fetch('/api/comments/delete', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              comment_id: parseInt(threadComment.id, 10),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete comment');
+          }
+        }
+
+        // ルート自身も削除
+        if (!threadComments.find(c => c.id === comment.id)) {
+          const response = await fetch('/api/comments/delete', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              comment_id: parseInt(comment.id, 10),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to delete comment');
+          }
+        }
+
+        console.log('Thread comments deleted');
+
+        // Reduxストアから削除
+        threadComments.forEach(c => dispatch(deleteComment({ id: c.id })));
+        if (!threadComments.find(c => c.id === comment.id)) {
           dispatch(deleteComment({ id: comment.id }));
         }
       }
     } else {
-      // 返信の削除は当該返信のみ
+      // 返信の削除
+      const response = await fetch('/api/comments/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment_id: parseInt(id, 10),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete comment');
+      }
+
+      console.log('Reply comment deleted');
+
+      // Reduxストアから削除
       dispatch(deleteComment({ id }));
     }
 
     closeMenu(id);
-  };
+  } catch (error: any) {
+    console.error('Failed to delete comment:', error);
+    alert(t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
+  }
+};
 
-  const sendReply = (parentId: string) => {
+  const sendReply = async (parentId: string) => {
     const replyText = replyTextMap[parentId] || "";
     if (!replyText.trim()) return;
 
@@ -366,20 +443,51 @@ const removeCommentFn = (id: string) => {
       return;
     }
 
-    dispatch(
-      addComment({
-        id: `c-${Date.now()}`,
-        parentId,
-        highlightId: parentComment.highlightId,
-        author: session?.user?.name || t("CommentPanel.comment-author-user"),
-        text: replyText,
-        createdAt: new Date().toISOString(),
-        editedAt: null,
-        deleted: false,
-      })
-    );
-    setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
-    setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
+    try {
+      const userName = session?.user?.name || t("CommentPanel.comment-author-user");
+
+      // バックエンドにコメントを保存
+      const response = await fetch('/api/comments/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          highlight_id: parentComment.highlightId ? parseInt(parentComment.highlightId, 10) : null,
+          parent_id: parseInt(parentId, 10),
+          author: userName,
+          text: replyText.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create comment');
+      }
+
+      const savedComment = await response.json();
+      console.log('Comment saved:', savedComment);
+
+      // Reduxストアに追加
+      dispatch(
+        addComment({
+          id: savedComment.id.toString(),
+          parentId,
+          highlightId: parentComment.highlightId,
+          author: userName,
+          text: replyText.trim(),
+          createdAt: savedComment.created_at,
+          editedAt: null,
+          deleted: false,
+        })
+      );
+
+      setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
+      setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
+    } catch (error: any) {
+      console.error('Failed to save reply:', error);
+      alert(t('Error.save-reply-failed') || '返信の保存に失敗しました');
+    }
   };
 
   const handleReplyTextChange = (parentId: string, text: string) => {
