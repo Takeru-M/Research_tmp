@@ -91,22 +91,24 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
                 </button>
               )}
 
-              {/* PDF倍率変更UI */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label htmlFor="pdf-scale-select">{t("Scale")}:</label>
-                <select
-                  id="pdf-scale-select"
-                  value={pdfScale.toString()}
-                  onChange={handleScaleChange}
-                  style={{ padding: '5px', minWidth: '80px' }}
-                >
-                  {SCALE_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* PDF倍率変更UI (projectsページ以外で表示) */}
+              {!isProjectsPage && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <label htmlFor="pdf-scale-select">{t("Scale")}:</label>
+                  <select
+                    id="pdf-scale-select"
+                    value={pdfScale.toString()}
+                    onChange={handleScaleChange}
+                    style={{ padding: '5px', minWidth: '80px' }}
+                  >
+                    {SCALE_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* ユーザー情報とログアウトボタン */}
               {session?.user?.name && <span style={{ marginRight: '10px' }}>{session.user.name}</span>}
