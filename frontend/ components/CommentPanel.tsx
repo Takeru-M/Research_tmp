@@ -52,7 +52,6 @@ const CommentHeader: React.FC<{
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
-  console.log(comment.author, currentUserName);
   
   // セッション情報から取得したユーザー名を優先的に使用
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
@@ -295,10 +294,36 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     closeMenu(id);
   };
 
-  const saveEdit = (id: string) => {
-    dispatch(updateComment({ id, text: editText }));
-    setEditingId(null);
-    setEditText("");
+  const saveEdit = async (id: string) => {
+    try {
+      // バックエンドにコメント更新を送信
+      const response = await fetch('/api/comments/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment_id: parseInt(id, 10),
+          text: editText,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update comment');
+      }
+
+      const updatedComment = await response.json();
+      console.log('Comment updated:', updatedComment);
+
+      // Reduxストアを更新
+      dispatch(updateComment({ id, text: editText }));
+      setEditingId(null);
+      setEditText("");
+    } catch (error: any) {
+      console.error('Failed to update comment:', error);
+      alert(t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
+    }
   };
 
 const removeCommentFn = (id: string) => {

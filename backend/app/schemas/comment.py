@@ -3,21 +3,22 @@ from typing import Optional
 from pydantic import BaseModel
 
 class CommentBase(BaseModel):
-    highlight_id: Optional[int] = None
-    parent_id: Optional[int] = None
-    author: str  # 'user' | 'ai'
     text: str
+    author: str
 
 class CommentCreate(CommentBase):
-    pass
+    highlight_id: Optional[int] = None
+    parent_id: Optional[int] = None
 
 class CommentUpdate(BaseModel):
-    text: Optional[str] = None
+    text: str
 
 class CommentRead(CommentBase):
     id: int
+    highlight_id: Optional[int]
+    parent_id: Optional[int]
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
