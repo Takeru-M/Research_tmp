@@ -48,13 +48,15 @@ const CommentHeader: React.FC<{
   menuRef,
   currentUserName,
 }) => {
+  const { t } = useTranslation();
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
-  const displayAuthor =
-    currentUserName ?? comment.author ?? t("CommentPanel.comment-author-user");
+  console.log(comment.author, currentUserName);
+  
+  // セッション情報から取得したユーザー名を優先的に使用
+  const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
-  const { t } = useTranslation();
 
   const time = useMemo(() => {
     const date = new Date(comment.createdAt);
@@ -66,7 +68,7 @@ const CommentHeader: React.FC<{
       <div style={{ flex: 1 }}>
         {/* ユーザー情報と時刻 */}
         <div style={{ display: "flex", alignItems: "baseline" }}>
-          <strong style={{ fontSize: 14 }}>{comment.author || t("CommentPanel.comment-author-user")}</strong>
+          <strong style={{ fontSize: 14 }}>{displayAuthor}</strong>
           <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}>
             {time}
           </small>

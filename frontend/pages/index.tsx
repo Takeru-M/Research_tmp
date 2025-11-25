@@ -50,6 +50,7 @@ const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
   const { t } = useTranslation();
   const router = useRouter();
+  const { data: session } = useSession(); // セッション情報を取得
 
   const file = useSelector(selectFile);
   const fileType = useSelector(selectFileType);
@@ -65,6 +66,11 @@ const EditorPageContent: React.FC = () => {
   const [isFileUploaded, setIsFileUploaded] = useState(false);
   const [currentFileId, setCurrentFileId] = useState<number | null>(null);
 
+  // セッションからユーザー名を取得するヘルパー
+  const getUserName = useCallback(() => {
+    return session?.user?.name || t("CommentPanel.comment-author-user");
+  }, [session, t]);
+
   // cookieからprojectIdを取得するヘルパー
   const getProjectIdFromCookie = (): number | null => {
     const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
@@ -76,7 +82,6 @@ const EditorPageContent: React.FC = () => {
     try {
       dispatch(startLoading('Loading highlights and comments...'));
 
-      // ハイライトとコメントを取得
       const response = await fetch(`/api/highlights/file/${fileId}`);
       
       if (!response.ok) {
@@ -86,24 +91,20 @@ const EditorPageContent: React.FC = () => {
       const data = await response.json();
       console.log('Fetched highlights and comments:', data);
 
-      // データをReduxに保存
       if (data && Array.isArray(data)) {
-        // バックエンドから取得したデータをフロントエンドの形式に変換
         const highlights: PdfHighlight[] = data.map((item: any) => ({
           id: item.id.toString(),
           type: item.rects[0]?.element_type || 'pdf',
           text: item.text || '',
           memo: item.memo || '',
           createdAt: item.created_at,
-          createdBy: item.created_by === 'user' ? t("CommentPanel.comment-author-user") : item.created_by,
+          createdBy: item.created_by || getUserName(), // セッション情報を使用
           rects: item.rects.map((rect: any) => ({
-            // PdfViewerが期待する形式
             pageNumber: rect.page_num,
             x: rect.x1,
             y: rect.y1,
             width: rect.x2 - rect.x1,
             height: rect.y2 - rect.y1,
-            // バックエンドのデータも保持
             pageNum: rect.page_num,
             x1: rect.x1,
             y1: rect.y1,
@@ -116,12 +117,11 @@ const EditorPageContent: React.FC = () => {
         console.log('Converted highlights:', highlights);
         dispatch(setHighlights(highlights));
 
-        // コメントを取得
         const comments: CommentType[] = data.map((item: any) => ({
           id: item.id.toString(),
           highlightId: item.id.toString(),
           parentId: null,
-          author: item.created_by === 'user' ? t("CommentPanel.comment-author-user") : item.created_by,
+          author: item.created_by || getUserName(), // セッション情報を使用
           text: item.memo,
           createdAt: item.created_at,
           editedAt: null,
@@ -137,7 +137,7 @@ const EditorPageContent: React.FC = () => {
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, t]);
+  }, [dispatch, getUserName]);
 
   // プロジェクトのファイルを取得
   const fetchProjectFile = useCallback(async (projectId: number) => {
@@ -447,12 +447,12 @@ const EditorPageContent: React.FC = () => {
           console.log(pendingHighlight);
           console.log(memo);
 
-          // プロジェクトファイルIDを取得
           const projectId = getProjectIdFromCookie();
           if (!projectId) {
             throw new Error('Project ID not found');
           }
-          console.log(pendingHighlight);
+
+          const userName = getUserName(); // セッションからユーザー名を取得
 
           // バックエンドにハイライトとメモを保存
           const response = await fetch('/api/highlights/create', {
@@ -462,7 +462,7 @@ const EditorPageContent: React.FC = () => {
             },
             body: JSON.stringify({
               project_file_id: projectId,
-              created_by: 'user',
+              created_by: userName, // セッション情報のユーザー名を使用
               memo: memo.trim(),
               text: pendingHighlight.text || '',
               rects: pendingHighlight.rects.map(rect => ({
@@ -489,14 +489,14 @@ const EditorPageContent: React.FC = () => {
             ...pendingHighlight,
             memo,
             createdAt: savedHighlight.created_at,
-            createdBy: t("CommentPanel.comment-author-user"),
+            createdBy: userName, // セッション情報のユーザー名を使用
           };
 
           const rootComment: CommentType = {
-            id: savedHighlight.id.toString(), // バックエンドのIDを使用
+            id: savedHighlight.id.toString(),
             highlightId: id,
             parentId: null,
-            author: t("CommentPanel.comment-author-user"),
+            author: userName, // セッション情報のユーザー名を使用
             text: memo.trim(),
             createdAt: savedHighlight.created_at,
             editedAt: null,
@@ -525,7 +525,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, t]
+    [dispatch, pendingHighlight, getUserName, t]
   );
 
   // === Highlight Click ===
