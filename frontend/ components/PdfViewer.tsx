@@ -67,6 +67,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const activeCommentId = useSelector(selectActiveCommentId);
   const completionStage = useSelector(selectCompletionStage);
   const isLoading = useSelector((state: RootState) => state.loading.isLoading);
+  const fileId = useSelector((state: RootState) => state.editor.fileId);
 
   const activeHighlightFromComment = React.useMemo(() => {
     if (!activeCommentId) return null;
@@ -730,7 +731,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                       'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                      project_file_id: projectId,
+                      project_file_id: fileId,
                       created_by: userName,
                       memo: uhf.suggestion,
                       text: uhf.unhighlighted_text,
