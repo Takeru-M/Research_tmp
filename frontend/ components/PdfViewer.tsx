@@ -20,10 +20,22 @@ import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
 import { RESPONSE_SAMPLE_IN_STAGE1 } from '@/utils/test';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+// pdf.js worker の堅牢な設定（Turbopack の file:/// 問題を回避）
+if (typeof window !== 'undefined') {
+  try {
+    const candidate = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+    // Turbopack dev だと file:/// になることがある → CDN にフォールバック
+    const useCdn = candidate.startsWith('file:');
+    const cdnModule = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    const cdnLegacy = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js`;
+
+    // 一部環境で module worker が弾かれる場合があるため、CDN 使用時は legacy へ
+    pdfjs.GlobalWorkerOptions.workerSrc = useCdn ? cdnLegacy : candidate;
+  } catch {
+    // import.meta.url 未対応などの例外時も CDN にフォールバック
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js`;
+  }
+}
 
 const PdfViewer: React.FC<PdfViewerProps> = ({
   file,
@@ -985,42 +997,42 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       <LoadingOverlay isVisible={isLoading} />
 
       {file?(
-        <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
+        <Document
+          key={typeof file === 'string' ? file : (file as File)?.name ?? 'pdf'}
+          file={file}
+          onLoadSuccess={onDocumentLoadSuccess}
+        >
           {Array.from(new Array(numPages || 0), (_, i) =>
-          <div
-            key={i + 1}
-            style={{
-              position: "relative",
-              marginBottom: 12,
-              margin: '0 auto',
-              width: 'max-content',
-            }}
-          >
-            <Page
-              pageNumber={i + 1}
-              onLoadSuccess={(p: PDFPageProxy) => onPageLoadSuccess(p, i + 1)}
-              // アノテーションは必要ないので無効化
-              renderAnnotationLayer={false}
-              renderTextLayer={true}
-              scale={pdfScale}
-            />
-
-            {/* ハイライトの描画レイヤー (pointer-events: noneで透過) */}
-            {renderHighlightVisuals(i + 1)}
-
-            {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
-              <FabricShapeLayer
+            <div
+              key={i + 1}
+              style={{
+                position: "relative",
+                marginBottom: 12,
+                margin: '0 auto',
+                width: 'max-content',
+              }}
+            >
+              <Page
                 pageNumber={i + 1}
-                width={pageData[i + 1].width}
-                height={pageData[i + 1].height}
-                viewport={pageData[i + 1].viewport}
-                scale={pageScales[i + 1]}
-                shapeData={pageShapeData[i + 1]}
-                onSelectShape={handleRequestShapeHighlight}
+                onLoadSuccess={(p: PDFPageProxy) => onPageLoadSuccess(p, i + 1)}
+                renderAnnotationLayer={false}
+                renderTextLayer={true}
+                scale={pdfScale}
               />
-            )}
-          </div>
-        )}
+              {renderHighlightVisuals(i + 1)}
+              {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
+                <FabricShapeLayer
+                  pageNumber={i + 1}
+                  width={pageData[i + 1].width}
+                  height={pageData[i + 1].height}
+                  viewport={pageData[i + 1].viewport}
+                  scale={pageScales[i + 1]}
+                  shapeData={pageShapeData[i + 1]}
+                  onSelectShape={handleRequestShapeHighlight}
+                />
+              )}
+            </div>
+          )}
         </Document>
       ): <p style={{textAlign:'center'}}>{t("Alert.not_input_pdf")}</p> }
 
