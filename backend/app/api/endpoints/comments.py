@@ -4,7 +4,9 @@ from typing import List
 from app.db.base import get_session
 from app.crud import comment as crud_comment
 from app.schemas import CommentCreate, CommentUpdate, CommentRead
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/", response_model=CommentRead)
@@ -13,7 +15,14 @@ def create_comment_endpoint(
     session: Session = Depends(get_session)
 ):
     """新しいコメントを作成"""
-    return crud_comment.create_comment(session, comment_in)
+    try:
+        logger.info(f"Creating comment: {comment_in.model_dump()}")
+        comment = crud_comment.create_comment(session, comment_in)
+        logger.info(f"Comment created successfully: {comment.id}")
+        return comment
+    except Exception as e:
+        logger.error(f"Error creating comment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create comment: {str(e)}")
 
 @router.get("/highlight/{highlight_id}", response_model=List[CommentRead])
 def read_comments_by_highlight(

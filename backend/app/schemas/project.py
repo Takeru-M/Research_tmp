@@ -24,3 +24,6 @@ class ProjectRead(ProjectBase):
 
     class Config:
         from_attributes = True
+
+class CompletionStageUpdate(BaseModel):
+    completion_stage: int

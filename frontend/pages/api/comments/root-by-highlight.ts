@@ -1,0 +1,38 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  const session = await getServerSession(req, res, authOptions) as any;
+  if (!session?.accessToken) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const highlightId = Number(req.query.highlight_id);
+  if (!Number.isFinite(highlightId)) {
+    return res.status(400).json({ message: 'Invalid highlight_id' });
+  }
+
+  try {
+    const resp = await fetch(`http://backend:8000/api/v1/comments/highlight/${highlightId}/root`, {
+      headers: {
+        'Authorization': `Bearer ${session.accessToken}`,
+      },
+    });
+    
+    if (!resp.ok) {
+      let err = {};
+      try { err = await resp.json(); } catch {}
+      return res.status(resp.status).json(err);
+    }
+    
+    const data = await resp.json();
+    return res.status(200).json(data);
+  } catch (e: any) {
+    return res.status(500).json({ message: e.message || 'Internal server error' });
+  }
+}

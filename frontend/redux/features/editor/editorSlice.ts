@@ -6,6 +6,7 @@ import { STAGE } from '@/utils/constants';
 
 const initialState: EditorState = {
   file: null,
+  fileId: null,
   fileType: null,
   fileContent: null,
   highlights: [],
@@ -26,11 +27,25 @@ const editorSlice = createSlice({
   name: 'editor',
   initialState,
   reducers: {
-    setFile(state, action: PayloadAction<{ file: File | null; fileType: string | null; fileContent: string | null }>) {
+    setFile(
+      state,
+      action: PayloadAction<{
+        file: File | null;
+        fileType: string | null;
+        fileContent: string | null;
+        fileId?: number | null;
+      }>
+    ) {
       state.file = action.payload.file;
       state.fileType = action.payload.fileType;
       state.fileContent = action.payload.fileContent;
+      state.fileId = action.payload.fileId !== undefined ? action.payload.fileId : state.fileId;
       state.pdfTextContent = null;
+    },
+
+    // fileIdのみを更新したい場合に使用
+    setFileId(state, action: PayloadAction<number | null>) {
+      state.fileId = action.payload;
     },
 
     setPdfTextContent(state, action: PayloadAction<string>) {
@@ -236,6 +251,7 @@ const editorSlice = createSlice({
       state.file = null;
       state.fileType = null;
       state.fileContent = null;
+      state.fileId = null; // 追加
       state.highlights = [];
       state.pdfHighlights = [];
       state.textHighlights = [];
@@ -260,6 +276,7 @@ const editorSlice = createSlice({
 
 export const {
   setFile,
+  setFileId,
   setPdfTextContent,
   addHighlight,
   addHighlightWithComment,

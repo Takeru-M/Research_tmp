@@ -64,6 +64,7 @@ export interface ScrollTarget {
 // エディタースライスの状態型
 export interface EditorState {
   file: File | null;
+  fileId?: number | null;
   fileType: string | null;
   fileContent: string | ArrayBuffer | Uint8Array | null; // ★ Uint8Arrayを追加
   highlights: Highlight[];

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
 from .highlight_rect import HighlightRectRead
+from .comment import CommentRead
 
 class HighlightBase(BaseModel):
     project_file_id: int
@@ -18,8 +19,13 @@ class HighlightUpdate(BaseModel):
 
 class HighlightRead(HighlightBase):
     id: int
+    comment_id: Optional[int] = None
+    project_file_id: int
+    created_by: str
+    memo: str
+    text: Optional[str] = None
     created_at: datetime
-    rects: Optional[List[HighlightRectRead]] = None
+    rects: List[HighlightRectRead]
 
     class Config:
         from_attributes = True
@@ -30,3 +36,10 @@ class HighlightDelete(BaseModel):
     deleted_highlight_id: int
     deleted_comments_count: int
     deleted_rects_count: int
+
+class HighlightWithComments(BaseModel):
+    highlight: HighlightRead
+    comments: List[CommentRead]
+    
+    class Config:
+        from_attributes = True

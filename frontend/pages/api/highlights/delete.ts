@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(
   req: NextApiRequest,
@@ -6,6 +8,12 @@ export default async function handler(
 ) {
   if (req.method !== 'DELETE') {
     return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  const session = await getServerSession(req, res, authOptions) as any;
+  
+  if (!session?.accessToken) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 
   try {
@@ -19,7 +27,7 @@ export default async function handler(
     const response = await fetch(`http://backend:8000/api/v1/highlights/${highlight_id}`, {
       method: 'DELETE',
       headers: {
-        Authorization: req.headers.authorization ?? ''
+        'Authorization': `Bearer ${session.accessToken}`
       },
     });
 
