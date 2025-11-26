@@ -5,6 +5,8 @@ from app.db.base import get_session
 from pydantic import BaseModel
 import json
 import logging
+import app.crud.comment as crud_comment
+from app.schemas import HighlightRead, HighlightWithComments, CommentRead
 
 from app.crud import highlight as crud_highlight
 from app.schemas import (
@@ -136,8 +138,12 @@ def create_highlight_with_memo(
         
         logger.info(f"Retrieved {len(rects)} rects for highlight {db_highlight.id}")
         
+        # commentも取得
+        comment = crud_comment.get_comment_by_id(session, db_highlight.id)
+        
         result = HighlightRead(
             id=db_highlight.id,
+            comment_id=comment.id if comment else None,
             project_file_id=db_highlight.project_file_id,
             created_by=db_highlight.created_by,
             memo=db_highlight.memo,
@@ -160,36 +166,52 @@ def create_highlight_with_memo(
         logger.error("=" * 80)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/file/{file_id}", response_model=List[HighlightRead])
+@router.get("/file/{file_id}", response_model=List[HighlightWithComments])
 def get_highlights_by_file_endpoint(
     *,
     session: Session = Depends(get_session),
     file_id: int
 ):
-    """特定ファイルのすべてのハイライトを取得"""
-    logger.info(f"Fetching highlights for file_id: {file_id}")
-    
+    """特定ファイルのすべてのハイライトと、紐づく全コメントを取得"""
+    logger.info(f"[with-comments] Fetching highlights for file_id: {file_id}")
     highlights = get_highlights_by_file(session, file_id)
-    logger.info(f"Found {len(highlights)} highlights")
-    
-    result = []
-    for highlight in highlights:
-        rects = get_rects_by_highlight(session, highlight.id)
-        logger.info(f"Highlight {highlight.id} has {len(rects)} rects")
-        
-        result.append(
-            HighlightRead(
-                id=highlight.id,
-                project_file_id=highlight.project_file_id,
-                created_by=highlight.created_by,
-                memo=highlight.memo,
-                text=highlight.text,
-                created_at=highlight.created_at,
-                rects=rects
-            )
+    logger.info(f"[with-comments] Found {len(highlights)} highlights")
+
+    result: List[HighlightWithComments] = []
+    for hl in highlights:
+        rects = get_rects_by_highlight(session, hl.id)
+        comments = crud_comment.get_comments_by_highlight_id(session, hl.id) or []
+
+        highlight_read = HighlightRead(
+            id=hl.id,
+            comment_id=comments[0].id if comments else None,
+            project_file_id=hl.project_file_id,
+            created_by=hl.created_by,
+            memo=hl.memo,
+            text=hl.text,
+            created_at=hl.created_at,
+            rects=rects
         )
-    
-    logger.info(f"Returning {len(result)} highlights")
+
+        comment_reads = [
+            CommentRead(
+                id=c.id,
+                highlight_id=c.highlight_id,
+                parent_id=c.parent_id,
+                author=c.author,
+                text=c.text,
+                created_at=c.created_at,
+                updated_at=c.updated_at
+            )
+            for c in comments
+        ]
+
+        result.append(HighlightWithComments(
+            highlight=highlight_read,
+            comments=comment_reads
+        ))
+
+    logger.info(f"[with-comments] Returning {len(result)} highlights with comments")
     return result
 
 @router.delete("/{highlight_id}", status_code=204)

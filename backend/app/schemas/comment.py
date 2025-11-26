@@ -15,10 +15,12 @@ class CommentUpdate(BaseModel):
 
 class CommentRead(CommentBase):
     id: int
-    highlight_id: Optional[int]
-    parent_id: Optional[int]
+    highlight_id: Optional[int] = None
+    parent_id: Optional[int] = None
+    author: str
+    text: str
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

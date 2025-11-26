@@ -89,17 +89,27 @@ const EditorPageContent: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log('Fetched highlights and comments:', data);
+      console.log('Fetched highlights and ALL comments:', data);
 
-      if (data && Array.isArray(data)) {
-        const highlights: PdfHighlight[] = data.map((item: any) => ({
-          id: item.id.toString(),
-          type: item.rects[0]?.element_type || 'pdf',
-          text: item.text || '',
-          memo: item.memo || '',
-          createdAt: item.created_at,
-          createdBy: item.created_by || getUserName(), // セッション情報を使用
-          rects: item.rects.map((rect: any) => ({
+      // ハイライトの変換
+      const highlights: PdfHighlight[] = data.map((item: any) => {
+        const h = item.highlight;
+        // highlight_id の代わりに id を使用
+        const highlightId = h.id || h.highlight_id;
+        
+        if (!highlightId) {
+          console.error('Missing highlight ID:', h);
+          throw new Error('Highlight ID is missing');
+        }
+
+        return {
+          id: highlightId.toString(),
+          type: 'pdf', // ★ typeプロパティを追加
+          text: h.text || '',
+          memo: h.memo || '',
+          createdAt: h.created_at,
+          createdBy: h.created_by || getUserName(),
+          rects: h.rects.map((rect: any) => ({
             pageNumber: rect.page_num,
             x: rect.x1,
             y: rect.y1,
@@ -111,33 +121,45 @@ const EditorPageContent: React.FC = () => {
             x2: rect.x2,
             y2: rect.y2,
           })),
-          elementType: item.element_type || 'unknown',
-        }));
+          elementType: h.rects[0]?.element_type || 'unknown',
+        } as PdfHighlight; // 型アサーションを追加
+      });
 
-        console.log('Converted highlights:', highlights);
-        dispatch(setHighlights(highlights));
+      console.log('Converted highlights:', highlights);
+      dispatch(setHighlights(highlights));
 
-        const comments: CommentType[] = data.map((item: any) => ({
-          id: item.id.toString(),
-          highlightId: item.id.toString(),
-          parentId: null,
-          author: item.created_by || getUserName(), // セッション情報を使用
-          text: item.memo,
-          createdAt: item.created_at,
-          editedAt: null,
+      // コメントの変換（ハイライトに紐づく全コメント）
+      const comments: CommentType[] = data.flatMap((item: any) => {
+        const h = item.highlight;
+        const hId = (h.id || h.highlight_id)?.toString();
+        
+        if (!hId) {
+          console.error('Missing highlight ID for comments:', h);
+          return [];
+        }
+
+        const list = Array.isArray(item.comments) ? item.comments : [];
+        return list.map((c: any) => ({
+          id: c.id.toString(),
+          highlightId: hId,
+          parentId: c.parent_id !== null && c.parent_id !== undefined ? c.parent_id.toString() : null,
+          author: c.author || getUserName(),
+          text: c.text,
+          createdAt: c.created_at,
+          editedAt: c.updated_at || null,
           deleted: false,
         }));
+      });
 
-        console.log('Converted comments:', comments);
-        dispatch(setComments(comments));
-      }
-
+      console.log('Converted ALL comments:', comments);
+      dispatch(setComments(comments));
     } catch (error: any) {
       console.error('Failed to load highlights and comments:', error.message);
+      alert(t('Error.load-highlights-failed') || 'ハイライトとコメントの読み込みに失敗しました');
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, getUserName]);
+  }, [dispatch, getUserName, t]);
 
   // プロジェクトのファイルを取得
   const fetchProjectFile = useCallback(async (projectId: number) => {
@@ -461,8 +483,8 @@ const EditorPageContent: React.FC = () => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              project_file_id: projectId,
-              created_by: userName, // セッション情報のユーザー名を使用
+              project_file_id: currentFileId, // projectIdではなくcurrentFileIdを使用
+              created_by: userName,
               memo: memo.trim(),
               text: pendingHighlight.text || '',
               rects: pendingHighlight.rects.map(rect => ({
@@ -472,7 +494,7 @@ const EditorPageContent: React.FC = () => {
                 x2: rect.x2,
                 y2: rect.y2,
               })),
-              element_type: pendingHighlight.type || 'unknown',
+              element_type: pendingHighlight.elementType || 'pdf',
             }),
           });
 
@@ -484,19 +506,27 @@ const EditorPageContent: React.FC = () => {
           const savedHighlight = await response.json();
           console.log('Highlight saved:', savedHighlight);
 
+          // id フィールドを使用（highlight_id ではなく）
+          const highlightId = savedHighlight.id || savedHighlight.highlight_id;
+          
+          if (!highlightId) {
+            throw new Error('Highlight ID is missing in response');
+          }
+
           // Reduxストアに追加
           const finalHighlight: Highlight = {
             ...pendingHighlight,
+            id: highlightId.toString(),
             memo,
             createdAt: savedHighlight.created_at,
-            createdBy: userName, // セッション情報のユーザー名を使用
+            createdBy: userName,
           };
 
           const rootComment: CommentType = {
-            id: savedHighlight.id.toString(),
-            highlightId: id,
+            id: (savedHighlight.comment_id || highlightId).toString(),
+            highlightId: highlightId.toString(),
             parentId: null,
-            author: userName, // セッション情報のユーザー名を使用
+            author: userName,
             text: memo.trim(),
             createdAt: savedHighlight.created_at,
             editedAt: null,
@@ -525,7 +555,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t]
+    [dispatch, pendingHighlight, getUserName, t, currentFileId]
   );
 
   // === Highlight Click ===

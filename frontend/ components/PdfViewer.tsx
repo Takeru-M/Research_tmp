@@ -64,6 +64,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
 
+  const getProjectIdFromCookie = (): number | null => {
+    const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
   // PDF以外クリックで選択解除
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -624,60 +629,123 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const highlight_feedback = responseData.highlight_feedback;
           const unhighlighted_feedback = responseData.unhighlighted_feedback;
 
-          // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
-          highlight_feedback.forEach((hf: any) => {
+          // ハイライト有箇所に対するAIコメントをDBに保存
+          for (const hf of highlight_feedback) {
             if (hf.intervention_needed) {
-              dispatch(
-                addComment({
-                  id: `s-${Date.now()}`,
-                  highlightId: hf.highlight_id,
-                  parentId: hf.id,
-                  author: 'AI',
-                  text: hf.suggestion,
-                  createdAt: new Date().toISOString(),
-                  editedAt: null,
-                  deleted: false,
-              }));
-            }
-          });
+              try {
+                // バックエンドにAIコメントを保存
+                const commentResponse = await fetch('/api/comments/create', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    highlight_id: parseInt(hf.highlight_id, 10),
+                    parent_id: parseInt(hf.id, 10),
+                    author: 'AI',
+                    text: hf.suggestion,
+                  }),
+                });
 
-          // ハイライト無箇所に対して，ハイライトをつけてコメントを追加
-          unhighlighted_feedback.forEach((uhf: any, index: number) => {
+                if (!commentResponse.ok) {
+                  const errorData = await commentResponse.json();
+                  throw new Error(errorData.message || 'Failed to save AI comment');
+                }
+
+                const savedComment = await commentResponse.json();
+                console.log('AI comment saved:', savedComment);
+
+                // バックエンドから返されたIDを使用してReduxに追加
+                dispatch(
+                  addComment({
+                    id: savedComment.id.toString(),
+                    highlightId: hf.highlight_id,
+                    parentId: hf.id,
+                    author: 'AI',
+                    text: hf.suggestion,
+                    createdAt: savedComment.created_at,
+                    editedAt: null,
+                    deleted: false,
+                }));
+              } catch (error) {
+                console.error('Failed to save AI comment:', error);
+              }
+            }
+          }
+
+          // ハイライト無箇所に対するAIハイライトとコメントをDBに保存
+          for (const [index, uhf] of unhighlighted_feedback.entries()) {
             if (uhf.unhighlighted_text && uhf.suggestion) {
-              // PDFテキストからテキストを検索し、ハイライト矩形を取得
               const foundRects = findTextInPdf(uhf.unhighlighted_text);
 
               if (foundRects.length > 0) {
-                // ハイライトIDを生成
-                const highlightId = `pdf-ai-${Date.now()}-${index}`;
+                try {
+                  const userName = 'AI';
+                  const projectId = getProjectIdFromCookie();
 
-                // ハイライトオブジェクトを作成（青色マーク用に createdBy: 'AI' を設定）
-                const aiHighlight: PdfHighlight = {
-                  id: highlightId,
-                  type: "pdf",
-                  text: uhf.unhighlighted_text,
-                  rects: foundRects,
-                  memo: "",
-                  createdAt: new Date().toISOString(),
-                  createdBy: 'AI',
-                };
+                  if (!projectId) {
+                    throw new Error('Project ID not found');
+                  }
 
-                // ハイライトとコメントを一緒に追加
-                const rootComment: CommentType = {
-                  id: uuidv4(),
-                  highlightId: highlightId,
-                  parentId: null,
-                  author: 'AI',
-                  text: uhf.suggestion,
-                  createdAt: new Date().toISOString(),
-                  editedAt: null,
-                  deleted: false,
-                };
+                  // バックエンドにハイライトとコメントを保存
+                  const highlightResponse = await fetch('/api/highlights/create', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      project_file_id: projectId,
+                      created_by: userName,
+                      memo: uhf.suggestion,
+                      text: uhf.unhighlighted_text,
+                      rects: foundRects.map(rect => ({
+                        page_num: rect.pageNum,
+                        x1: rect.x1,
+                        y1: rect.y1,
+                        x2: rect.x2,
+                        y2: rect.y2,
+                      })),
+                      element_type: 'pdf',
+                    }),
+                  });
 
-                dispatch(addHighlightWithComment({ highlight: aiHighlight, initialComment: rootComment }));
+                  if (!highlightResponse.ok) {
+                    const errorData = await highlightResponse.json();
+                    throw new Error(errorData.message || 'Failed to save AI highlight');
+                  }
+
+                  const savedHighlight = await highlightResponse.json();
+                  console.log('AI highlight saved:', savedHighlight);
+
+                  // バックエンドから返されたIDを使用してハイライトを作成
+                  const aiHighlight: PdfHighlight = {
+                    id: savedHighlight.id.toString(),
+                    type: "pdf",
+                    text: uhf.unhighlighted_text,
+                    rects: foundRects,
+                    memo: uhf.suggestion,
+                    createdAt: savedHighlight.created_at,
+                    createdBy: 'AI',
+                  };
+
+                  const rootComment: CommentType = {
+                    id: savedHighlight.id.toString(),
+                    highlightId: savedHighlight.id.toString(),
+                    parentId: null,
+                    author: 'AI',
+                    text: uhf.suggestion,
+                    createdAt: savedHighlight.created_at,
+                    editedAt: null,
+                    deleted: false,
+                  };
+
+                  dispatch(addHighlightWithComment({ highlight: aiHighlight, initialComment: rootComment }));
+                } catch (error) {
+                  console.error('Failed to save AI highlight:', error);
+                }
               }
             }
-          });
+          }
 
           dispatch(setCompletionStage(STAGE.GIVE_DELIBERATION_TIPS));
         }
