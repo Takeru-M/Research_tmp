@@ -30,7 +30,6 @@ export const selectActiveHighlightId = createSelector(
   (editor) => editor.activeHighlightId
 );
 
-// NEW: selectActiveCommentId
 export const selectActiveCommentId = createSelector(
   selectEditorState,
   (editor) => editor.activeCommentId
@@ -70,3 +69,5 @@ export const selectCompletionStage = createSelector(
   selectEditorState,
   (editor) => editor.completionStage
 );
+
+export const selectFileId = (state: RootState) => state.editor.fileId;

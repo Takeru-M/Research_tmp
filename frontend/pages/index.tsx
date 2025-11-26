@@ -13,6 +13,7 @@ import {
   setHighlights,
   setComments,
   setCompletionStage,
+  setFileId,
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -24,6 +25,7 @@ import {
   selectActiveHighlightId,
   selectActiveHighlightMemo,
   selectAllComments,
+  selectFileId,
 } from '../redux/features/editor/editorSelectors';
 
 import { RootState, AppDispatch } from '../redux/store';
@@ -60,6 +62,7 @@ const EditorPageContent: React.FC = () => {
   const activeHighlightId = useSelector(selectActiveHighlightId);
   const activeHighlightMemo = useSelector(selectActiveHighlightMemo);
   const allComments = useSelector(selectAllComments);
+  const fileId = useSelector(selectFileId);
 
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
@@ -168,58 +171,37 @@ const EditorPageContent: React.FC = () => {
       dispatch(startLoading('Loading project file...'));
 
       const response = await fetch(`/api/project-files/${projectId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch project files');
-      }
+      if (!response.ok) throw new Error('Failed to fetch project files');
 
       const files = await response.json();
-      console.log('Fetched files:', files);
-      
       if (!files || files.length === 0) {
-        console.log('No files found for this project');
         setIsFileUploaded(false);
         return;
       }
 
       const latestFile = files[0];
-      console.log('Latest file:', latestFile);
-      setCurrentFileId(latestFile.id);
+      dispatch(setFileId(latestFile.id));
 
       const fileResponse = await fetch(`/api/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`);
-      
       if (!fileResponse.ok) {
         const errorText = await fileResponse.text();
-        console.error('S3 fetch error:', fileResponse.status, errorText);
-        throw new Error(`Failed to fetch file from S3: ${fileResponse.status}`);
+        throw new Error(`Failed to fetch file from S3: ${fileResponse.status} ${errorText}`);
       }
 
       const blob = await fileResponse.blob();
-      console.log('Blob received:', blob.size, 'bytes, type:', blob.type);
-      
-      // BlobからFileオブジェクトを作成
-      const file = new File([blob], latestFile.file_name, { 
-        type: latestFile.mime_type || 'application/pdf' 
-      });
-
-      // FileオブジェクトまたはURL文字列として保存
-      // react-pdfはFile, Blob, ArrayBuffer, URL文字列をサポート
       const fileUrl = URL.createObjectURL(blob);
 
       dispatch(setFile({
-        file: null, // ← File は保存しない
+        file: null,
         fileType: latestFile.mime_type || 'application/pdf',
-        fileContent: fileUrl // ← Object URL (string) を渡す
+        fileContent: fileUrl,
+        fileId: latestFile.id,
       }));
 
-      console.log('File saved to Redux');
       setIsFileUploaded(true);
-
       await fetchHighlightsAndComments(latestFile.id);
-
     } catch (error: any) {
       console.error('Failed to load project file:', error);
-      console.error('Error stack:', error.stack);
       alert(`Failed to load file: ${error.message}`);
       setIsFileUploaded(false);
     } finally {
@@ -268,10 +250,10 @@ const EditorPageContent: React.FC = () => {
   // ---------------------------
   // S3アップロード + バックエンド保存
   // ---------------------------
-  const uploadPdfToS3AndSave = async (file: File, filetype: string, filesize: number) => {
+  // useCallbackでメモ化（依存が毎回変わる警告を解消）
+  const uploadPdfToS3AndSave = useCallback(async (file: File, filetype: string, filesize: number) => {
     if (!file) return;
 
-    // 既にファイルがアップロード済みの場合は処理を中断
     if (isFileUploaded) {
       alert(t('Alert.file-already-uploaded') || 'ファイルは既にアップロード済みです');
       return;
@@ -280,41 +262,22 @@ const EditorPageContent: React.FC = () => {
     dispatch(startLoading('Uploading PDF...'));
 
     try {
-      // 1. Next.js API 経由で FastAPI に送信
       const formData = new FormData();
       formData.append('file', file);
 
-      const s3Response = await fetch('/api/s3/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
+      const s3Response = await fetch('/api/s3/upload', { method: 'POST', body: formData });
       if (!s3Response.ok) {
         const errorData = await s3Response.json();
         throw new Error(errorData.message || 'Failed to upload PDF');
       }
-
       const s3Data = await s3Response.json();
-      console.log('PDF uploaded to S3 via Next.js API:', s3Data);
 
       const project_id = getProjectIdFromCookie();
       if (!project_id) throw new Error('Project ID not found in cookies');
 
-      console.log('Preparing to save:', {
-        project_id,
-        file_name: file.name,
-        file_key: s3Data.s3_key,
-        file_url: s3Data.s3_url,
-        mime_type: filetype,
-        file_size: filesize
-      });
-
-      // 2. DB保存（Next.js API経由）
       const dbResponse = await fetch('/api/project-files/save', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: parseInt(project_id.toString(), 10),
           file_name: file.name,
@@ -332,18 +295,25 @@ const EditorPageContent: React.FC = () => {
       }
 
       const dbData = await dbResponse.json();
-      console.log('PDF saved to DB:', dbData);
+      console.log(dbResponse);
+      console.log(dbData);
 
-      // アップロード成功後、フラグを立てる
+      dispatch(setFileId(dbData.id));
+      dispatch(setFile({
+        file: null,
+        fileType: filetype,
+        fileContent: URL.createObjectURL(file),
+        fileId: dbData.savedFile.id,
+      }));
+
       setIsFileUploaded(true);
-
     } catch (error: any) {
       console.error('PDF upload/save failed:', error.message);
       alert(`Upload failed: ${error.message}`);
     } finally {
       dispatch(stopLoading());
     }
-  };
+  }, [dispatch, t, isFileUploaded]);
 
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
@@ -452,10 +422,9 @@ const EditorPageContent: React.FC = () => {
   // === Upload File ===
   const handleFileUpload = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      // 既にファイルがアップロード済みの場合は処理を中断
       if (isFileUploaded) {
         alert(t('Alert.file-already-uploaded') || 'ファイルは既にアップロード済みです');
-        event.target.value = ''; // input をリセット
+        event.target.value = '';
         return;
       }
 
@@ -464,19 +433,14 @@ const EditorPageContent: React.FC = () => {
 
       if (uploadedFile.type === 'application/pdf') {
         uploadPdfToS3AndSave(uploadedFile, uploadedFile.type, uploadedFile.size);
-        const content = URL.createObjectURL(uploadedFile);
-        dispatch(setFile({
-          file: null,
-          fileType: uploadedFile.type,
-          fileContent: content
-        }));
       } else if (uploadedFile.type.startsWith('text/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
           dispatch(setFile({
-            file: null, // ← File を保存しない
+            file: null,
             fileType: uploadedFile.type,
-            fileContent: (e.target?.result as string) ?? ''
+            fileContent: (e.target?.result as string) ?? '',
+            fileId: null,
           }));
           setIsFileUploaded(true);
         };
@@ -485,15 +449,20 @@ const EditorPageContent: React.FC = () => {
         alert(t("Alert.file-support"));
       }
     },
-    [dispatch, t, isFileUploaded]
+    [dispatch, t, isFileUploaded, uploadPdfToS3AndSave] // uploadPdfToS3AndSave は useCallback済み
   );
 
   // === Request highlight (open memo modal) ===
   const handleRequestAddHighlight = useCallback((h: PdfHighlight) => {
+    // fileId 未設定時は警告
+    if (!fileId) {
+      alert(t('Error.file-id-missing') || 'ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。');
+      return;
+    }
     setPendingHighlight(h);
     dispatch(setActiveHighlightId(h.id));
     setShowMemoModal(true);
-  }, [dispatch]);
+  }, [dispatch, t, fileId]);
 
   // === Save memo + add highlight + add root comment ===
   const handleSaveMemo = useCallback(
@@ -507,16 +476,19 @@ const EditorPageContent: React.FC = () => {
             throw new Error('Project ID not found');
           }
 
-          const userName = getUserName(); // セッションからユーザー名を取得
+          // project_file_id は Redux の fileId を使用
+          if (!fileId) {
+            alert(t('Error.file-id-missing') || 'ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。');
+            dispatch(stopLoading());
+            return;
+          }
 
-          // バックエンドにハイライトとメモを保存
+          const userName = getUserName();
           const response = await fetch('/api/highlights/create', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              project_file_id: currentFileId, // projectIdではなくcurrentFileIdを使用
+              project_file_id: fileId,
               created_by: userName,
               memo: memo.trim(),
               text: pendingHighlight.text || '',
@@ -585,7 +557,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, currentFileId]
+    [dispatch, pendingHighlight, getUserName, t, fileId] // 依存に fileId を追加
   );
 
   // === Highlight Click ===
