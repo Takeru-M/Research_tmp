@@ -23,9 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
   try {
-    console.log(`[PATCH /api/projects/${projectId}/completion-stage] Updating completion stage:`, req.body);
+    console.log(`[PATCH /api/projects/${projectId}/update-completion-stage] Updating completion stage:`, req.body);
 
-    const backendResponse = await fetch(`http://backend:8000/api/v1/projects/${projectId}/completion-stage`, {
+    const backendResponse = await fetch(`http://backend:8000/api/v1/projects/${projectId}/update-completion-stage`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

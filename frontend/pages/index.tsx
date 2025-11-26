@@ -78,15 +78,6 @@ const EditorPageContent: React.FC = () => {
     return match ? parseInt(match[1], 10) : null;
   };
 
-  // cookieからcompletionStageを取得するヘルパー
-  const getCompletionStageFromCookie = (): number | null => {
-    // cookie名: completionStage, 互換: stage
-    const m1 = document.cookie.match(/(?:^|; )completionStage=(\d+)/);
-    if (m1) return parseInt(m1[1], 10);
-    const m2 = document.cookie.match(/(?:^|; )stage=(\d+)/);
-    return m2 ? parseInt(m2[1], 10) : null;
-  };
-
   // ハイライトとコメントを取得
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     try {
@@ -114,7 +105,7 @@ const EditorPageContent: React.FC = () => {
 
         return {
           id: highlightId.toString(),
-          type: 'pdf', // ★ typeプロパティを追加
+          type: 'pdf',
           text: h.text || '',
           memo: h.memo || '',
           createdAt: h.created_at,
@@ -132,7 +123,7 @@ const EditorPageContent: React.FC = () => {
             y2: rect.y2,
           })),
           elementType: h.rects[0]?.element_type || 'unknown',
-        } as PdfHighlight; // 型アサーションを追加
+        } as PdfHighlight;
       });
 
       console.log('Converted highlights:', highlights);
@@ -236,23 +227,43 @@ const EditorPageContent: React.FC = () => {
     }
   }, [dispatch, fetchHighlightsAndComments]);
 
-  // コンポーネントマウント時にプロジェクトファイル取得＋stageをReduxへ反映
-  useEffect(() => {
-    // 先にstageをReduxへ反映
-    const stage = getCompletionStageFromCookie();
-    if (stage !== null && !Number.isNaN(stage)) {
-      dispatch(setCompletionStage(stage));
-    }
+  // プロジェクト情報の取得（stageをReduxへ反映）
+  const fetchProjectInfo = useCallback(async (projectId: number) => {
+    try {
+      dispatch(startLoading('Loading project info...'));
 
+      const res = await fetch(`/api/projects/${projectId}/projects`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch project info');
+      }
+      const data = await res.json();
+      const stage = data?.stage;
+
+      if (stage !== null && !Number.isNaN(stage)) {
+        dispatch(setCompletionStage(stage));
+      } else {
+        console.warn('Project info does not include a valid stage:', data);
+      }
+    } catch (err: any) {
+      console.error('Failed to load project info:', err.message);
+    } finally {
+      dispatch(stopLoading());
+    }
+  }, [dispatch]);
+
+  // コンポーネントマウント時にプロジェクト情報とファイルを取得（stageはバックエンドからのみ）
+  useEffect(() => {
     const projectId = getProjectIdFromCookie();
     if (projectId) {
+      // プロジェクト情報（stage）取得
+      fetchProjectInfo(projectId);
+      // プロジェクトの最新ファイル取得
       fetchProjectFile(projectId);
     } else {
       console.warn('No project ID found in cookies');
-      // プロジェクト選択ページにリダイレクト
       router.push('/projects');
     }
-  }, [fetchProjectFile, router, dispatch]);
+  }, [fetchProjectInfo, fetchProjectFile, router, dispatch]);
 
   // ---------------------------
   // S3アップロード + バックエンド保存

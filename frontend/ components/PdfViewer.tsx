@@ -769,7 +769,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const projectId = getProjectIdFromCookie();
           if (projectId) {
             try {
-              const updateResponse = await fetch(`/api/projects/${projectId}/completion-stage`, {
+              const updateResponse = await fetch(`/api/projects/${projectId}/update-completion-stage`, {
                 method: 'PATCH',
                 headers: {
                   'Content-Type': 'application/json',
@@ -783,17 +783,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 throw new Error('Failed to update completion stage');
               }
 
-              // レスポンスからstageを取得してクッキーへ保存
+              // レスポンスの stage をReduxに反映
               const updated = await updateResponse.json().catch(() => null);
-              if (updated) {
-                const stageVal = updated.completion_stage ?? updated.stage ?? null;
-                if (stageVal !== null && stageVal !== undefined) {
-                  document.cookie = `completionStage=${stageVal}; path=/; max-age=2592000; samesite=lax`;
-                }
-              }
-
-              console.log('Completion stage updated to GIVE_DELIBERATION_TIPS');
-              dispatch(setCompletionStage(STAGE.GIVE_DELIBERATION_TIPS));
+              const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
+              const stageVal = Number(stageValRaw);
+              console.log('Completion stage updated to', stageVal);
+              dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_DELIBERATION_TIPS : stageVal));
             } catch (error) {
               console.error('Failed to update completion stage:', error);
             }
@@ -939,7 +934,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const projectId = getProjectIdFromCookie();
           if (projectId) {
             try {
-              const updateResponse = await fetch(`/api/projects/${projectId}/completion-stage`, {
+              const updateResponse = await fetch(`/api/projects/${projectId}/update-completion-stage`, {
                 method: 'PATCH',
                 headers: {
                   'Content-Type': 'application/json',
@@ -953,17 +948,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 throw new Error('Failed to update completion stage');
               }
 
-              // レスポンスからstageを取得してクッキーへ保存
+              // レスポンスの stage をReduxに反映
               const updated = await updateResponse.json().catch(() => null);
-              if (updated) {
-                const stageVal = updated.completion_stage ?? updated.stage ?? null;
-                if (stageVal !== null && stageVal !== undefined) {
-                  document.cookie = `completionStage=${stageVal}; path=/; max-age=2592000; samesite=lax`;
-                }
-              }
-
-              console.log('Completion stage updated to GIVE_MORE_DELIBERATION_TIPS');
-              dispatch(setCompletionStage(STAGE.GIVE_MORE_DELIBERATION_TIPS));
+              const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.GIVE_MORE_DELIBERATION_TIPS;
+              const stageVal = Number(stageValRaw);
+              console.log('Completion stage updated to', stageVal);
+              dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
             } catch (error) {
               console.error('Failed to update completion stage:', error);
             }

@@ -62,7 +62,7 @@ def update_project(
         raise HTTPException(status_code=403, detail="Not authorized to update this project")
     return crud_project.update_project(session, project, project_in)
 
-@router.patch("/{project_id}/completion-stage", response_model=ProjectRead)
+@router.patch("/{project_id}/update-completion-stage", response_model=ProjectRead)
 def update_project_completion_stage(
     project_id: int,
     stage_update: CompletionStageUpdate,
