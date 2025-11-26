@@ -2,7 +2,7 @@
 
 from .auth import User, Token, TokenData, UserSignupSchema, LoginRequest
 from .user import UserCreate, UserRead, UserUpdate
-from .project import ProjectBase, ProjectCreate, ProjectUpdate, ProjectRead
+from .project import ProjectBase, ProjectCreate, ProjectUpdate, ProjectRead, CompletionStageUpdate
 from .project_file import ProjectFileBase, ProjectFileCreate, ProjectFileUpdate, ProjectFileRead
 from .highlight import HighlightBase, HighlightCreate, HighlightUpdate, HighlightRead, HighlightWithComments
 from .highlight_rect import HighlightRectBase, HighlightRectCreate, HighlightRectUpdate, HighlightRectRead
@@ -27,6 +27,7 @@ __all__ = [
     "ProjectCreate",
     "ProjectUpdate",
     "ProjectRead",
+    "CompletionStageUpdate",
 
     # project_file
     "ProjectFileBase",

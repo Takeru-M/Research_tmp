@@ -19,6 +19,10 @@ def get_comment_by_id(session: Session, comment_id: int) -> Optional[Comment]:
     statement = select(Comment).where(Comment.id == comment_id)
     return session.exec(statement).first()
 
+def get_comment_by_highlight_id(session: Session, highlight_id: int) -> Optional[Comment]:
+    statement = select(Comment).where(Comment.highlight_id == highlight_id)
+    return session.exec(statement).first()
+
 def get_comments_by_highlight_id(session: Session, highlight_id: int) -> Optional[Comment]:
     statement = select(Comment).where(Comment.highlight_id == highlight_id)
     return session.exec(statement).all()

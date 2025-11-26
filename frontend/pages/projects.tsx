@@ -65,7 +65,8 @@ const Projects: React.FC = () => {
       setNewProjectName('');
 
       // 新規作成したドキュメントIDをクッキーに保存してトップページへ遷移
-      Cookies.set('projectId', newProject.id.toString(), { expires: 7, sameSite: 'lax', secure: true });
+      Cookies.set('projectId', newProject.id.toString(), { sameSite: 'lax', secure: true });
+      Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
       router.push('/');
     } catch (err: any) {
       setError(err.message || '不明なエラー');

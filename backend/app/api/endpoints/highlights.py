@@ -139,7 +139,8 @@ def create_highlight_with_memo(
         logger.info(f"Retrieved {len(rects)} rects for highlight {db_highlight.id}")
         
         # commentも取得
-        comment = crud_comment.get_comment_by_id(session, db_highlight.id)
+        comment = crud_comment.get_comment_by_highlight_id(session, db_highlight.id)
+        logger.info(f"Get comment: {comment}")
         
         result = HighlightRead(
             id=db_highlight.id,

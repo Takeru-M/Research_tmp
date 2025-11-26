@@ -32,3 +32,6 @@ alembic downgrade -1
 
 // シーディング削除
 （backendコンテナ内で）python app/scripts/unseed.py
+
+// commentsテーブル削除前
+SET FOREIGN_KEY_CHECKS = 0;

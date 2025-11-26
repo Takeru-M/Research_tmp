@@ -10,8 +10,9 @@ import {
   deleteComment,
   deleteHighlight,
   updateComment,
-  setHighlights, // 追加
-  setComments,   // 追加
+  setHighlights,
+  setComments,
+  setCompletionStage,
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -75,6 +76,15 @@ const EditorPageContent: React.FC = () => {
   const getProjectIdFromCookie = (): number | null => {
     const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
     return match ? parseInt(match[1], 10) : null;
+  };
+
+  // cookieからcompletionStageを取得するヘルパー
+  const getCompletionStageFromCookie = (): number | null => {
+    // cookie名: completionStage, 互換: stage
+    const m1 = document.cookie.match(/(?:^|; )completionStage=(\d+)/);
+    if (m1) return parseInt(m1[1], 10);
+    const m2 = document.cookie.match(/(?:^|; )stage=(\d+)/);
+    return m2 ? parseInt(m2[1], 10) : null;
   };
 
   // ハイライトとコメントを取得
@@ -226,8 +236,14 @@ const EditorPageContent: React.FC = () => {
     }
   }, [dispatch, fetchHighlightsAndComments]);
 
-  // コンポーネントマウント時にプロジェクトファイルを取得
+  // コンポーネントマウント時にプロジェクトファイル取得＋stageをReduxへ反映
   useEffect(() => {
+    // 先にstageをReduxへ反映
+    const stage = getCompletionStageFromCookie();
+    if (stage !== null && !Number.isNaN(stage)) {
+      dispatch(setCompletionStage(stage));
+    }
+
     const projectId = getProjectIdFromCookie();
     if (projectId) {
       fetchProjectFile(projectId);
@@ -236,7 +252,7 @@ const EditorPageContent: React.FC = () => {
       // プロジェクト選択ページにリダイレクト
       router.push('/projects');
     }
-  }, [fetchProjectFile, router]);
+  }, [fetchProjectFile, router, dispatch]);
 
   // ---------------------------
   // S3アップロード + バックエンド保存
@@ -466,8 +482,6 @@ const EditorPageContent: React.FC = () => {
       if (pendingHighlight && pendingHighlight.id === id) {
         try {
           dispatch(startLoading('Saving highlight and memo...'));
-          console.log(pendingHighlight);
-          console.log(memo);
 
           const projectId = getProjectIdFromCookie();
           if (!projectId) {
@@ -505,26 +519,23 @@ const EditorPageContent: React.FC = () => {
 
           const savedHighlight = await response.json();
           console.log('Highlight saved:', savedHighlight);
-
-          // id フィールドを使用（highlight_id ではなく）
-          const highlightId = savedHighlight.id || savedHighlight.highlight_id;
           
-          if (!highlightId) {
+          if (!savedHighlight.id) {
             throw new Error('Highlight ID is missing in response');
           }
 
           // Reduxストアに追加
           const finalHighlight: Highlight = {
             ...pendingHighlight,
-            id: highlightId.toString(),
+            id: savedHighlight.id.toString(),
             memo,
             createdAt: savedHighlight.created_at,
             createdBy: userName,
           };
 
           const rootComment: CommentType = {
-            id: (savedHighlight.comment_id || highlightId).toString(),
-            highlightId: highlightId.toString(),
+            id: savedHighlight.comment_id.toString(),
+            highlightId: savedHighlight.id.toString(),
             parentId: null,
             author: userName,
             text: memo.trim(),

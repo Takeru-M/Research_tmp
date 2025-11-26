@@ -34,6 +34,18 @@ def update_project(session: Session, project: Project, project_in: ProjectUpdate
     session.refresh(project)
     return project
 
+def update_completion_stage(session: Session, project_id: int, completion_stage: int) -> Optional[Project]:
+    """プロジェクトのcompletion_stageを更新"""
+    project = get_project(session, project_id)
+    if not project:
+        return None
+    project.stage = completion_stage
+    project.updated_at = datetime.utcnow()
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return project
+
 def delete_project(session: Session, project: Project) -> Project:
     session.delete(project)
     session.commit()

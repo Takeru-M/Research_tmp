@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(
   req: NextApiRequest,
@@ -15,11 +17,17 @@ export default async function handler(
       return res.status(400).json({ message: 'Comment ID is required' });
     }
 
+    const session = await getServerSession(req, res, authOptions) as any;
+    
+    if (!session?.accessToken) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const response = await fetch(`http://backend:8000/api/v1/comments/${comment_id}`, {
       method: 'DELETE',
       headers: {
-        Authorization: req.headers.authorization ?? ''
+        'Authorization': `Bearer ${session.accessToken}`,
       },
     });
 

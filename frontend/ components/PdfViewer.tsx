@@ -571,9 +571,26 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     return rects;
   }, [pdfTextContent, pageData, pageTextItems, numPages]);
 
+  // JSON文字列からコードブロックを除去するヘルパー関数
+  const parseJSONResponse = (responseText: string): any => {
+    try {
+      // まず通常のJSONとしてパース試行
+      return JSON.parse(responseText);
+    } catch (e) {
+      // 失敗した場合、Markdownコードブロックを除去してリトライ
+      const jsonMatch = responseText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (jsonMatch && jsonMatch[1]) {
+        return JSON.parse(jsonMatch[1].trim());
+      }
+      // それでもダメなら元のエラーを投げる
+      throw e;
+    }
+  };
+
   const handleCompletion = useCallback(async () => {
     // ローディング開始
     dispatch(startLoading(t('PdfViewer.analyzing')));
+    console.log('Completion stage:', completionStage);
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
@@ -598,13 +615,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             });
           }
         }
+        console.log(highlightCommentList);
 
         const firstResponse = await axios.post('/api/openai/format-data', {
           formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
           pdfTextData: pdfTextContent
         });
-        console.log(firstResponse.data.analysis);
-        const firstResponseData = JSON.parse(firstResponse.data.analysis);
+        console.log('Raw first response:', firstResponse.data.analysis);
+        const firstResponseData = parseJSONResponse(firstResponse.data.analysis);
         setDividedMeetingTexts(firstResponseData);
 
         const systemPrompt = OPTION_SYSTEM_PROMPT;
@@ -618,7 +636,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             userInput: userInput,
         });
 
-        const responseData = JSON.parse(response.data.analysis);
+        const responseData = parseJSONResponse(response.data.analysis);
         console.log(responseData);
 
         // テスト用
@@ -729,7 +747,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   };
 
                   const rootComment: CommentType = {
-                    id: savedHighlight.id.toString(),
+                    id: savedHighlight.comment_id.toString(),
                     highlightId: savedHighlight.id.toString(),
                     parentId: null,
                     author: 'AI',
@@ -747,7 +765,39 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             }
           }
 
-          dispatch(setCompletionStage(STAGE.GIVE_DELIBERATION_TIPS));
+          // completion_stage を GIVE_DELIBERATION_TIPS に更新
+          const projectId = getProjectIdFromCookie();
+          if (projectId) {
+            try {
+              const updateResponse = await fetch(`/api/projects/${projectId}/completion-stage`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  completion_stage: STAGE.GIVE_DELIBERATION_TIPS,
+                }),
+              });
+
+              if (!updateResponse.ok) {
+                throw new Error('Failed to update completion stage');
+              }
+
+              // レスポンスからstageを取得してクッキーへ保存
+              const updated = await updateResponse.json().catch(() => null);
+              if (updated) {
+                const stageVal = updated.completion_stage ?? updated.stage ?? null;
+                if (stageVal !== null && stageVal !== undefined) {
+                  document.cookie = `completionStage=${stageVal}; path=/; max-age=2592000; samesite=lax`;
+                }
+              }
+
+              console.log('Completion stage updated to GIVE_DELIBERATION_TIPS');
+              dispatch(setCompletionStage(STAGE.GIVE_DELIBERATION_TIPS));
+            } catch (error) {
+              console.error('Failed to update completion stage:', error);
+            }
+          }
         }
       } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -762,35 +812,31 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
     else if (completionStage == STAGE.GIVE_DELIBERATION_TIPS){
       try {
+        console.log(highlights);
+        console.log(comments);
         const systemPrompt = DELIBERATION_SYSTEM_PROMPT;
         const highlightCommentsList: HighlightCommentsList = [];
         for (const h of highlights) {
           const related = comments.filter(c => c.highlightId === h.id);
-          // 最後のコメントを取得
-          const lastComment = related[related.length - 1];
+          
           if (related.length > 0) {
-            for (const c of related) {
-              // 最後のコメントがAIによるものの場合のみ追加
-              if (lastComment && lastComment.author === 'AI') {
-                highlightCommentsList.push({
-                id: lastComment ? lastComment.id : '',
+            // 最後のコメントを取得
+            const lastComment = related[related.length - 1];
+            
+            // 最後のコメントがAIによるものの場合のみ追加
+            if (lastComment && lastComment.author === 'AI') {
+              highlightCommentsList.push({
+                id: lastComment.id,
                 highlightId: h.id,
                 highlight: h.text.trim(),
                 comments: related.map(c => ({
                   comment: c.text,
                 })),
               });
-              }
             }
-          } else {
-            highlightCommentsList.push({
-              id: "",
-              highlightId: h.id,
-              highlight: h.text.trim(),
-              comments: [],
-            });
           }
         }
+        console.log(highlightCommentsList);
 
         const userInput = {
           "mt_text": dividedMeetingTexts,
@@ -802,32 +848,127 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             userInput: userInput,
         });
 
-        const responseData = JSON.parse(response.data.analysis);
-        console.log(responseData);
+        console.log('Raw deliberation response:', response.data.analysis);
+        const responseData = parseJSONResponse(response.data.analysis);
+        console.log('Parsed deliberation data:', responseData);
 
         // テスト用
         // await new Promise(resolve => setTimeout(resolve, 3000));
         // const responseData = RESPONSE_SAMPLE_IN_STAGE1;
 
         if (responseData) {
-          // ハイライト有箇所に対して，APIからの各応答をユーザコメントと同じ形でReduxに追加（author: 'AI'）
-          responseData.suggestions.forEach((hf: any) => {
+          // ハイライト有箇所に対するAIコメントをDBに保存
+          for (const hf of responseData.suggestions) {
+            console.log(hf);
             if (hf.suggestion) {
-              dispatch(
-                addComment({
-                  id: `s-${Date.now()}`,
-                  highlightId: hf.highlight_id,
-                  parentId: hf.id,
-                  author: 'AI',
-                  text: hf.suggestion,
-                  createdAt: new Date().toISOString(),
-                  editedAt: null,
-                  deleted: false,
-              }));
+              try {
+                // hf.idがコメントIDとして存在するか確認
+                const parentCommentExists = comments.some(c => c.id === hf.id);
+                
+                if (!parentCommentExists) {
+                  console.warn(`Parent comment ID ${hf.id} not found in Redux store. Skipping...`);
+                  continue; // このコメントの保存をスキップ
+                }
+
+                console.log(`Saving comment with parent_id: ${hf.id}, highlight_id: ${hf.highlight_id}`);
+                console.log(hf);
+
+                // バックエンドにAIコメントを保存
+                const commentResponse = await fetch('/api/comments/create', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    highlight_id: parseInt(hf.highlight_id, 10),
+                    parent_id: parseInt(hf.id, 10),
+                    author: 'AI',
+                    text: hf.suggestion,
+                  }),
+                });
+
+                // レスポンスがJSONかどうか確認
+                const contentType = commentResponse.headers.get('content-type');
+                
+                if (!commentResponse.ok) {
+                  let errorMessage = 'Failed to save AI comment';
+                  
+                  if (contentType?.includes('application/json')) {
+                    const errorData = await commentResponse.json();
+                    errorMessage = errorData.message || errorMessage;
+                  } else {
+                    const errorText = await commentResponse.text();
+                    console.error('Non-JSON error response:', errorText);
+                    errorMessage = `Server error: ${commentResponse.status}`;
+                  }
+                  
+                  throw new Error(errorMessage);
+                }
+
+                // 成功レスポンスもJSON確認
+                if (!contentType?.includes('application/json')) {
+                  const responseText = await commentResponse.text();
+                  console.error('Non-JSON success response:', responseText);
+                  throw new Error('Invalid response format from server');
+                }
+
+                const savedComment = await commentResponse.json();
+                console.log('AI comment saved:', savedComment);
+
+                // バックエンドから返されたIDを使用してReduxに追加
+                dispatch(
+                  addComment({
+                    id: savedComment.id.toString(),
+                    highlightId: hf.highlight_id,
+                    parentId: hf.id,
+                    author: 'AI',
+                    text: hf.suggestion,
+                    createdAt: savedComment.created_at,
+                    editedAt: null,
+                    deleted: false,
+              })
+            );
+              } catch (error) {
+                console.error('Failed to save AI comment:', error);
+                alert(`コメントの保存に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+              }
             }
-          });
+          }
+
+          // completion_stage を GIVE_MORE_DELIBERATION_TIPS に更新
+          const projectId = getProjectIdFromCookie();
+          if (projectId) {
+            try {
+              const updateResponse = await fetch(`/api/projects/${projectId}/completion-stage`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  completion_stage: STAGE.GIVE_MORE_DELIBERATION_TIPS,
+                }),
+              });
+
+              if (!updateResponse.ok) {
+                throw new Error('Failed to update completion stage');
+              }
+
+              // レスポンスからstageを取得してクッキーへ保存
+              const updated = await updateResponse.json().catch(() => null);
+              if (updated) {
+                const stageVal = updated.completion_stage ?? updated.stage ?? null;
+                if (stageVal !== null && stageVal !== undefined) {
+                  document.cookie = `completionStage=${stageVal}; path=/; max-age=2592000; samesite=lax`;
+                }
+              }
+
+              console.log('Completion stage updated to GIVE_MORE_DELIBERATION_TIPS');
+              dispatch(setCompletionStage(STAGE.GIVE_MORE_DELIBERATION_TIPS));
+            } catch (error) {
+              console.error('Failed to update completion stage:', error);
+            }
+          }
         }
-        dispatch(setCompletionStage(STAGE.GIVE_MORE_DELIBERATION_TIPS));
       } catch (error) {
         if (axios.isAxiosError(error)) {
             console.error('API Route Error:', error.response?.data || error.message);
@@ -839,7 +980,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         dispatch(stopLoading());
       }
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, file]);
+  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, file, completionStage, dividedMeetingTexts]);
 
   return (
     <div
