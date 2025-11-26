@@ -207,9 +207,9 @@ const EditorPageContent: React.FC = () => {
       const fileUrl = URL.createObjectURL(blob);
 
       dispatch(setFile({
-        file: file,
+        file: null, // ← File は保存しない
         fileType: latestFile.mime_type || 'application/pdf',
-        fileContent: fileUrl // URL文字列を使用
+        fileContent: fileUrl // ← Object URL (string) を渡す
       }));
 
       console.log('File saved to Redux');
@@ -465,11 +465,19 @@ const EditorPageContent: React.FC = () => {
       if (uploadedFile.type === 'application/pdf') {
         uploadPdfToS3AndSave(uploadedFile, uploadedFile.type, uploadedFile.size);
         const content = URL.createObjectURL(uploadedFile);
-        dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: content }));
+        dispatch(setFile({
+          file: null,
+          fileType: uploadedFile.type,
+          fileContent: content
+        }));
       } else if (uploadedFile.type.startsWith('text/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          dispatch(setFile({ file: uploadedFile, fileType: uploadedFile.type, fileContent: e.target?.result as string }));
+          dispatch(setFile({
+            file: null, // ← File を保存しない
+            fileType: uploadedFile.type,
+            fileContent: (e.target?.result as string) ?? ''
+          }));
           setIsFileUploaded(true);
         };
         reader.readAsText(uploadedFile);
@@ -587,9 +595,10 @@ const EditorPageContent: React.FC = () => {
 
   // === Viewer ===
   const renderViewer = () => {
-    if (!file) return <p>{t("file-upload-txt")}</p>;
+    // 判定を file ではなく fileContent に変更
+    if (!fileContent) return <p>{t("file-upload-txt")}</p>;
 
-    if (fileType === 'application/pdf') {
+    if (fileType && fileType.includes('pdf')) {
       // デバッグ用ログ
       console.log('Rendering PdfViewer with highlights:', pdfHighlights);
       console.log('Number of highlights:', pdfHighlights.length);

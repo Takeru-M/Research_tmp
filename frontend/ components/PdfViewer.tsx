@@ -130,6 +130,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     setPageScales({});
   }, []);
 
+  useEffect(() => {
+    setNumPages(null);
+    setPageData({});
+    setPageScales({});
+  }, [file]);
+
   const onPageLoadSuccess = useCallback(async (page:PDFPageProxy, n:number)=>{
     const viewport = page.getViewport({ scale:1 });
     const newPageData: PageLoadData = {
