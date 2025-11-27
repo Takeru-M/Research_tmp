@@ -76,12 +76,13 @@ Research_tmp
 | 言語・フレームワーク  | バージョン |
 | --------------------- | ---------- |
 | PHP                   | 8.2        |
-| Laravel               | 12.0       |
+| FastAPI               | 0.122.0    |
 | MySQL                 | 8.0.44     |
 | Node.js               | 20.19.5    |
 | React                 | 19.2.0     |
 | Next.js               | 16.0.0     |
-| Terraform             | 1.3.6      |
+
+※2025年時点
 
 その他のパッケージのバージョンは composer.json と package.json を参照してください
 
@@ -92,35 +93,27 @@ Research_tmp
 <!-- Treeコマンドを使ってディレクトリ構成を記載 -->
 
 ❯ tree -a -I "node_modules|.next|.git|.pytest_cache|static" -L 2
+
 .
+├── .devcontainer
+│   └── devcontainer.json
+├── .dockerignore
 ├── .DS_Store
 ├── .env
 ├── .gitignore
 ├── backend
-│   ├── .DS_Store
-│   ├── .editorconfig
+│   ├── __pycache__
 │   ├── .env
-│   ├── .env.example
-│   ├── .gitattributes
 │   ├── .gitignore
+│   ├── .venv
+│   ├── alembic
+│   ├── alembic.ini
 │   ├── app
-│   ├── artisan
-│   ├── bootstrap
-│   ├── composer.json
-│   ├── composer.lock
-│   ├── config
-│   ├── database
-│   ├── package.json
-│   ├── phpunit.xml
-│   ├── public
-│   ├── README.md
-│   ├── resources
-│   ├── routes
-│   ├── storage
-│   ├── tests
-│   ├── vendor
-│   └── vite.config.js
+│   ├── fileStructure
+│   ├── main.py
+│   └── requirements.txt
 ├── docker
+│   ├── .DS_Store
 │   ├── backend
 │   ├── frontend
 │   ├── mysql
@@ -133,6 +126,7 @@ Research_tmp
 │   ├──  components
 │   ├── .DS_Store
 │   ├── .env
+│   ├── .env.local
 │   ├── .gitignore
 │   ├── app
 │   ├── eslint.config.mjs
@@ -148,11 +142,15 @@ Research_tmp
 │   ├── redux
 │   ├── styles
 │   ├── tmp
+│   ├── tmp_uploads
 │   ├── tsconfig.json
 │   ├── types
 │   └── utils
-├── practice.py
-└── README.md
+├── mermaid
+├── README.md
+└── TableStructure.png
+
+※backendの各フォルダの役割についてはbackend/fileStructureを参照
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -165,7 +163,7 @@ Research_tmp
 .env ファイル（ルートディレクトリ，frontendフォルダ，backendフォルダの三箇所）を[環境変数の一覧](#環境変数の一覧)を元に作成
 
 
-.env ファイルを作成後、以下のコマンドで開発環境を構築
+各.env ファイルを作成後、以下のコマンドで開発環境を構築
 
 // 開発用
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
@@ -181,34 +179,48 @@ docker compose exec backend bash -c "php artisan migrate --env=testing && vendor
 http://127.0.0.1:3000 にアクセスできるか確認
 アクセスできたら成功
 
-### コンテナの停止
-
-以下のコマンドでコンテナを停止することができます
-
-docker compose down
-
 ### 環境変数の一覧
 .env（ルートディレクトリ）
+MYSQL_HOST={ホスト名}
 MYSQL_ROOT_PASSWORD={ルートパスワード}
 MYSQL_USER={ユーザ名}
+MYSQL_ROOT={ルートユーザ名}
 MYSQL_PASSWORD={パスワード}
-MYSQL_DATABASE=laravel_db
-MYSQL_TEST_DATABASE=laravel_test_db
+MYSQL_DATABASE={データベース名}
+MYSQL_TEST_DATABASE={テスト用データベース名}
+DATABASE_URL=mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:3306/{MYSQL_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
 
 .env（frontend内）
-OPENAI_SECRET_KEY={APIキー}
+OPENAI_SECRET_KEY={OpenAIのAPIキー}
+NEXTAUTH_SECRET={JWT用シークレットキー}
+NEXT_PUBLIC_FASTAPI_URL=http://localhost:8000/api/v1
+AWS_ACCESS_KEY_ID={AWSへアクセスするためのキー}
+AWS_SECRET_ACCESS_KEY={AWSへアクセスするためのシークレットキー}
+AWS_REGION={リージョン名}
+S3_BUCKET_NAME={バケット名}
+
 
 .env（backend内）
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=laravel_db
-DB_USERNAME={ユーザ名}
-DB_PASSWORD={パスワード}
+MYSQL_HOST={ホスト名}
+MYSQL_ROOT_PASSWORD={ルートパスワード}
+MYSQL_USER={ユーザ名}
+MYSQL_ROOT={ルートユーザ名}
+MYSQL_PASSWORD={パスワード}
+MYSQL_DATABASE={データベース名}
+MYSQL_TEST_DATABASE={テスト用データベース名}
+DATABASE_URL=mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:3306/{MYSQL_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
+SECRET_KEY = {JWT用シークレットキー}
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+NEXT_PUBLIC_FASTAPI_URL=http://backend:8000/api
+AWS_ACCESS_KEY_ID={AWSへアクセスするためのキー}
+AWS_SECRET_ACCESS_KEY={AWSへアクセスするためのシークレットキー}
+AWS_REGION={リージョン名}
+S3_BUCKET_NAME={バケット名}
 
-※その他の環境変数についてはLaravel作成時.envファイルと同様
+※JWT用シークレットキーについては"openssl rand -base64 32"等で発行
 
 ### コマンド一覧
-特になし．
+ルートディレクトリ直下のCommandsを参照
 
 <p align="right">(<a href="#top">トップへ</a>)</p>

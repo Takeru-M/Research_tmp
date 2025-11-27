@@ -69,7 +69,7 @@
   },
   "CommentPanel": {
     "comment-author-user": "User",
-    "comment-author-AI": "AI",
+    "comment-author-LLM": "LLM",
     "reply-placeholder": "Write a reply",
     "reply": "Reply",
     "show-less": "Show less",
