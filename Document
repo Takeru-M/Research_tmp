@@ -27,7 +27,7 @@ alembic upgrade head
 // マイグレーションの取り消し
 alembic downgrade -1
 
-// シーディング
+// シーディング（ユーザ）
 （backendコンテナ内で）python app/scripts/seed.py
 
 // シーディング削除

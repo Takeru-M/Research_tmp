@@ -3,13 +3,26 @@
 # Pythonの公式スリムイメージをベースとする
 FROM python:3.11-slim
 
+# 環境変数で UTF-8 を明示
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV PYTHONIOENCODING=utf-8
+
 # 作業ディレクトリの設定
 WORKDIR /app
+
+# 必要なら tzdata 等も
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  fonts-noto-cjk \
+  && rm -rf /var/lib/apt/lists/*
 
 # 依存関係ファイルのコピーとインストール
 # ホスト側のbackendディレクトリにrequirements.txtを作成します
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# （任意）フォントキャッシュ（fontconfig不要なら省略可）
+# RUN fc-cache -fv || true
 
 # アプリケーションコードをコピー
 COPY . .
