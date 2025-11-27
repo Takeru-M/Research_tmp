@@ -35,14 +35,14 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e: MouseEvent) => e.stopPropagation()}>
         <button className="close-button" onClick={onClose}>&times;</button>
-        <h2>{t("HighlightMemoModal.memo-title")}</h2>
+        <h2>{t("HighlightCommentModal.comment-title")}</h2>
         <textarea
           value={memoText}
           onChange={(e) => {
             setMemoText(e.target.value);
             setErrorMessage('');
           }}
-          placeholder={t("HighlightMemoModal.memo-placeholder")}
+          placeholder={t("HighlightCommentModal.comment-placeholder")}
           rows={5}
         />
         {errorMessage && (
@@ -51,8 +51,8 @@ const HighlightMemoModal: React.FC<HighlightMemoModalProps> = ({ highlightId, cu
           </p>
         )}
         <div style={{ marginTop: '15px' }}>
-            <button onClick={handleSave}>{t("HighlightMemoModal.save-memo")}</button>
-            <button onClick={onClose} style={{ marginLeft: '10px', backgroundColor: '#6c757d' }}>{t("HighlightMemoModal.cancel-memo")}</button>
+            <button onClick={handleSave}>{t("Utils.save")}</button>
+            <button onClick={onClose} style={{ marginLeft: '10px', backgroundColor: '#6c757d' }}>{t("Utils.cancel")}</button>
         </div>
       </div>
     </div>

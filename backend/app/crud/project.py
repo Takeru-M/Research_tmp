@@ -13,16 +13,24 @@ def create_project(session: Session, project_in: ProjectCreate) -> Project:
 
 def get_project(session: Session, project_id: int) -> Optional[Project]:
     """プロジェクトIDで特定のプロジェクトを取得"""
-    statement = select(Project).where(Project.id == project_id)
+    statement = select(Project).where(
+        Project.id == project_id,
+        Project.deleted_at.is_(None)
+    )
     return session.exec(statement).first()
 
 def get_projects(session: Session, offset: int = 0, limit: int = 100) -> List[Project]:
-    statement = select(Project).offset(offset).limit(limit)
-    return session.exec(statement).all()
+    statement = select(Project).where(
+        Project.deleted_at.is_(None)
+    ).offset(offset).limit(limit)
+    return list(session.exec(statement).all())
 
 def get_projects_by_user(session: Session, user_id: int, offset: int = 0, limit: int = 100) -> List[Project]:
-    statement = select(Project).where(Project.user_id == user_id).offset(offset).limit(limit)
-    return session.exec(statement).all()
+    statement = select(Project).where(
+        Project.user_id == user_id,
+        Project.deleted_at.is_(None)
+    ).offset(offset).limit(limit).order_by(Project.created_at.desc())
+    return list(session.exec(statement).all())
 
 def update_project(session: Session, project: Project, project_in: ProjectUpdate) -> Project:
     update_data = project_in.model_dump(exclude_unset=True)
@@ -46,7 +54,15 @@ def update_completion_stage(session: Session, project_id: int, completion_stage:
     session.refresh(project)
     return project
 
-def delete_project(session: Session, project: Project) -> Project:
+def delete_project(session: Session, project: Project) -> None:
+    """プロジェクトを物理削除"""
     session.delete(project)
     session.commit()
+
+def soft_delete_project(session: Session, project: Project) -> Project:
+    """プロジェクトを論理削除"""
+    project.deleted_at = datetime.utcnow()
+    session.add(project)
+    session.commit()
+    session.refresh(project)
     return project

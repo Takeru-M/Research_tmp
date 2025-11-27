@@ -43,6 +43,8 @@ import { CSSProperties } from 'react'; // CSSPropertiesをインポート
 import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
 import LoginPage from './login';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
+import { useSelector as useReduxSelector } from 'react-redux';
+import LoadingOverlay from '../ components/LoadingOverlay';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 // const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
@@ -51,6 +53,9 @@ const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false
 // 既存の EditorPage のロジック部分をコンポーネントとして内包
 const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
+  // ▼ ローディング状態
+  const isGlobalLoading = useReduxSelector((state: RootState) => state.loading.isLoading);
+  const globalLoadingMessage = useReduxSelector((state: RootState) => state.loading.message);
   const { t } = useTranslation();
   const router = useRouter();
   const { data: session } = useSession(); // セッション情報を取得
@@ -83,13 +88,21 @@ const EditorPageContent: React.FC = () => {
 
   // ハイライトとコメントを取得
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
+    dispatch(startLoading('Loading highlights and comments...'));
     try {
-      dispatch(startLoading('Loading highlights and comments...'));
-
       const response = await fetch(`/api/highlights/file/${fileId}`);
-      
+
+      // 404 → ハイライト未登録。エラー扱いしない
+      if (response.status === 404) {
+        console.info('[fetchHighlightsAndComments] No highlights yet for fileId:', fileId);
+        dispatch(setHighlights([]));
+        dispatch(setComments([]));
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to fetch highlights and comments');
+        console.warn('[fetchHighlightsAndComments] Non-OK response:', response.status);
+        return; // 非致命的: UI 継続
       }
 
       const data = await response.json();
@@ -100,12 +113,10 @@ const EditorPageContent: React.FC = () => {
         const h = item.highlight;
         // highlight_id の代わりに id を使用
         const highlightId = h.id || h.highlight_id;
-        
         if (!highlightId) {
           console.error('Missing highlight ID:', h);
-          throw new Error('Highlight ID is missing');
+          return null;
         }
-
         return {
           id: highlightId.toString(),
           type: 'pdf',
@@ -127,7 +138,7 @@ const EditorPageContent: React.FC = () => {
           })),
           elementType: h.rects[0]?.element_type || 'unknown',
         } as PdfHighlight;
-      });
+      }).filter(Boolean) as PdfHighlight[];
 
       console.log('Converted highlights:', highlights);
       dispatch(setHighlights(highlights));
@@ -136,12 +147,7 @@ const EditorPageContent: React.FC = () => {
       const comments: CommentType[] = data.flatMap((item: any) => {
         const h = item.highlight;
         const hId = (h.id || h.highlight_id)?.toString();
-        
-        if (!hId) {
-          console.error('Missing highlight ID for comments:', h);
-          return [];
-        }
-
+        if (!hId) return [];
         const list = Array.isArray(item.comments) ? item.comments : [];
         return list.map((c: any) => ({
           id: c.id.toString(),
@@ -158,23 +164,27 @@ const EditorPageContent: React.FC = () => {
       console.log('Converted ALL comments:', comments);
       dispatch(setComments(comments));
     } catch (error: any) {
-      console.error('Failed to load highlights and comments:', error.message);
-      alert(t('Error.load-highlights-failed') || 'ハイライトとコメントの読み込みに失敗しました');
+      console.error('[fetchHighlightsAndComments] Exception:', error);
+      // ここでは alert を出さない
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, getUserName, t]);
+  }, [dispatch, getUserName]);
 
   // プロジェクトのファイルを取得
   const fetchProjectFile = useCallback(async (projectId: number) => {
+    dispatch(startLoading('Loading project file...'));
     try {
-      dispatch(startLoading('Loading project file...'));
-
       const response = await fetch(`/api/project-files/${projectId}`);
-      if (!response.ok) throw new Error('Failed to fetch project files');
+      if (!response.ok) {
+        console.warn('[fetchProjectFile] Failed response:', response.status);
+        setIsFileUploaded(false);
+        return;
+      }
 
       const files = await response.json();
       if (!files || files.length === 0) {
+        console.info('[fetchProjectFile] No files for project yet.');
         setIsFileUploaded(false);
         return;
       }
@@ -183,9 +193,15 @@ const EditorPageContent: React.FC = () => {
       dispatch(setFileId(latestFile.id));
 
       const fileResponse = await fetch(`/api/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`);
+      if (fileResponse.status === 404) {
+        console.warn('[fetchProjectFile] S3 object not yet available (404).');
+        setIsFileUploaded(false);
+        return;
+      }
       if (!fileResponse.ok) {
-        const errorText = await fileResponse.text();
-        throw new Error(`Failed to fetch file from S3: ${fileResponse.status} ${errorText}`);
+        console.error('[fetchProjectFile] S3 fetch failed:', fileResponse.status);
+        setIsFileUploaded(false);
+        return;
       }
 
       const blob = await fileResponse.blob();
@@ -197,13 +213,14 @@ const EditorPageContent: React.FC = () => {
         fileContent: fileUrl,
         fileId: latestFile.id,
       }));
-
       setIsFileUploaded(true);
-      await fetchHighlightsAndComments(latestFile.id);
+
+      // ハイライト取得は失敗しても致命的ではない
+      fetchHighlightsAndComments(latestFile.id);
     } catch (error: any) {
-      console.error('Failed to load project file:', error);
-      alert(`Failed to load file: ${error.message}`);
+      console.error('[fetchProjectFile] Exception:', error);
       setIsFileUploaded(false);
+      // alert 削除
     } finally {
       dispatch(stopLoading());
     }
@@ -600,6 +617,8 @@ const EditorPageContent: React.FC = () => {
 
   return (
     <div className={styles.container} style={mainLayoutStyle} ref={mainContainerRef}>
+      {/* ▼ 置き換え: コンポーネント化されたローディングオーバーレイ */}
+      <LoadingOverlay isVisible={isGlobalLoading} message={globalLoadingMessage} />
 
       {/* 1. PDFビューアエリア - 動的に幅を適用 */}
       <div

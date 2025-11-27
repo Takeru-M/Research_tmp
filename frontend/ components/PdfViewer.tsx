@@ -1,5 +1,6 @@
 // src/components/PdfViewer.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
@@ -57,6 +58,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const { t } = useTranslation();
+  const router = useRouter();
 
   const [selectionMenu, setSelectionMenu] = useState({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
@@ -988,8 +990,102 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         // ローディング終了
         dispatch(stopLoading());
       }
+    } else if (completionStage == STAGE.GIVE_MORE_DELIBERATION_TIPS){
+      
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, file, completionStage, dividedMeetingTexts]);
+  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, completionStage, dividedMeetingTexts, fileId]);
+
+  const handleCompletionforExport = useCallback(async () => {
+    // ローディング開始
+    dispatch(startLoading(t('PdfViewer.exporting')));
+      try {
+        const projectId = getProjectIdFromCookie();
+        if (!projectId) {
+          throw new Error('Project ID not found');
+        }
+        if (!fileId) {
+          throw new Error('File ID not found');
+        }
+
+        console.log(`[Export][Frontend] Start. projectId=${projectId}, fileId=${fileId}, at=${new Date().toISOString()}`);
+
+        // エクスポート要求（Next.js API 経由）
+        const url = `/api/files/export?projectId=${projectId}&fileId=${fileId}`;
+        console.log(`[Export][Frontend] Requesting export: ${url} at ${new Date().toISOString()}`);
+
+        const exportRes = await fetch(url, { method: 'GET' });
+
+        console.log(`[Export][Frontend] Export response: ok=${exportRes.ok}, status=${exportRes.status}`);
+        console.log(`[Export][Frontend] Export response headers:`, Object.fromEntries(exportRes.headers.entries()));
+
+        if (!exportRes.ok) {
+          const txt = await exportRes.text().catch(() => '');
+          console.error(`[Export][Frontend] Export request failed. status=${exportRes.status}, body=${txt}`);
+          throw new Error(txt || 'Export request failed');
+        }
+
+        // 返却PDFをダウンロード
+        console.log('[Export][Frontend] Reading blob...');
+        const blob = await exportRes.blob();
+        console.log('[Export][Frontend] Blob size:', blob.size);
+
+        const cd = exportRes.headers.get('content-disposition') || '';
+        let filename = 'export_with_comments.pdf';
+        const match = cd.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i);
+        if (match) {
+          filename = decodeURIComponent((match[1] || match[2] || filename));
+        }
+        console.log(`[Export][Frontend] Filename resolved: ${filename}`);
+
+        const urlObj = window.URL.createObjectURL(blob);
+        console.log('[Export][Frontend] Object URL created:', urlObj);
+
+        const a = document.createElement('a');
+        a.href = urlObj;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(urlObj);
+        console.log('[Export][Frontend] Download triggered & URL revoked');
+
+        // ステージを EXPORT に更新（DB）
+        const updateResponse = await fetch(`/api/projects/${projectId}/update-completion-stage`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            completion_stage: STAGE.EXPORT,
+          }),
+        });
+
+        console.log(`[Export][Frontend] Stage update response: ok=${updateResponse.ok}, status=${updateResponse.status}`);
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text().catch(() => '');
+          console.error(`[Export][Frontend] Stage update failed. status=${updateResponse.status}, body=${errorText}`);
+          throw new Error(errorText || 'Failed to update completion stage');
+        }
+
+        // Reduxにも反映
+        const updated = await updateResponse.json().catch((e) => {
+          console.error('[Export][Frontend] Stage update json parse error:', e);
+          return null;
+        });
+        console.log('[Export][Frontend] Stage update json:', updated);
+        const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.EXPORT;
+        const stageVal = Number(stageValRaw);
+        dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
+        router.push('/projects');
+      } catch (error) {
+        console.error('Export failed:', error);
+        alert(`エクスポートに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        console.log(`[Export][Frontend] End at ${new Date().toISOString()}`);
+        dispatch(stopLoading());
+      }
+    }, [dispatch, fileId, t]);
 
   return (
     <div
@@ -1062,6 +1158,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         </div>
       )}
       <div style={{textAlign:'center', padding: '20px 0'}}>
+        {completionStage !== STAGE.EXPORT && (
           <button
               onClick={handleCompletion}
               disabled={isLoading}
@@ -1079,11 +1176,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           >
               {t("PdfViewer.complete")}
           </button>
-          {completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS && (
+          )}
+          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) && (completionStage !== STAGE.EXPORT) && (
               <button
-                  onClick={() => {
-                      dispatch(setCompletionStage(STAGE.COMPLETED));
-                  }}
+                  onClick={handleCompletionforExport}
                   disabled={isLoading}
                   style={{
                       padding: '10px 20px',

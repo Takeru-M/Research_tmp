@@ -109,24 +109,3 @@ async def upload_pdf(
             status_code=500,
             detail=f"An error occurred: {str(e)}"
         )
-
-@router.post("/save")
-def create_project_file(
-    payload: dict,
-    db: Session = Depends(get_db)
-):
-    try:
-        project_file = ProjectFile(
-            project_id=payload["project_id"],
-            file_name=payload["file_name"],
-            file_key=payload["file_key"],
-            file_url=payload.get("file_url"),
-            mime_type=payload.get("mime_type"),
-            file_size=payload.get("file_size"),
-        )
-        db.add(project_file)
-        db.commit()
-        db.refresh(project_file)
-        return project_file
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

@@ -1,13 +1,13 @@
 // src/components/Layout.tsx
 import Head from 'next/head';
-import React, { ChangeEvent, PropsWithChildren, useCallback } from 'react';
+import React, { useEffect, ChangeEvent, PropsWithChildren, useCallback } from 'react';
 import styles from '../styles/Home.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
-import { setPdfScale } from '../redux/features/editor/editorSlice';
+import { setPdfScale, clearAllState } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
@@ -18,6 +18,22 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
 
+  useEffect(() => {
+    // セッションのロード中は何もしない
+    if (status === 'loading') {
+      return;
+    }
+
+    // 認証が必要なページで未認証の場合のみリダイレクト
+    const publicPages = ['/login', '/signup'];
+    const isPublicPage = publicPages.includes(router.pathname);
+
+    if (status === 'unauthenticated' && !isPublicPage) {
+      alert(t("Alert.session_expired"));
+      router.push('/login');
+    }
+  }, [status, router, t]);
+
   const handleScaleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const newScale = parseFloat(event.target.value);
     dispatch(setPdfScale(newScale));
@@ -25,11 +41,12 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
   const handleLogout = useCallback(() => {
     signOut({ callbackUrl: '/login' });
-  }, [session]);
+  }, []);
 
   const handleBackToProjects = useCallback(() => {
+    dispatch(clearAllState());
     router.push('/projects');
-  }, [router]);
+  }, [router, dispatch]);
 
   const headerContainerStyle: React.CSSProperties = {
     display: 'flex',
@@ -38,6 +55,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     width: '100%',
   };
 
+  // ローディング中は何も表示しない
   if (status === 'loading') {
     return null;
   }
