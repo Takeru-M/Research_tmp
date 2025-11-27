@@ -43,6 +43,8 @@ import { CSSProperties } from 'react'; // CSSPropertiesをインポート
 import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
 import LoginPage from './login';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
+import { useSelector as useReduxSelector } from 'react-redux';
+import LoadingOverlay from '../ components/LoadingOverlay';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 // const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
@@ -51,6 +53,9 @@ const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false
 // 既存の EditorPage のロジック部分をコンポーネントとして内包
 const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
+  // ▼ ローディング状態
+  const isGlobalLoading = useReduxSelector((state: RootState) => state.loading.isLoading);
+  const globalLoadingMessage = useReduxSelector((state: RootState) => state.loading.message);
   const { t } = useTranslation();
   const router = useRouter();
   const { data: session } = useSession(); // セッション情報を取得
@@ -612,6 +617,8 @@ const EditorPageContent: React.FC = () => {
 
   return (
     <div className={styles.container} style={mainLayoutStyle} ref={mainContainerRef}>
+      {/* ▼ 置き換え: コンポーネント化されたローディングオーバーレイ */}
+      <LoadingOverlay isVisible={isGlobalLoading} message={globalLoadingMessage} />
 
       {/* 1. PDFビューアエリア - 動的に幅を適用 */}
       <div
