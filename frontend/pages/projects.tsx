@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
 import { STAGE } from '../utils/constants';
 import type { Project } from '../redux/features/editor/editorTypes';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
+import { clearAllState } from '../redux/features/editor/editorSlice';
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
@@ -14,6 +16,7 @@ const Projects: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const dispatch = useDispatch();
   const { data: session, status } = useSession();
 
   useEffect(() => {
@@ -26,6 +29,7 @@ const Projects: React.FC = () => {
     const fetchProjects = async () => {
       setLoading(true);
       setError(null);
+      dispatch(clearAllState());
       try {
         const res = await fetch('/api/projects');
         if (!res.ok) throw new Error('ドキュメント一覧の取得に失敗しました');
@@ -159,54 +163,99 @@ const Projects: React.FC = () => {
             padding: '8px'
           }}>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {projects.map((project, index) => (
-                <li key={project.id} style={{
-                  marginBottom: '12px',
-                  animation: `fadeIn 0.3s ease-in ${index * 0.1}s both`
-                }}>
-                  <button
-                    onClick={() => handleSelectProject(project.id)}
+              {projects.map((project, index) => {
+                const isCompleted = project.stage === STAGE.EXPORT || Number(project.stage) === 4;
+                return (
+                  <li
+                    key={project.id}
                     style={{
-                      width: '100%',
-                      padding: '16px 20px',
-                      borderRadius: '12px',
-                      border: '2px solid #e5e7eb',
-                      background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
-                      cursor: 'pointer',
-                      fontSize: '1.1rem',
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                      color: '#1f2937',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)';
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)';
-                      e.currentTarget.style.borderColor = '#e5e7eb';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                      marginBottom: '12px',
+                      animation: `fadeIn 0.3s ease-in ${index * 0.1}s both`,
                     }}
                   >
-                    <span style={{ flex: 1 }}>{project.project_name}</span>
-                    <span style={{
-                      fontSize: '0.9rem',
-                      color: '#6b7280',
-                      marginLeft: '12px'
-                    }}>
-                      →
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    <button
+                      onClick={() => handleSelectProject(project.id)}
+                      style={{
+                        width: '100%',
+                        padding: '16px 20px',
+                        borderRadius: '12px',
+                        border: isCompleted ? '2px solid #86efac' : '2px solid #e5e7eb',
+                        background: isCompleted
+                          ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)'
+                          : 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
+                        cursor: 'pointer',
+                        fontSize: '1.1rem',
+                        fontWeight: 600,
+                        textAlign: 'left',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                        color: isCompleted ? '#14532d' : '#1f2937',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isCompleted) {
+                          e.currentTarget.style.background =
+                            'linear-gradient(135deg, #bbf7d0 0%, #a7f3d0 100%)';
+                          e.currentTarget.style.borderColor = '#22c55e';
+                          e.currentTarget.style.boxShadow =
+                            '0 4px 12px rgba(34, 197, 94, 0.3)';
+                        } else {
+                          e.currentTarget.style.background =
+                            'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)';
+                          e.currentTarget.style.borderColor = '#3b82f6';
+                          e.currentTarget.style.boxShadow =
+                            '0 4px 12px rgba(59, 130, 246, 0.3)';
+                        }
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = isCompleted
+                          ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)'
+                          : 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)';
+                        e.currentTarget.style.borderColor = isCompleted ? '#86efac' : '#e5e7eb';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow =
+                          '0 2px 4px rgba(0,0,0,0.05)';
+                      }}
+                    >
+                      <span style={{ flex: 1 }}>{project.project_name}</span>
+                      {isCompleted ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 10px',
+                            borderRadius: '9999px',
+                            background: '#dcfce7',
+                            color: '#166534',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            marginLeft: '12px',
+                            border: '1px solid #bbf7d0',
+                          }}
+                          aria-label="完了"
+                          title="完了"
+                        >
+                            完了
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '0.9rem',
+                            color: '#6b7280',
+                            marginLeft: '12px',
+                          }}
+                        >
+                          →
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

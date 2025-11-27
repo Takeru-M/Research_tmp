@@ -251,7 +251,7 @@ const editorSlice = createSlice({
       state.file = null;
       state.fileType = null;
       state.fileContent = null;
-      state.fileId = null; // 追加
+      state.fileId = null;
       state.highlights = [];
       state.pdfHighlights = [];
       state.textHighlights = [];
@@ -261,6 +261,9 @@ const editorSlice = createSlice({
       state.activeHighlightMemo = null;
       state.pdfTextContent = null;
       state.activeScrollTarget = null;
+      state.pdfScale = 1.0;
+      state.responses = {};
+      state.completionStage = STAGE.GIVE_OPTION_TIPS;
     },
 
     addLLMResponse: (state, action) => {

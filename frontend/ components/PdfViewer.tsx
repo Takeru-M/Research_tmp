@@ -1,5 +1,6 @@
 // src/components/PdfViewer.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
@@ -57,6 +58,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const { t } = useTranslation();
+  const router = useRouter();
 
   const [selectionMenu, setSelectionMenu] = useState({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
@@ -1075,6 +1077,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.EXPORT;
         const stageVal = Number(stageValRaw);
         dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
+        router.push('/projects');
       } catch (error) {
         console.error('Export failed:', error);
         alert(`エクスポートに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
@@ -1155,6 +1158,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         </div>
       )}
       <div style={{textAlign:'center', padding: '20px 0'}}>
+        {completionStage !== STAGE.EXPORT && (
           <button
               onClick={handleCompletion}
               disabled={isLoading}
@@ -1172,7 +1176,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           >
               {t("PdfViewer.complete")}
           </button>
-          {completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS && (
+          )}
+          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) && (completionStage !== STAGE.EXPORT) && (
               <button
                   onClick={handleCompletionforExport}
                   disabled={isLoading}

@@ -7,7 +7,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
-import { setPdfScale } from '../redux/features/editor/editorSlice';
+import { setPdfScale, clearAllState } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
@@ -28,8 +28,9 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   }, [session]);
 
   const handleBackToProjects = useCallback(() => {
+    dispatch(clearAllState());
     router.push('/projects');
-  }, [router]);
+  }, [router, dispatch]);
 
   const headerContainerStyle: React.CSSProperties = {
     display: 'flex',
