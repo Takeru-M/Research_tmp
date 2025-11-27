@@ -69,7 +69,7 @@
   },
   "CommentPanel": {
     "comment-author-user": "ユーザー",
-    "comment-author-AI": "AI",
+    "comment-author-LLM": "LLM",
     "reply-placeholder": "返信を書く",
     "reply": "返信",
     "show-less": "一部を表示",

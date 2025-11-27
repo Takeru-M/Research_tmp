@@ -247,16 +247,16 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
       
-      // AIによるハイライトの色を判定
-      const isAIHighlight = h.createdBy === 'AI';
+      // LLMによるハイライトの色を判定
+      const isLLMHighlight = h.createdBy === t("CommentPanel.comment-author-LLM");
       
       let baseBg: string;
       let activeBg: string;
       let baseBorderColor: string;
       let activeBorderColor: string;
 
-      if (isAIHighlight) {
-        // AIハイライト: ユーザー返信有無で色を分ける
+      if (isLLMHighlight) {
+        // LLMハイライト: ユーザー返信有無で色を分ける
         if (h.hasUserReply) {
           // ユーザー返信あり → 緑色
           baseBg = 'rgba(76, 175, 80, 0.30)';
@@ -264,7 +264,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           baseBorderColor = '#4CAF50';
           activeBorderColor = '#388E3C';
         } else {
-          // ユーザー返信なし → 青色（元のAI色）
+          // ユーザー返信なし → 青色（元のLLM色）
           baseBg = 'rgba(52, 168, 224, 0.30)';
           activeBg = 'rgba(52, 168, 224, 0.50)';
           baseBorderColor = '#34a8e0';
@@ -668,11 +668,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const highlight_feedback = responseData.highlight_feedback;
           const unhighlighted_feedback = responseData.unhighlighted_feedback;
 
-          // ハイライト有箇所に対するAIコメントをDBに保存
+          // ハイライト有箇所に対するLLMコメントをDBに保存
           for (const hf of highlight_feedback) {
             if (hf.intervention_needed) {
               try {
-                // バックエンドにAIコメントを保存
+                // バックエンドにLLMコメントを保存
                 const commentResponse = await fetch('/api/comments/create', {
                   method: 'POST',
                   headers: {
@@ -681,45 +681,44 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   body: JSON.stringify({
                     highlight_id: parseInt(hf.highlight_id, 10),
                     parent_id: parseInt(hf.id, 10),
-                    author: 'AI',
+                    author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
                   }),
                 });
 
                 if (!commentResponse.ok) {
                   const errorData = await commentResponse.json();
-                  throw new Error(errorData.message || 'Failed to save AI comment');
+                  throw new Error(errorData.message || 'Failed to save LLM comment');
                 }
 
                 const savedComment = await commentResponse.json();
-                console.log('AI comment saved:', savedComment);
-
+                console.log('LLM comment saved:', savedComment);
                 // バックエンドから返されたIDを使用してReduxに追加
                 dispatch(
                   addComment({
                     id: savedComment.id.toString(),
                     highlightId: hf.highlight_id,
                     parentId: hf.id,
-                    author: 'AI',
+                    author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
                     createdAt: savedComment.created_at,
                     editedAt: null,
                     deleted: false,
                 }));
               } catch (error) {
-                console.error('Failed to save AI comment:', error);
+                console.error('Failed to save LLM comment:', error);
               }
             }
           }
 
-          // ハイライト無箇所に対するAIハイライトとコメントをDBに保存
+          // ハイライト無箇所に対するLLMハイライトとコメントをDBに保存
           for (const [index, uhf] of unhighlighted_feedback.entries()) {
             if (uhf.unhighlighted_text && uhf.suggestion) {
               const foundRects = findTextInPdf(uhf.unhighlighted_text);
 
               if (foundRects.length > 0) {
                 try {
-                  const userName = 'AI';
+                  const userName = t("CommentPanel.comment-author-LLM");
                   const projectId = getProjectIdFromCookie();
 
                   if (!projectId) {
@@ -750,37 +749,37 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
                   if (!highlightResponse.ok) {
                     const errorData = await highlightResponse.json();
-                    throw new Error(errorData.message || 'Failed to save AI highlight');
+                    throw new Error(errorData.message || 'Failed to save LLM highlight');
                   }
 
                   const savedHighlight = await highlightResponse.json();
-                  console.log('AI highlight saved:', savedHighlight);
+                  console.log('LLM highlight saved:', savedHighlight);
 
                   // バックエンドから返されたIDを使用してハイライトを作成
-                  const aiHighlight: PdfHighlight = {
+                  const llmHighlight: PdfHighlight = {
                     id: savedHighlight.id.toString(),
                     type: "pdf",
                     text: uhf.unhighlighted_text,
                     rects: foundRects,
                     memo: uhf.suggestion,
                     createdAt: savedHighlight.created_at,
-                    createdBy: 'AI',
+                    createdBy: t("CommentPanel.comment-author-LLM"),
                   };
 
                   const rootComment: CommentType = {
                     id: savedHighlight.comment_id.toString(),
                     highlightId: savedHighlight.id.toString(),
                     parentId: null,
-                    author: 'AI',
+                    author: t("CommentPanel.comment-author-LLM"),
                     text: uhf.suggestion,
                     createdAt: savedHighlight.created_at,
                     editedAt: null,
                     deleted: false,
                   };
 
-                  dispatch(addHighlightWithComment({ highlight: aiHighlight, initialComment: rootComment }));
+                  dispatch(addHighlightWithComment({ highlight: llmHighlight, initialComment: rootComment }));
                 } catch (error) {
-                  console.error('Failed to save AI highlight:', error);
+                  console.error('Failed to save LLM highlight:', error);
                 }
               }
             }
@@ -839,8 +838,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             // 最後のコメントを取得
             const lastComment = related[related.length - 1];
             
-            // 最後のコメントがAIによるものの場合のみ追加
-            if (lastComment && lastComment.author === 'AI') {
+            // 最後のコメントLLMによるものの場合のみ追加
+            if (lastComment && lastComment.author === t("CommentPanel.comment-author-LLM")) {
               highlightCommentsList.push({
                 id: lastComment.id,
                 highlightId: h.id,
@@ -873,7 +872,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         // const responseData = RESPONSE_SAMPLE_IN_STAGE1;
 
         if (responseData) {
-          // ハイライト有箇所に対するAIコメントをDBに保存
+          // ハイライト有箇所に対するLLMコメントをDBに保存
           for (const hf of responseData.suggestions) {
             console.log(hf);
             if (hf.suggestion) {
@@ -889,7 +888,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 console.log(`Saving comment with parent_id: ${hf.id}, highlight_id: ${hf.highlight_id}`);
                 console.log(hf);
 
-                // バックエンドにAIコメントを保存
+                // バックエンドにLLMコメントを保存
                 const commentResponse = await fetch('/api/comments/create', {
                   method: 'POST',
                   headers: {
@@ -898,7 +897,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   body: JSON.stringify({
                     highlight_id: parseInt(hf.highlight_id, 10),
                     parent_id: parseInt(hf.id, 10),
-                    author: 'AI',
+                    author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
                   }),
                 });
@@ -907,7 +906,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 const contentType = commentResponse.headers.get('content-type');
                 
                 if (!commentResponse.ok) {
-                  let errorMessage = 'Failed to save AI comment';
+                  let errorMessage = 'Failed to save LLM comment';
                   
                   if (contentType?.includes('application/json')) {
                     const errorData = await commentResponse.json();
@@ -929,7 +928,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }
 
                 const savedComment = await commentResponse.json();
-                console.log('AI comment saved:', savedComment);
+                console.log('LLM comment saved:', savedComment);
 
                 // バックエンドから返されたIDを使用してReduxに追加
                 dispatch(
@@ -937,7 +936,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     id: savedComment.id.toString(),
                     highlightId: hf.highlight_id,
                     parentId: hf.id,
-                    author: 'AI',
+                    author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
                     createdAt: savedComment.created_at,
                     editedAt: null,
@@ -945,7 +944,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               })
             );
               } catch (error) {
-                console.error('Failed to save AI comment:', error);
+                console.error('Failed to save LLM comment:', error);
                 alert(`コメントの保存に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
               }
             }
