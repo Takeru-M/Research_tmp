@@ -11,7 +11,7 @@ const initialState: EditorState = {
   fileContent: null,
   highlights: [],
   pdfHighlights: [],
-  textHighlights: [], // 追加（必要に応じて）
+  textHighlights: [], // 必要に応じて追加
   comments: [],
   activeHighlightId: null,
   activeCommentId: null,
@@ -20,6 +20,7 @@ const initialState: EditorState = {
   activeScrollTarget: null as ScrollTarget | null,
   pdfScale: 1.0,
   responses: {} as Record<string, string>,
+  documentName: null,
   completionStage: STAGE.GIVE_OPTION_TIPS,
 };
 
@@ -263,12 +264,17 @@ const editorSlice = createSlice({
       state.activeScrollTarget = null;
       state.pdfScale = 1.0;
       state.responses = {};
+      state.documentName = null;
       state.completionStage = STAGE.GIVE_OPTION_TIPS;
     },
 
     addLLMResponse: (state, action) => {
       const { id, response } = action.payload;
       state.responses[id] = response;
+    },
+
+    setDocumentName(state, action: PayloadAction<string | null>) {
+      state.documentName = action.payload;
     },
 
     setCompletionStage(state, action: PayloadAction<number | undefined>) {
@@ -299,6 +305,7 @@ export const {
   setPdfScale,
   clearAllState,
   addLLMResponse,
+  setDocumentName,
   setCompletionStage,
 } = editorSlice.actions;
 

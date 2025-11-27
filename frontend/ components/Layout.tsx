@@ -1,13 +1,13 @@
 // src/components/Layout.tsx
 import Head from 'next/head';
-import React, { useEffect, ChangeEvent, PropsWithChildren, useCallback } from 'react';
+import React, { ChangeEvent, PropsWithChildren, useCallback } from 'react';
 import styles from '../styles/Home.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
-import { setPdfScale, clearAllState } from '../redux/features/editor/editorSlice';
+import { setPdfScale } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
@@ -17,22 +17,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
-
-  useEffect(() => {
-    // セッションのロード中は何もしない
-    if (status === 'loading') {
-      return;
-    }
-
-    // 認証が必要なページで未認証の場合のみリダイレクト
-    const publicPages = ['/login', '/signup'];
-    const isPublicPage = publicPages.includes(router.pathname);
-
-    if (status === 'unauthenticated' && !isPublicPage) {
-      alert(t("Alert.session_expired"));
-      router.push('/login');
-    }
-  }, [status, router, t]);
+  const documentName = useSelector((state: RootState) => state.editor.documentName); // Reduxからプロジェクト名を取得
 
   const handleScaleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const newScale = parseFloat(event.target.value);
@@ -41,12 +26,11 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
   const handleLogout = useCallback(() => {
     signOut({ callbackUrl: '/login' });
-  }, []);
+  }, [session]);
 
   const handleBackToProjects = useCallback(() => {
-    dispatch(clearAllState());
     router.push('/projects');
-  }, [router, dispatch]);
+  }, [router]);
 
   const headerContainerStyle: React.CSSProperties = {
     display: 'flex',
@@ -55,7 +39,6 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     width: '100%',
   };
 
-  // ローディング中は何も表示しない
   if (status === 'loading') {
     return null;
   }
@@ -76,6 +59,12 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
         <header className={styles.header || 'header'}>
           <div className={styles.container || 'container'} style={headerContainerStyle}>
             <h1>{t("main-title")}</h1>
+            {/* プロジェクト名を表示 */}
+            {router.pathname === '/' && documentName && (
+              <h2 style={{ margin: '0', fontSize: '1.5rem', color: '#333' }}>
+                {documentName}
+              </h2>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               {/* プロジェクト一覧に戻るボタン (projectsページ以外で表示) */}
               {!isProjectsPage && (
