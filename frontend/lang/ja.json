@@ -4,6 +4,13 @@
   "header": {
     "back-to-document-list": "ドキュメント一覧に戻る"
   },
+  "Utils": {
+    "edit": "編集",
+    "delete": "削除",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "complete": "完了"
+  },
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
   "Signup": {
@@ -47,32 +54,29 @@
     "create-new-document": "新しいドキュメントを作成",
     "project-name-placeholder": "ドキュメント名を入力",
     "create-button-text": "作成する",
-    "loading-text": "ドキュメントを読み込み中..."
+    "loading-text": "ドキュメントを読み込み中...",
+    "edit-name": "ドキュメント名を編集",
+    "delete-confirm": "このドキュメントを削除してもよろしいですか？"
   },
   "PdfViewer": {
     "add-comment": "コメントを追加",
     "complete": "完了する",
     "finish": "終了する"
   },
-  "HighlightMemoModal": {
-    "memo-title": "メモ",
-    "memo-placeholder": "ここにメモを入力...",
-    "save-memo": "保存",
-    "cancel-memo": "キャンセル"
+  "HighlightCommentModal": {
+    "comment-title": "コメント",
+    "comment-placeholder": "ここにコメントを入力..."
   },
   "CommentPanel": {
     "comment-author-user": "ユーザー",
     "comment-author-AI": "AI",
-    "edit": "編集",
-    "delete": "削除",
-    "save-reply": "保存",
-    "cancel-reply": "キャンセル",
     "reply-placeholder": "返信を書く",
     "reply": "返信",
     "show-less": "一部を表示",
     "show-more": "全体を表示"
   },
   "Alert": {
+    "session_expired": "セッションの有効期限が切れました。再度ログインしてください。",
     "loading_pdf": "PDFを読み込み中です...",
     "not_input_pdf": "PDFを読み込んでいません",
     "file-support": "現在，PDFとテキストファイルのみサポートしています",

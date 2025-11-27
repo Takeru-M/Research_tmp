@@ -1,91 +1,95 @@
 {
   "main-title": "System",
   "app-description": "File Editor Application",
-  "footer-txt": "© <year>{{year}}</year> FileEditor",
-  "file-upload-txt": "Please upload a file",
   "header": {
     "back-to-document-list": "Back to Document List"
   },
+  "Utils": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "complete": "Complete"
+  },
+  "footer-txt": "© <year>{{year}}</year> FileEditor",
+  "file-upload-txt": "Please upload a file",
   "Signup": {
     "title": "Create Account",
     "username": "Username",
-    "email": "Email",
+    "email": "Email Address",
     "password": "Password",
     "confirm-password": "Confirm Password",
     "button-text": "Sign Up",
-    "success": "User created successfully! Redirecting to login...",
-    "error": "Failed to create user",
+    "success": "User creation successful. Redirecting to login page.",
+    "error": "User creation failed",
     "password-mismatch": "Passwords do not match",
     "has-account": "Already have an account?",
     "login-link-text": "Login here",
     "validation": {
-      "username-min": "Username must be at least 3 characters",
+      "username-min": "Username must be at least 3 characters long",
       "email-invalid": "Please enter a valid email address",
-      "password-min": "Password must be at least 8 characters",
-      "password-uppercase": "Password must contain at least one uppercase letter",
-      "password-lowercase": "Password must contain at least one lowercase letter",
-      "password-number": "Password must contain at least one number",
+      "password-min": "Password must be at least 8 characters long",
+      "password-uppercase": "Password must include at least one uppercase letter",
+      "password-lowercase": "Password must include at least one lowercase letter",
+      "password-number": "Password must include at least one number",
       "password-confirm": "Passwords do not match"
     }
   },
   "Login": {
-      "title": "Login",
-      "email": "Email",
-      "password": "Password",
-      "logging_in": "Logging in...",
-      "button-text": "Login",
-      "has-account": "Already have an account?",
-      "login-link-text": "Login here",
-      "error-message": "Login Error"
+    "title": "Login",
+    "email": "Email Address",
+    "password": "Password",
+    "logging_in": "Logging in...",
+    "button-text": "Login",
+    "no-account": "Don't have an account?",
+    "signup-link-text": "Sign up",
+    "error-message": "Login error"
   },
   "Logout": {
     "button-text": "Logout"
   },
   "Document": {
     "document-list": "Document List",
-    "non-document": "No documents available. Please create a new document.",
+    "non-document": "No documents found. Please create a new document.",
     "create-new-document": "Create New Document",
     "project-name-placeholder": "Enter document name",
     "create-button-text": "Create",
-    "loading-text": "Loading documents..."
+    "loading-text": "Loading document...",
+    "edit-name": "Edit document name",
+    "delete-confirm": "Are you sure you want to delete this document?"
   },
   "PdfViewer": {
     "add-comment": "Add Comment",
     "complete": "Complete",
     "finish": "Finish"
   },
-  "HighlightMemoModal": {
-    "memo-title": "Memo",
-    "memo-placeholder": "Enter your memo here...",
-    "save-memo": "Save",
-    "cancel-memo": "Cancel"
+  "HighlightCommentModal": {
+    "comment-title": "Comment",
+    "comment-placeholder": "Enter your comment here..."
   },
   "CommentPanel": {
     "comment-author-user": "User",
     "comment-author-AI": "AI",
-    "edit": "Edit",
-    "delete": "Delete",
-    "save-reply": "Save",
-    "cancel-reply": "Cancel",
     "reply-placeholder": "Write a reply",
     "reply": "Reply",
-    "show-less": "show less",
-    "show-more": "show more"
+    "show-less": "Show less",
+    "show-more": "Show all"
   },
   "Alert": {
+    "session_expired": "Your session has expired. Please log in again.",
     "loading_pdf": "Loading PDF...",
-    "not_input_pdf": "PDF is not loaded",
-    "file-support": "Currently, only PDF and text files are supported",
+    "not_input_pdf": "No PDF loaded",
+    "file-support": "Currently, only PDF and text files are supported.",
     "comment-delete": "Are you sure you want to delete this comment?",
-    "file-already-uploaded": "File has already been uploaded. To upload a new file, please create a new project."
+    "file-already-uploaded": "File is already uploaded. Please create a new project to upload a new file."
   },
   "Error": {
-    "enter-memo": "Please enter your memo.",
-    "file-format": "This file format cannot be previewed",
+    "enter-memo": "Please enter a memo",
+    "file-format-error": "This file format cannot be previewed",
     "upload-failed": "Upload failed"
   },
-    "LoadingOverlay": {
+  "LoadingOverlay": {
     "analyzing": "Analyzing...",
-    "please-wait": "Please wait a moment"
+    "please-wait": "Please wait"
   }
 }

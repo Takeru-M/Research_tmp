@@ -15,16 +15,15 @@ const Projects: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editedName, setEditedName] = useState('');
   const router = useRouter();
   const dispatch = useDispatch();
   const { data: session, status } = useSession();
 
   useEffect(() => {
     if (status === 'loading') return;
-    if (!session) {
-      router.push('/login');
-      return;
-    }
 
     const fetchProjects = async () => {
       setLoading(true);
@@ -42,7 +41,16 @@ const Projects: React.FC = () => {
       }
     };
     fetchProjects();
-  }, [session, status, router]);
+  }, [session, status, router, dispatch]);
+
+  // メニュー外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    if (openMenuId !== null) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [openMenuId]);
 
   const handleSelectProject = (projectId: number) => {
     // 選択したドキュメントIDをクッキーに保存
@@ -79,15 +87,72 @@ const Projects: React.FC = () => {
     }
   };
 
+  const handleToggleMenu = (e: React.MouseEvent, projectId: number) => {
+    e.stopPropagation();
+    setOpenMenuId(openMenuId === projectId ? null : projectId);
+  };
+
+  const handleEditClick = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation();
+    setEditingProject(project);
+    setEditedName(project.project_name);
+    setOpenMenuId(null);
+  };
+
+  const handleDeleteClick = async (e: React.MouseEvent, projectId: number) => {
+    e.stopPropagation();
+    if (!confirm(t("Document.delete-confirm"))) return;
+    
+    try {
+      const res = await fetch(`/api/projects/${projectId}/delete`, { method: 'DELETE' });
+      
+      // 204 No Content は成功
+      if (res.status === 204 || res.ok) {
+        setProjects(projects.filter(p => p.id !== projectId));
+        setOpenMenuId(null);
+        return;
+      }
+      
+      // エラーレスポンスの処理
+      const errorData = await res.json().catch(() => ({ message: '削除に失敗しました' }));
+      throw new Error(errorData.message || '削除に失敗しました');
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      setError(err.message || '不明なエラー');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingProject || !editedName.trim()) return;
+    
+    try {
+      const res = await fetch(`/api/projects/${editingProject.id}/update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_name: editedName }),
+      });
+      if (!res.ok) throw new Error('更新に失敗しました');
+      
+      const updated: Project = await res.json();
+      setProjects(projects.map(p => p.id === updated.id ? updated : p));
+      setEditingProject(null);
+      setEditedName('');
+    } catch (err: any) {
+      setError(err.message || '不明なエラー');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProject(null);
+    setEditedName('');
+  };
+
   if (status === 'loading') {
     return <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>;
   }
 
   // ルーターが準備完了しているか確認
   if (!router.isReady) return null;
-
-  // 現在のページが /projects ページかどうかを判定
-  const isProjectsPage = router.pathname === '/projects';
 
   return (
     <div style={{
@@ -160,7 +225,9 @@ const Projects: React.FC = () => {
             marginBottom: '32px',
             maxHeight: '400px',
             overflowY: 'auto',
-            padding: '8px'
+            padding: '8px',
+            position: 'relative',
+            overflowX: 'visible'
           }}>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {projects.map((project, index) => {
@@ -171,88 +238,184 @@ const Projects: React.FC = () => {
                     style={{
                       marginBottom: '12px',
                       animation: `fadeIn 0.3s ease-in ${index * 0.1}s both`,
+                      position: 'relative',
+                      zIndex: openMenuId === project.id ? 100 : 1,
                     }}
                   >
-                    <button
-                      onClick={() => handleSelectProject(project.id)}
+                    <div
                       style={{
-                        width: '100%',
-                        padding: '16px 20px',
-                        borderRadius: '12px',
-                        border: isCompleted ? '2px solid #86efac' : '2px solid #e5e7eb',
-                        background: isCompleted
-                          ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)'
-                          : 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
-                        cursor: 'pointer',
-                        fontSize: '1.1rem',
-                        fontWeight: 600,
-                        textAlign: 'left',
-                        transition: 'all 0.2s ease',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                        color: isCompleted ? '#14532d' : '#1f2937',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (isCompleted) {
-                          e.currentTarget.style.background =
-                            'linear-gradient(135deg, #bbf7d0 0%, #a7f3d0 100%)';
-                          e.currentTarget.style.borderColor = '#22c55e';
-                          e.currentTarget.style.boxShadow =
-                            '0 4px 12px rgba(34, 197, 94, 0.3)';
-                        } else {
-                          e.currentTarget.style.background =
-                            'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)';
-                          e.currentTarget.style.borderColor = '#3b82f6';
-                          e.currentTarget.style.boxShadow =
-                            '0 4px 12px rgba(59, 130, 246, 0.3)';
-                        }
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = isCompleted
-                          ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)'
-                          : 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)';
-                        e.currentTarget.style.borderColor = isCompleted ? '#86efac' : '#e5e7eb';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow =
-                          '0 2px 4px rgba(0,0,0,0.05)';
+                        width: '100%',
+                        position: 'relative',
                       }}
                     >
-                      <span style={{ flex: 1 }}>{project.project_name}</span>
-                      {isCompleted ? (
-                        <span
+                      <button
+                        onClick={() => handleSelectProject(project.id)}
+                        style={{
+                          flex: 1,
+                          padding: '16px 20px',
+                          borderRadius: '12px',
+                          border: isCompleted ? '2px solid #86efac' : '2px solid #e5e7eb',
+                          background: isCompleted
+                            ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)'
+                            : 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)',
+                          cursor: 'pointer',
+                          fontSize: '1.1rem',
+                          fontWeight: 600,
+                          textAlign: 'left',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                          color: isCompleted ? '#14532d' : '#1f2937',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (isCompleted) {
+                            e.currentTarget.style.background =
+                              'linear-gradient(135deg, #bbf7d0 0%, #a7f3d0 100%)';
+                            e.currentTarget.style.borderColor = '#22c55e';
+                            e.currentTarget.style.boxShadow =
+                              '0 4px 12px rgba(34, 197, 94, 0.3)';
+                          } else {
+                            e.currentTarget.style.background =
+                              'linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)';
+                            e.currentTarget.style.borderColor = '#3b82f6';
+                            e.currentTarget.style.boxShadow =
+                              '0 4px 12px rgba(59, 130, 246, 0.3)';
+                          }
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = isCompleted
+                            ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)'
+                            : 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)';
+                          e.currentTarget.style.borderColor = isCompleted ? '#86efac' : '#e5e7eb';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow =
+                            '0 2px 4px rgba(0,0,0,0.05)';
+                        }}
+                      >
+                        <span style={{ flex: 1 }}>{project.project_name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {isCompleted ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '4px 10px',
+                                borderRadius: '9999px',
+                                background: '#dcfce7',
+                                color: '#166534',
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                border: '1px solid #bbf7d0',
+                              }}
+                              aria-label={t("Utils.complete")}
+                              title={t("Utils.complete")}
+                            >
+                              {t("Utils.complete")}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '0.9rem',
+                                color: '#6b7280',
+                              }}
+                            >
+                              →
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* 3点メニューボタン - ボタンの外側に配置 */}
+                      <button
+                        onClick={(e) => handleToggleMenu(e, project.id)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '8px',
+                          fontSize: '1.2rem',
+                          color: '#6b7280',
+                          borderRadius: '4px',
+                          transition: 'background 0.2s',
+                          marginLeft: '8px',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f3f4f6';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        ⋮
+                      </button>
+                    </div>
+
+                    {/* ドロップダウンメニュー */}
+                    {openMenuId === project.id && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '60px',
+                          background: '#fff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          zIndex: 1000,
+                          minWidth: '120px',
+                        }}
+                      >
+                        <button
+                          onClick={(e) => handleEditClick(e, project)}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '4px 10px',
-                            borderRadius: '9999px',
-                            background: '#dcfce7',
-                            color: '#166534',
-                            fontSize: '0.85rem',
-                            fontWeight: 700,
-                            marginLeft: '12px',
-                            border: '1px solid #bbf7d0',
+                            width: '100%',
+                            padding: '10px 16px',
+                            border: 'none',
+                            background: 'transparent',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            fontSize: '0.95rem',
+                            color: '#374151',
+                            borderBottom: '1px solid #f3f4f6',
                           }}
-                          aria-label="完了"
-                          title="完了"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#f9fafb';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                          }}
                         >
-                            完了
-                        </span>
-                      ) : (
-                        <span
+                          {t("Utils.edit")}
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteClick(e, project.id)}
                           style={{
-                            fontSize: '0.9rem',
-                            color: '#6b7280',
-                            marginLeft: '12px',
+                            width: '100%',
+                            padding: '10px 16px',
+                            border: 'none',
+                            background: 'transparent',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            fontSize: '0.95rem',
+                            color: '#dc2626',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#fef2f2';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
                           }}
                         >
-                          →
-                        </span>
-                      )}
-                    </button>
+                          {t("Utils.delete")}
+                        </button>
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -328,54 +491,112 @@ const Projects: React.FC = () => {
         </div>
       </div>
 
-      {/* ドキュメント一覧に戻るボタン (projectsページ以外で表示) */}
-      {!isProjectsPage && (
-        <button
-          onClick={() => router.push('/projects')}
+      {/* 編集モーダル */}
+      {editingProject && (
+        <div
           style={{
-            padding: '6px 14px',
-            cursor: 'pointer',
-            backgroundColor: '#f1f3f5',
-            border: '1px solid #d0d7de',
-            borderRadius: '8px',
-            fontSize: '0.9rem',
-            color: '#333',
-            fontWeight: 600,
-            transition: 'all 0.2s',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            marginTop: '16px'
+            justifyContent: 'center',
+            zIndex: 1000,
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#e9ecef';
-            e.currentTarget.style.borderColor = '#c1c8ce';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#f1f3f5';
-            e.currentTarget.style.borderColor = '#d0d7de';
-          }}
+          onClick={handleCancelEdit}
         >
-          <span>←</span>
-          <span>{t("Document.document-list")}</span>
-        </button>
-      )}
-
-      {/* PDF倍率変更UI (projectsページ以外で表示) */}
-      {/* TODO: いらんとこでは非表示 */}
-      {!isProjectsPage && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
-          <label htmlFor="pdf-scale-select">倍率:</label>
-          <select
-            id="pdf-scale-select"
-            value={1}
-            onChange={() => {}}
-            style={{ padding: '5px', minWidth: '80px' }}
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <option value={1}>100%</option>
-            <option value={1.5}>150%</option>
-            <option value={2}>200%</option>
-          </select>
+            <h3 style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: '#1f2937',
+              marginBottom: '24px',
+            }}>
+              {t("Document.edit-name")}
+            </h3>
+            <input
+              type="text"
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                border: '2px solid #d1d5db',
+                marginBottom: '24px',
+                fontSize: '1rem',
+                outline: 'none',
+              }}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+              onBlur={(e) => e.currentTarget.style.borderColor = '#d1d5db'}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelEdit}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  color: '#6b7280',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#fff';
+                }}
+              >
+                {t("Utils.cancel")}
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={!editedName.trim()}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: !editedName.trim() ? '#9ca3af' : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: '#fff',
+                  cursor: !editedName.trim() ? 'not-allowed' : 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  boxShadow: !editedName.trim() ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.4)',
+                }}
+                onMouseEnter={(e) => {
+                  if (editedName.trim()) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = !editedName.trim() ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.4)';
+                }}
+              >
+                {t("Utils.save")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

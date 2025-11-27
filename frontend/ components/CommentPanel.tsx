@@ -166,7 +166,7 @@ const CommentHeader: React.FC<{
                   startEditing(comment.id, comment.text);
                 }}
               >
-                {t("CommentPanel.edit")}
+                {t("Utils.edit")}
               </button>
             )}
             <button
@@ -188,7 +188,7 @@ const CommentHeader: React.FC<{
                 removeCommentFn(comment.id);
               }}
             >
-              {t("CommentPanel.delete")}
+              {t("Utils.delete")}
             </button>
           </div>
         )}
@@ -518,7 +518,7 @@ const removeCommentFn = async (id: string) => {
           }}
           onClick={(e) => { e.stopPropagation(); saveEdit(comment.id); }}
         >
-          {t("CommentPanel.save-reply")}
+          {t("Utils.save")}
         </button>
         <button
           style={{
@@ -533,7 +533,7 @@ const removeCommentFn = async (id: string) => {
           }}
           onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
         >
-          {t("CommentPanel.cancel-reply")}
+          {t("Utils.cancel")}
         </button>
       </div>
     ) : (
