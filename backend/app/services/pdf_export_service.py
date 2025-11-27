@@ -1,4 +1,5 @@
 import logging
+import unicodedata
 from io import BytesIO
 from typing import List
 from reportlab.lib.pagesizes import A4
@@ -6,6 +7,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from PyPDF2 import PdfReader, PdfWriter
 from sqlmodel import Session, select
 from app.models.highlights import Highlight
@@ -13,32 +15,70 @@ from app.models.comments import Comment
 
 logger = logging.getLogger("app.pdf_export")
 
-# 優先順に探索する日本語フォントパス
+# 優先順に探索する日本語フォントパス (subfontIndex 指定)
 FONT_CANDIDATES = [
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",   # fonts-noto-cjk (Debian/Ubuntu)
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.otf",
-    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",        # macOS (ローカル開発用)
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),
+    ("/usr/share/fonts/truetype/noto/NotoSansJP-Regular.otf", None),
+    ("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", 0),
 ]
-
-FALLBACK_FONT = "Helvetica"  # 文字化けするが最悪のフォールバック
 
 class PDFExportService:
     def __init__(self, db: Session):
         self.db = db
-        self.font_name = FALLBACK_FONT
+        self.font_name = "HeiseiMin-W3"
         self._register_japanese_font()
 
     def _register_japanese_font(self):
-        for path in FONT_CANDIDATES:
+        for path, subfont_index in FONT_CANDIDATES:
             try:
-                pdfmetrics.registerFont(TTFont("JPFont", path))
+                if subfont_index is not None:
+                    pdfmetrics.registerFont(TTFont("JPFont", path, subfontIndex=subfont_index))
+                else:
+                    pdfmetrics.registerFont(TTFont("JPFont", path))
                 self.font_name = "JPFont"
-                logger.info(f"[PDFExportService] Japanese font registered path={path}")
+                logger.info(f"[PDFExportService] Font registered: {path} (subfont={subfont_index})")
                 return
             except Exception as e:
-                logger.warning(f"[PDFExportService] Font register failed path={path} err={e}")
-        logger.warning(f"[PDFExportService] Using fallback font={FALLBACK_FONT}")
+                logger.warning(f"[PDFExportService] Font load failed: {path} err={e}")
+        
+        try:
+            pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
+            self.font_name = "HeiseiMin-W3"
+            logger.info("[PDFExportService] Using CID font: HeiseiMin-W3")
+        except Exception as e:
+            logger.error(f"[PDFExportService] CID font failed: {e}")
+            self.font_name = "Helvetica"
+            logger.warning("[PDFExportService] Fallback to Helvetica (no Japanese support)")
+
+    def _sanitize_text(self, text: str) -> str:
+        """
+        PDF 描画用にテキストをサニタイズ:
+        1. Unicode 正規化 (NFKC)
+        2. 制御文字削除
+        3. フォント非対応文字を '?' に置換
+        """
+        if not text:
+            return ""
+        
+        # Unicode 正規化 (全角/半角統一、合字分解)
+        text = unicodedata.normalize('NFKC', text)
+        
+        # 制御文字を削除 (改行・タブは保持)
+        text = ''.join(c if c in '\n\t' or not unicodedata.category(c).startswith('C') else '' for c in text)
+        
+        # reportlab で描画できない文字を検出して置換
+        safe_text = []
+        for char in text:
+            try:
+                # テスト描画（実際には描画しない）
+                pdfmetrics.getFont(self.font_name).face.getCharWidth(ord(char))
+                safe_text.append(char)
+            except:
+                # フォントに存在しない文字
+                logger.warning(f"[PDFExportService] Unsupported char: U+{ord(char):04X} ({char})")
+                safe_text.append('?')
+        
+        return ''.join(safe_text)
 
     def export_pdf_with_comments(
         self,
@@ -95,9 +135,8 @@ class PDFExportService:
         width, height = A4
         y = height - 30 * mm
 
-        # タイトル
         c.setFont(self.font_name, 16)
-        c.drawString(20 * mm, y, "コメント一覧")
+        c.drawString(20 * mm, y, self._sanitize_text("コメント一覧"))
         y -= 15 * mm
 
         for idx, h in enumerate(highlights, 1):
@@ -105,27 +144,34 @@ class PDFExportService:
                 c.showPage()
                 y = height - 30 * mm
                 c.setFont(self.font_name, 16)
-                c.drawString(20 * mm, y, "コメント一覧 (続き)")
+                c.drawString(20 * mm, y, self._sanitize_text("コメント一覧 (続き)"))
                 y -= 15 * mm
 
             c.setFont(self.font_name, 12)
-            c.drawString(20 * mm, y, f"#{idx} ハイライト")
+            c.drawString(20 * mm, y, self._sanitize_text(f"#{idx} ハイライト"))
             y -= 7 * mm
 
             c.setFont(self.font_name, 10)
-            c.drawString(25 * mm, y, f"作成者: {h.created_by}")
+            c.drawString(25 * mm, y, self._sanitize_text(f"作成者: {h.created_by}"))
             y -= 5 * mm
-            c.drawString(25 * mm, y, f"作成日時: {h.created_at.strftime('%Y-%m-%d %H:%M')}")
+            c.drawString(25 * mm, y, self._sanitize_text(f"作成日時: {h.created_at.strftime('%Y-%m-%d %H:%M')}"))
             y -= 5 * mm
 
             if h.memo:
-                for line in self._wrap_text(h.memo, 50):
-                    c.drawString(25 * mm, y, f"メモ: {line}" if line == self._wrap_text(h.memo, 50)[0] else f"      {line}")
+                memo_lines = self._wrap_text(self._sanitize_text(h.memo), 70)
+                for i, line in enumerate(memo_lines):
+                    prefix = "メモ: " if i == 0 else "      "
+                    c.drawString(25 * mm, y, prefix + line)
                     y -= 5 * mm
+                    if y < 30 * mm:
+                        c.showPage()
+                        y = height - 30 * mm
 
             if h.text:
-                lines = self._wrap_text(h.text, 55)
-                c.drawString(25 * mm, y, "選択テキスト:")
+                sanitized_text = self._sanitize_text(h.text)
+                logger.debug(f"[PDFExportService] Original text length: {len(h.text)}, sanitized: {len(sanitized_text)}")
+                lines = self._wrap_text(sanitized_text, 70)
+                c.drawString(25 * mm, y, self._sanitize_text("選択テキスト:"))
                 y -= 5 * mm
                 for line in lines:
                     if y < 30 * mm:
@@ -137,48 +183,62 @@ class PDFExportService:
             if h.comments:
                 y -= 3 * mm
                 c.setFont(self.font_name, 11)
-                c.drawString(25 * mm, y, "コメント:")
+                c.drawString(25 * mm, y, self._sanitize_text("コメント:"))
                 y -= 6 * mm
+                
                 for comment in h.comments:
                     if y < 40 * mm:
                         c.showPage()
                         y = height - 30 * mm
+                    
                     c.setFont(self.font_name, 9)
-                    c.drawString(30 * mm, y, f"• {comment.author} ({comment.created_at.strftime('%Y-%m-%d %H:%M')})")
+                    header = f"• {comment.author} ({comment.created_at.strftime('%Y-%m-%d %H:%M')})"
+                    c.drawString(30 * mm, y, self._sanitize_text(header))
                     y -= 5 * mm
-                    for line in self._wrap_text(comment.text, 60):
+                    
+                    text_lines = self._wrap_text(self._sanitize_text(comment.text), 75)
+                    for line in text_lines:
                         if y < 30 * mm:
                             c.showPage()
                             y = height - 30 * mm
                         c.drawString(35 * mm, y, line)
                         y -= 5 * mm
-                    if comment.replies:
+                    
+                    if hasattr(comment, 'replies') and comment.replies:
                         for reply in comment.replies:
                             if y < 35 * mm:
                                 c.showPage()
                                 y = height - 30 * mm
-                            c.drawString(40 * mm, y, f"↳ {reply.author}: {reply.text}")
-                            y -= 5 * mm
+                            reply_text = self._sanitize_text(f"↳ {reply.author}: {reply.text}")
+                            reply_lines = self._wrap_text(reply_text, 70)
+                            for rline in reply_lines:
+                                c.drawString(40 * mm, y, rline)
+                                y -= 5 * mm
+                                if y < 30 * mm:
+                                    c.showPage()
+                                    y = height - 30 * mm
+            
             y -= 10 * mm
 
         c.save()
         buffer.seek(0)
         return buffer
 
-    def _wrap_text(self, text: str, max_length: int) -> List[str]:
-        words = text.split()
+    def _wrap_text(self, text: str, max_chars: int) -> List[str]:
+        if not text:
+            return [""]
+        
         lines = []
-        current = []
-        length = 0
-        for w in words:
-            wl = len(w)
-            if length + wl + (1 if current else 0) <= max_length:
-                current.append(w)
-                length += wl
+        current_line = ""
+        
+        for char in text:
+            if len(current_line) >= max_chars:
+                lines.append(current_line)
+                current_line = char
             else:
-                lines.append(" ".join(current))
-                current = [w]
-                length = wl
-        if current:
-            lines.append(" ".join(current))
-        return lines
+                current_line += char
+        
+        if current_line:
+            lines.append(current_line)
+        
+        return lines if lines else [""]
