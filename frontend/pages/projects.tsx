@@ -7,6 +7,7 @@ import type { Project } from '../redux/features/editor/editorTypes';
 import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
 import { clearAllState } from '../redux/features/editor/editorSlice';
+import { setDocumentName } from '../redux/features/editor/editorSlice';
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
@@ -52,9 +53,13 @@ const Projects: React.FC = () => {
     }
   }, [openMenuId]);
 
-  const handleSelectProject = (projectId: number) => {
+  const handleSelectProject = (projectId: number, projectName: string) => {
     // 選択したドキュメントIDをクッキーに保存
     Cookies.set('projectId', projectId.toString(), { expires: 7, sameSite: 'lax', secure: true });
+    
+    // プロジェクト名を Redux に保存
+    dispatch(setDocumentName(projectName));
+    
     router.push('/');
   };
 
@@ -251,7 +256,7 @@ const Projects: React.FC = () => {
                       }}
                     >
                       <button
-                        onClick={() => handleSelectProject(project.id)}
+                        onClick={() => handleSelectProject(project.id, project.project_name)}
                         style={{
                           flex: 1,
                           padding: '16px 20px',

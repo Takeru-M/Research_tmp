@@ -79,6 +79,7 @@ export interface EditorState {
   pdfScale: number;
   responses: Record<string, string>;
   dividedMeetingTexts?: DividedMeetingTexts;
+  documentName?: string | null;
   completionStage: number;
 }
 

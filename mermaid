@@ -1,0 +1,83 @@
+erDiagram
+    %% エンティティ定義 (Entity Definitions)
+    USERS {
+        int id PK
+        varchar name
+        varchar email
+        varchar hashed_password
+        datetime created_at
+        datetime updated_at
+        datetime deleted_at
+    }
+
+    PROJECTS {
+        int id PK
+        int user_id FK
+        varchar project_name
+        int stage
+        datetime created_at
+        datetime updated_at
+        datetime deleted_at
+    }
+
+    PROJECT_FILES {
+        int id PK
+        int project_id FK
+        varchar file_name
+        varchar file_key
+        varchar file_url
+        varchar mime_type
+        int file_size
+        datetime created_at
+        datetime updated_at
+    }
+
+    HIGHLIGHTS {
+        int id PK
+        int project_file_id FK
+        varchar created_by
+        text memo
+        text text
+        datetime created_at
+    }
+    
+    HIGHLIGHT_RECTS {
+        int id PK
+        int highlight_id FK
+        int page_num
+        float x1
+        float y1
+        float x2
+        float y2
+        varchar element_type
+    }
+    
+    COMMENTS {
+        int id PK
+        int highlight_id FK "Optional (Root Comment)"
+        int parent_id FK "Optional (Reply)"
+        varchar author
+        text text
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% リレーションシップ定義 (Relationships)
+    
+    %% User <-> Project (1対多)
+    USERS ||--o{ PROJECTS : creates
+    
+    %% Project <-> ProjectFile (1対多)
+    PROJECTS ||--o{ PROJECT_FILES : has
+    
+    %% ProjectFile <-> Highlight (1対多)
+    PROJECT_FILES ||--o{ HIGHLIGHTS : contains
+    
+    %% Highlight <-> HighlightRect (1対多)
+    HIGHLIGHTS ||--o{ HIGHLIGHT_RECTS : defines_area
+    
+    %% Highlight <-> Comment (1対多)
+    HIGHLIGHTS ||--o{ COMMENTS : has
+    
+    %% Comment <-> Comment (自己参照: 1対多)
+    COMMENTS ||--o{ COMMENTS : replies_to
