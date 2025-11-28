@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]';
 
-const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { projectId } = req.query;
@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log(`[PATCH /api/projects/${projectId}/update-completion-stage] Updating completion stage:`, req.body);
 
-    const backendResponse = await fetch(`http://backend:8000/api/v1/projects/${projectId}/update-completion-stage`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/projects/${projectId}/update-completion-stage`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

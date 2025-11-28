@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 
-const BACKEND_URL = 'http://backend:8000/api/v1/projects/';
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET') {
     try {
-      const backendRes = await fetch(BACKEND_URL, {
+      const backendRes = await fetch(`${BACKEND_URL}/projects`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -40,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: '必須項目が不足しています' });
       }
 
-      const backendRes = await fetch(BACKEND_URL, {
+      const backendRes = await fetch(`${BACKEND_URL}/projects`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

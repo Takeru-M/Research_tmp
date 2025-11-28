@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
 
@@ -12,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!Number.isFinite(highlightId)) return res.status(400).json({ message: 'Invalid highlight_id' });
 
   try {
-    const resp = await fetch(`http://backend:8000/api/v1/comments/highlight/${highlightId}`, {
+    const resp = await fetch(`${BACKEND_URL}/comments/highlight/${highlightId}`, {
       headers: { 'Authorization': `Bearer ${session.accessToken}` },
     });
     if (!resp.ok) {

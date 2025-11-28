@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+
 type Data = {
   success: boolean;
   message?: string;
@@ -59,7 +61,7 @@ export default async function handler(
 
     console.log('Sending to FastAPI:', payload);
 
-    const response = await fetch(`http://backend:8000/api/v1/project-files/`, {
+    const response = await fetch(`${BACKEND_URL}/project-files/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

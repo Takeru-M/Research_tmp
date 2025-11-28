@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -24,7 +26,7 @@ export default async function handler(
     }
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-    const response = await fetch(`http://backend:8000/api/v1/comments/${comment_id}`, {
+    const response = await fetch(`${BACKEND_URL}/comments/${comment_id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${session.accessToken}`,

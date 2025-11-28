@@ -8,6 +8,8 @@ import FormData from 'form-data';
 import axios from 'axios';
 import path from 'path';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+
 export const config = {
   api: { bodyParser: false },
 };
@@ -73,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     formData.append('file', fs.createReadStream(filepath), filename);
 
     const fastApiResponse = await axios.post(
-      'http://backend:8000/api/v1/s3/upload',
+      `${BACKEND_URL}/s3/upload`,
       formData,
       {
         headers: {

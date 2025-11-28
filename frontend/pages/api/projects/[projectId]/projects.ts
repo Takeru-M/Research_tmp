@@ -2,10 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]';
 
-const BACKEND_BASE_URL =
-  process.env.BACKEND_BASE_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_BASE_URL ||
-  'http://localhost:8000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { projectId } = req.query;
@@ -36,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ success: false, message: 'Unauthorized: No access token' });
     }
 
-    const backendRes = await fetch(`http://backend:8000/api/v1/projects/${projectId}`, {
+    const backendRes = await fetch(`${BACKEND_URL}/projects/${projectId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

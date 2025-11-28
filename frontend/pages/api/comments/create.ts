@@ -2,8 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
-const BACKEND_BASE_URL =
-  process.env.BACKEND_BASE_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -21,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log('[Comment Create] Request body:', JSON.stringify(req.body, null, 2));
     
-    const backendResponse = await fetch(`http://backend:8000/api/v1/comments`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/comments`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
