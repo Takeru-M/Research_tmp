@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 from app.models import Project
-from app.schemas import ProjectCreate, ProjectUpdate
+from app.schemas.project import ProjectCreate, ProjectUpdate
 
 def create_project(session: Session, project_in: ProjectCreate) -> Project:
     db_project = Project(**project_in.model_dump())

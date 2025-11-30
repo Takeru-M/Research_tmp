@@ -3,7 +3,7 @@ from sqlmodel import Session
 from typing import List
 from app.db.base import get_session
 from app.crud import comment as crud_comment
-from app.schemas import CommentCreate, CommentUpdate, CommentRead
+from app.schemas.comment import CommentCreate, CommentUpdate, CommentRead
 import logging
 
 logger = logging.getLogger(__name__)

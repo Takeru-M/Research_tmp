@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from app.models import ProjectFile
-from app.schemas import ProjectFileCreate, ProjectFileUpdate
+from app.schemas.project_file import ProjectFileCreate, ProjectFileUpdate
 import logging
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 from app.models import User
-from app.schemas import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 
 import logging

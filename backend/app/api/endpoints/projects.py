@@ -7,9 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from app.db.base import get_session
 from app.crud import project as crud_project
 from app.crud import project_file as crud_project_file
-from app.schemas import ProjectCreate, ProjectUpdate, ProjectRead, CompletionStageUpdate
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, CompletionStageUpdate
 from app.core.security import get_current_user
-from app.models import User, Project, ProjectFile, Highlight, HighlightRect, Comment
+from app.models import User, ProjectFile, Highlight, HighlightRect, Comment
 from app.services.pdf_export_service import PDFExportService
 from app.utils.s3 import fetch_pdf_bytes, delete_s3_files
 

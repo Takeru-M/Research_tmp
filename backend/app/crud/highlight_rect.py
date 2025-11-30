@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from app.models.highlight_rects import HighlightRect
-from app.schemas import HighlightRectCreate, HighlightRectUpdate
+from app.schemas.highlight_rect import HighlightRectCreate, HighlightRectUpdate
 
 def create_highlight_rect(session: Session, rect_in: HighlightRectCreate) -> HighlightRect:
     db_rect = HighlightRect(**rect_in.model_dump())

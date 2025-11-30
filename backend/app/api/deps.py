@@ -3,8 +3,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 from app.db.session import SessionLocal
 from app.core.security import decode_access_token
-from app.crud import get_user_by_id, get_user_by_email
-from app.schemas import User
+from app.crud.user import get_user_by_id, get_user_by_email
+from app.schemas.auth import User
 import logging
 
 logger = logging.getLogger(__name__)
