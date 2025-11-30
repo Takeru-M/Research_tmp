@@ -297,13 +297,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const saveEdit = async (id: string) => {
     try {
       // バックエンドにコメント更新を送信
-      const response = await fetch('/api/comments/update', {
+      const response = await fetch(`/api/comments/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          comment_id: parseInt(id, 10),
           text: editText,
         }),
       });
@@ -337,14 +336,11 @@ const removeCommentFn = async (id: string) => {
     if (comment.parentId === null) {
       if (comment.highlightId) {
         // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
-        const response = await fetch('/api/highlights/delete', {
+        const response = await fetch(`/api/highlights/${comment.highlightId}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            highlight_id: parseInt(comment.highlightId, 10),
-          }),
         });
 
         if (!response.ok) {
@@ -362,14 +358,11 @@ const removeCommentFn = async (id: string) => {
         
         // バックエンドから全てのコメントを削除
         for (const threadComment of threadComments) {
-          const response = await fetch('/api/comments/delete', {
+          const response = await fetch(`/api/comments/${threadComment.id}`  , {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              comment_id: parseInt(threadComment.id, 10),
-            }),
           });
 
           if (!response.ok) {
@@ -380,14 +373,11 @@ const removeCommentFn = async (id: string) => {
 
         // ルート自身も削除
         if (!threadComments.find(c => c.id === comment.id)) {
-          const response = await fetch('/api/comments/delete', {
+          const response = await fetch(`/api/comments/${comment.id}`, {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              comment_id: parseInt(comment.id, 10),
-            }),
           });
 
           if (!response.ok) {
@@ -406,14 +396,11 @@ const removeCommentFn = async (id: string) => {
       }
     } else {
       // 返信の削除
-      const response = await fetch('/api/comments/delete', {
+      const response = await fetch(`/api/comments/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          comment_id: parseInt(id, 10),
-        }),
       });
 
       if (!response.ok) {
@@ -448,7 +435,7 @@ const removeCommentFn = async (id: string) => {
       const userName = session?.user?.name || t("CommentPanel.comment-author-user");
 
       // バックエンドにコメントを保存
-      const response = await fetch('/api/comments/create', {
+      const response = await fetch('/api/comments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

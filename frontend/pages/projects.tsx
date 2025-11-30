@@ -109,7 +109,7 @@ const Projects: React.FC = () => {
     if (!confirm(t("Document.delete-confirm"))) return;
     
     try {
-      const res = await fetch(`/api/projects/${projectId}/delete`, { method: 'DELETE' });
+      const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
       
       // 204 No Content は成功
       if (res.status === 204 || res.ok) {
@@ -131,7 +131,7 @@ const Projects: React.FC = () => {
     if (!editingProject || !editedName.trim()) return;
     
     try {
-      const res = await fetch(`/api/projects/${editingProject.id}/update`, {
+      const res = await fetch(`/api/projects/${editingProject.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_name: editedName }),

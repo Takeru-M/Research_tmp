@@ -8,7 +8,7 @@ import FormData from 'form-data';
 import axios from 'axios';
 import path from 'path';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const config = {
   api: { bodyParser: false },

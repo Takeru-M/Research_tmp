@@ -2,13 +2,9 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
 
   const session = await getServerSession(req, res, authOptions) as any;
   
@@ -17,7 +13,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  try {
+  if (req.method === 'POST') {
+    try {
     console.log('[Comment Create] Request body:', JSON.stringify(req.body, null, 2));
     
     const backendResponse = await fetch(`${BACKEND_URL}/comments`, {
@@ -60,5 +57,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Internal server error',
       error: error instanceof Error ? error.message : String(error)
     });
+  }
   }
 }

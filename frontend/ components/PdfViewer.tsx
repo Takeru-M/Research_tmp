@@ -673,7 +673,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             if (hf.intervention_needed) {
               try {
                 // バックエンドにLLMコメントを保存
-                const commentResponse = await fetch('/api/comments/create', {
+                const commentResponse = await fetch('/api/comments', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -726,7 +726,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   }
 
                   // バックエンドにハイライトとコメントを保存
-                  const highlightResponse = await fetch('/api/highlights/create', {
+                  const highlightResponse = await fetch('/api/highlights', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -789,7 +789,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const projectId = getProjectIdFromCookie();
           if (projectId) {
             try {
-              const updateResponse = await fetch(`/api/projects/${projectId}/update-completion-stage`, {
+              const updateResponse = await fetch(`/api/projects/update-stage/${projectId}`, {
                 method: 'PATCH',
                 headers: {
                   'Content-Type': 'application/json',
@@ -889,7 +889,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 console.log(hf);
 
                 // バックエンドにLLMコメントを保存
-                const commentResponse = await fetch('/api/comments/create', {
+                const commentResponse = await fetch('/api/comments', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -954,7 +954,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const projectId = getProjectIdFromCookie();
           if (projectId) {
             try {
-              const updateResponse = await fetch(`/api/projects/${projectId}/update-completion-stage`, {
+              const updateResponse = await fetch(`/api/projects/update-stage/${projectId}`, {
                 method: 'PATCH',
                 headers: {
                   'Content-Type': 'application/json',
@@ -1009,7 +1009,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         console.log(`[Export][Frontend] Start. projectId=${projectId}, fileId=${fileId}, at=${new Date().toISOString()}`);
 
         // エクスポート要求（Next.js API 経由）
-        const url = `/api/files/export?projectId=${projectId}&fileId=${fileId}`;
+        const url = `/api/export?projectId=${projectId}&fileId=${fileId}`;
         console.log(`[Export][Frontend] Requesting export: ${url} at ${new Date().toISOString()}`);
 
         const exportRes = await fetch(url, { method: 'GET' });
@@ -1049,7 +1049,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         console.log('[Export][Frontend] Download triggered & URL revoked');
 
         // ステージを EXPORT に更新（DB）
-        const updateResponse = await fetch(`/api/projects/${projectId}/update-completion-stage`, {
+        const updateResponse = await fetch(`/api/projects/update-stage/${projectId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

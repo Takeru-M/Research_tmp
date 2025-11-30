@@ -1,22 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]';
+import { authOptions } from '../../auth/[...nextauth]';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'PUT') {
+  if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
-    const { comment_id, text } = req.body;
+    const { fileId } = req.query;
 
-    if (!comment_id || !text) {
-      return res.status(400).json({ message: 'Comment ID and text are required' });
+    if (!fileId || typeof fileId !== 'string') {
+      return res.status(400).json({ message: 'File ID is required' });
     }
 
     const session = await getServerSession(req, res, authOptions) as any;
@@ -25,13 +25,10 @@ export default async function handler(
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const response = await fetch(`${BACKEND_URL}/comments/${comment_id}`, {
-      method: 'PUT',
+    const response = await fetch(`${BACKEND_URL}/highlights/file/${fileId}`, {
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.accessToken}`,
       },
-      body: JSON.stringify({ text }),
     });
 
     if (!response.ok) {
@@ -39,10 +36,13 @@ export default async function handler(
       return res.status(response.status).json(errorData);
     }
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    const highlights = await response.json();
+    console.log('Fetched highlights from backend:', highlights);
+    
+    return res.status(200).json(highlights);
+
   } catch (error: any) {
-    console.error('Failed to update comment:', error);
-    return res.status(500).json({ message: error.message || 'Internal server error' });
+    console.error('Error fetching highlights:', error);
+    return res.status(500).json({ message: error.message });
   }
 }

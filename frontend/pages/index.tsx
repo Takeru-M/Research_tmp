@@ -90,7 +90,7 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      const response = await fetch(`/api/highlights/file/${fileId}`);
+      const response = await fetch(`/api/highlights/get-by-fileId/${fileId}`);
 
       // 404 → ハイライト未登録。エラー扱いしない
       if (response.status === 404) {
@@ -231,7 +231,7 @@ const EditorPageContent: React.FC = () => {
     try {
       dispatch(startLoading('Loading project info...'));
 
-      const res = await fetch(`/api/projects/${projectId}/projects`);
+      const res = await fetch(`/api/projects/${projectId}`);
       if (!res.ok) {
         throw new Error('Failed to fetch project info');
       }
@@ -501,7 +501,7 @@ const EditorPageContent: React.FC = () => {
           }
 
           const userName = getUserName();
-          const response = await fetch('/api/highlights/create', {
+          const response = await fetch('/api/highlights', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

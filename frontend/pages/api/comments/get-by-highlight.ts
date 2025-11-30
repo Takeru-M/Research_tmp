@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });

@@ -1,7 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const authOptions: NextAuthOptions = {
   session: {
