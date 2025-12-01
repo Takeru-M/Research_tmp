@@ -8,6 +8,7 @@ import Cookies from 'js-cookie';
 import { useTranslation } from 'react-i18next';
 import { clearAllState } from '../redux/features/editor/editorSlice';
 import { setDocumentName } from '../redux/features/editor/editorSlice';
+import { apiClient } from '../utils/apiClient';
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
@@ -25,21 +26,20 @@ const Projects: React.FC = () => {
 
   useEffect(() => {
     if (status === 'loading') return;
-
     const fetchProjects = async () => {
       setLoading(true);
       setError(null);
       dispatch(clearAllState());
-      try {
-        const res = await fetch('/api/projects');
-        if (!res.ok) throw new Error('ドキュメント一覧の取得に失敗しました');
-        const data: Project[] = await res.json();
-        setProjects(data);
-      } catch (err: any) {
-        setError(err.message || '不明なエラー');
-      } finally {
-        setLoading(false);
-      }
+      const { data, error } = await apiClient<Project[]>('/projects', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
+      if (error) throw new Error('ドキュメント一覧の取得に失敗しました');
+      setProjects(data || []);
+      setLoading(false);
     };
     fetchProjects();
   }, [session, status, router, dispatch]);
@@ -60,6 +60,7 @@ const Projects: React.FC = () => {
     // プロジェクト名を Redux に保存
     dispatch(setDocumentName(projectName));
     
+    // 既存プロジェクトフラグなし（通常の遷移）
     router.push('/');
   };
 
@@ -68,23 +69,28 @@ const Projects: React.FC = () => {
     setCreating(true);
     setError(null);
     try {
-      const res = await fetch('/api/projects', {
+      const { data, error } = await apiClient<Project>('/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        body: {
           project_name: newProjectName,
           stage: STAGE.GIVE_OPTION_TIPS,
-        }),
+        },
       });
-      if (!res.ok) throw new Error('ドキュメント作成に失敗しました');
-      const newProject: Project = await res.json();
+      if (error) throw new Error('ドキュメント作成に失敗しました');
+      const newProject: Project = data as Project;
       setProjects([...projects, newProject]);
       setNewProjectName('');
 
       // 新規作成したドキュメントIDをクッキーに保存してトップページへ遷移
       Cookies.set('projectId', newProject.id.toString(), { sameSite: 'lax', secure: true });
       Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
-      router.push('/');
+      
+      // 新規プロジェクトフラグを付けて遷移
+      router.push('/?new=true');
     } catch (err: any) {
       setError(err.message || '不明なエラー');
     } finally {
@@ -108,37 +114,31 @@ const Projects: React.FC = () => {
     e.stopPropagation();
     if (!confirm(t("Document.delete-confirm"))) return;
     
-    try {
-      const res = await fetch(`/api/projects/${projectId}/delete`, { method: 'DELETE' });
-      
-      // 204 No Content は成功
-      if (res.status === 204 || res.ok) {
-        setProjects(projects.filter(p => p.id !== projectId));
-        setOpenMenuId(null);
-        return;
-      }
-      
-      // エラーレスポンスの処理
-      const errorData = await res.json().catch(() => ({ message: '削除に失敗しました' }));
-      throw new Error(errorData.message || '削除に失敗しました');
-    } catch (err: any) {
-      console.error('Delete error:', err);
-      setError(err.message || '不明なエラー');
-    }
+    const { error } = await apiClient<null>(`/projects/${projectId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.accessToken}`,
+      },
+    });
+    setProjects(projects.filter(p => p.id !== projectId));
+    setOpenMenuId(null);
   };
 
   const handleSaveEdit = async () => {
     if (!editingProject || !editedName.trim()) return;
     
     try {
-      const res = await fetch(`/api/projects/${editingProject.id}/update`, {
+      const { data, error } = await apiClient<Project>(`/projects/${editingProject.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_name: editedName }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        body: { project_name: editedName },
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
-      
-      const updated: Project = await res.json();
+      if (error) throw new Error('更新に失敗しました');
+      const updated: Project = data as Project;
       setProjects(projects.map(p => p.id === updated.id ? updated : p));
       setEditingProject(null);
       setEditedName('');

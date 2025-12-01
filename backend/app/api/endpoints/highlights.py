@@ -6,22 +6,11 @@ from pydantic import BaseModel
 import json
 import logging
 import app.crud.comment as crud_comment
-from app.schemas import HighlightRead, HighlightWithComments, CommentRead
-
+from app.schemas.highlight import HighlightCreate, HighlightRead, HighlightWithComments
+from app.schemas.comment import CommentCreate, CommentRead
+from app.schemas.highlight_rect import HighlightRectCreate
 from app.crud import highlight as crud_highlight
-from app.schemas import (
-    HighlightCreate,
-    HighlightRead,
-    CommentCreate,
-    HighlightRectCreate,
-)
-from app.crud import (
-    create_highlight,
-    get_highlights_by_file,
-    create_comment,
-    create_highlight_rect,
-    get_rects_by_highlight,
-)
+from app.crud import highlight_rect as crud_highlight_rect
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -93,7 +82,7 @@ def create_highlight_with_memo(
         )
         logger.info(f"Highlight input data: {highlight_in.model_dump()}")
         
-        db_highlight = create_highlight(session, highlight_in)
+        db_highlight = crud_highlight.create_highlight(session, highlight_in)
         logger.info(f"Highlight created with ID: {db_highlight.id}")
         
         # 2. ハイライト矩形を作成
@@ -115,7 +104,7 @@ def create_highlight_with_memo(
             )
             logger.info(f"Rect input data: {rect_in.model_dump()}")
             
-            db_rect = create_highlight_rect(session, rect_in)
+            db_rect = crud_highlight_rect.create_highlight_rect(session, rect_in)
             logger.info(f"Rect created with ID: {db_rect.id}")
         
         # 3. ルートコメント(メモ)を作成
@@ -128,13 +117,13 @@ def create_highlight_with_memo(
         )
         logger.info(f"Comment input data: {comment_in.model_dump()}")
         
-        db_comment = create_comment(session, comment_in)
+        db_comment = crud_comment.create_comment(session, comment_in)
         logger.info(f"Comment created with ID: {db_comment.id}")
         
         # 4. 作成したハイライトと矩形を返す
         logger.info("Fetching created highlight and rects...")
         session.refresh(db_highlight)
-        rects = get_rects_by_highlight(session, db_highlight.id)
+        rects = crud_highlight_rect.get_rects_by_highlight(session, db_highlight.id)
         
         logger.info(f"Retrieved {len(rects)} rects for highlight {db_highlight.id}")
         
@@ -175,12 +164,12 @@ def get_highlights_by_file_endpoint(
 ):
     """特定ファイルのすべてのハイライトと、紐づく全コメントを取得"""
     logger.info(f"[with-comments] Fetching highlights for file_id: {file_id}")
-    highlights = get_highlights_by_file(session, file_id)
+    highlights = crud_highlight.get_highlights_by_file(session, file_id)
     logger.info(f"[with-comments] Found {len(highlights)} highlights")
 
     result: List[HighlightWithComments] = []
     for hl in highlights:
-        rects = get_rects_by_highlight(session, hl.id)
+        rects = crud_highlight_rect.get_rects_by_highlight(session, hl.id)
         comments = crud_comment.get_comments_by_highlight_id(session, hl.id) or []
 
         highlight_read = HighlightRead(

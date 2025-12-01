@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 from app.models.comments import Comment
-from app.schemas import CommentCreate, CommentUpdate
+from app.schemas.comment import CommentCreate, CommentUpdate
 
 def create_comment(session: Session, comment_in: CommentCreate) -> Comment:
     db_comment = Comment(**comment_in.model_dump())

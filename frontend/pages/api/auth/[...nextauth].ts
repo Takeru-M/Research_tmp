@@ -1,7 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-
-const FASTAPI_URL = process.env.NEXT_PUBLIC_FASTAPI_URL;
+import { apiV1Client } from "@/utils/apiV1Client";
+import { FastApiAuthResponse } from "@/types/Responses/Auth";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -19,40 +19,30 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        try {
-          const response = await fetch(`http://backend:8000/api/v1/auth/token`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password,
-            }),
-          });
+        const { data, error } = await apiV1Client<FastApiAuthResponse>("/auth/token", {
+          method: "POST",
+          body: {
+            email: credentials.email,
+            password: credentials.password,
+          },
+        });
 
-          if (!response.ok) {
-            console.error("FastAPI Authentication failed:", response.status);
-            return null;
-          }
-
-          const data = await response.json();
-          console.log("FastAPI token response:", data);
-
-          if (!data.access_token || !data.user_id) {
-            console.error("Missing required fields in response");
-            return null;
-          }
-
-          // FastAPIから返されたトークンをそのまま保存
-          return {
-            id: String(data.user_id),
-            name: data.name || data.email,
-            email: data.email,
-            fastApiToken: data.access_token,
-          };
-        } catch (error) {
-          console.error("Authorization error:", error);
+        if (error || !data) {
+          console.error("FastAPI Authentication failed:", error);
           return null;
         }
+
+        if (!data.access_token || !data.user_id) {
+            console.error("Missing required fields in response");
+            return null;
+        }
+
+        return {
+          id: String(data.user_id),
+          name: data.name || data.email,
+          email: data.email,
+          fastApiToken: data.access_token,
+        };
       },
     }),
   ],

@@ -2,7 +2,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from app.models.highlights import Highlight
 from app.models.highlight_rects import HighlightRect
-from app.schemas import HighlightCreate, HighlightUpdate
+from app.schemas.highlight import HighlightCreate, HighlightUpdate
 
 def create_highlight(session: Session, highlight_in: HighlightCreate) -> Highlight:
     db_highlight = Highlight(**highlight_in.model_dump())

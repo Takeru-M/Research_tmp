@@ -4,14 +4,9 @@ from typing import List
 from app.db.base import get_session
 from app.api.deps import get_current_user, get_db
 from app.models import User, ProjectFile
-from app.schemas import ProjectFileCreate, ProjectFileRead, ProjectFileUpdate
-from app.crud import (
-    create_project_file as crud_create_project_file,
-    get_project_file as crud_get_project_file,
-    get_project_files as crud_get_project_files,
-    delete_project_file as crud_delete_project_file
-)
-from app.crud import get_project
+from app.schemas.project_file import ProjectFileCreate, ProjectFileRead
+from app.crud import project_file as crud_project_file
+from app.crud import project as crud_project
 
 router = APIRouter()
 
@@ -26,7 +21,7 @@ def create_file_endpoint(
     プロジェクトファイルを作成
     """
     # プロジェクトの存在確認とアクセス権限チェック
-    project = get_project(session, file_in.project_id)
+    project = crud_project.get_project(session, file_in.project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -40,7 +35,7 @@ def create_file_endpoint(
         )
     
     # ファイル作成
-    return crud_create_project_file(session, file_in)
+    return crud_project_file.create_project_file(session, file_in)
 
 
 @router.get("/project/{project_id}", response_model=List[ProjectFileRead])
@@ -54,7 +49,7 @@ def read_files_by_project_endpoint(
     プロジェクトIDに紐づくファイル一覧を取得（作成日時の降順）
     """
     # プロジェクトの存在確認とアクセス権限チェック
-    project = get_project(session, project_id)
+    project = crud_project.get_project(session, project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -68,7 +63,7 @@ def read_files_by_project_endpoint(
         )
     
     # ファイル一覧を取得（作成日時の降順でソート）
-    files = crud_get_project_files(session, project_id)
+    files = crud_project_file.get_project_files(session, project_id)
     return files
 
 
@@ -82,7 +77,7 @@ def read_project_file_endpoint(
     """
     ファイルIDで特定のファイルを取得
     """
-    file = crud_get_project_file(session, file_id)
+    file = crud_project_file.get_project_file(session, file_id)
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -90,7 +85,7 @@ def read_project_file_endpoint(
         )
     
     # プロジェクトへのアクセス権限チェック
-    project = get_project(session, file.project_id)
+    project = crud_project.get_project(session, file.project_id)
     if not project or project.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -110,7 +105,7 @@ def delete_file_endpoint(
     """
     ファイルを削除
     """
-    file = crud_get_project_file(session, file_id)
+    file = crud_project_file.get_project_file(session, file_id)
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -118,7 +113,7 @@ def delete_file_endpoint(
         )
     
     # プロジェクトへのアクセス権限チェック
-    project = get_project(session, file.project_id)
+    project = crud_project.get_project(session, file.project_id)
     if not project or project.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -126,5 +121,5 @@ def delete_file_endpoint(
         )
     
     # ファイル削除（S3からの削除は別途実装が必要）
-    crud_delete_project_file(session, file_id)
+    crud_project_file.delete_project_file(session, file_id)
     return None

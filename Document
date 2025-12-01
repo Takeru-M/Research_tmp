@@ -1,0 +1,6 @@
+// 注意点
+
+// API通信について
+// Next.js側はapiに，fastapi側には/v1/apiに通信
+// フロントからnext.jsへの通信はapiClient.tsを，next.jsからfastapiへの通信はapiV1Client.tsを利用
+// 基本的には共通型を用いているが，openai, s3, export関連については利用していないので注意

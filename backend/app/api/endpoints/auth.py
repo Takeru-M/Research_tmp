@@ -3,11 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from sqlmodel import Session
-from app.crud import create_user, authenticate_user_by_email
+from app.crud.user import create_user, authenticate_user_by_email
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.core.security import create_access_token, get_password_hash
-from app.crud import authenticate_user
-from app.schemas import Token, UserSignupSchema, LoginRequest
+from app.schemas.auth import Token, UserSignupSchema, LoginRequest
 from app.api.deps import get_db
 from app.utils.validators import validate_email, validate_username, validate_password, validate_confirm_password
 
