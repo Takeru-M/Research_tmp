@@ -314,9 +314,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       // }
       const { data, error } = await apiClient<Comment>(`/comments/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: {
           text: editText,
-        }),
+        },
       });
       if (error || !data) {
         throw new Error(error || 'Failed to update comment');
@@ -346,24 +349,12 @@ const removeCommentFn = async (id: string) => {
     if (comment.parentId === null) {
       if (comment.highlightId) {
         // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
-        // const response = await fetch(`/api/highlights/${comment.highlightId}`, {
-        //   method: 'DELETE',
-        //   headers: {
-        //     'Content-Type': 'application/json',
-        //   },
-        // });
-
-        // if (!response.ok) {
-        //   const errorData = await response.json();
-        //   throw new Error(errorData.message || 'Failed to delete highlight');
-        // }
-        const { data, error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
+        const { error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
           method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         });
-
-        if (error) {
-          throw new Error(error);
-        }
 
         console.log('Highlight and related comments deleted');
         
@@ -375,24 +366,12 @@ const removeCommentFn = async (id: string) => {
         
         // バックエンドから全てのコメントを削除
         for (const threadComment of threadComments) {
-          // const response = await fetch(`/api/comments/${threadComment.id}`  , {
-          //   method: 'DELETE',
-          //   headers: {
-          //     'Content-Type': 'application/json',
-          //   },
-          // });
-
-          // if (!response.ok) {
-          //   const errorData = await response.json();
-          //   throw new Error(errorData.message || 'Failed to delete comment');
-          // }
-          const { data, error } = await apiClient<void>(`/comments/${threadComment.id}`, {
+          const { error } = await apiClient<void>(`/comments/${threadComment.id}`, {
             method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
           });
-
-          if (error) {
-            throw new Error(error);
-          }
         }
 
         // ルート自身も削除
@@ -408,13 +387,12 @@ const removeCommentFn = async (id: string) => {
           //   const errorData = await response.json();
           //   throw new Error(errorData.message || 'Failed to delete comment');
           // }
-          const { data, error } = await apiClient<void>(`/comments/${comment.id}`, {
+          const { error } = await apiClient<void>(`/comments/${comment.id}`, {
             method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
           });
-
-          if (error) {
-            throw new Error(error);
-          }
         }
 
         console.log('Thread comments deleted');
@@ -427,25 +405,12 @@ const removeCommentFn = async (id: string) => {
       }
     } else {
       // 返信の削除
-      // const response = await fetch(`/api/comments/${id}`, {
-      //   method: 'DELETE',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      // });
-
-      // if (!response.ok) {
-      //   const errorData = await response.json();
-        
-      //   throw new Error(errorData.message || 'Failed to delete comment');
-      // }
-      const { data, error } = await apiClient<void>(`/comments/${id}`, {
+      const { error } = await apiClient<void>(`/comments/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
-
-      if (error) {
-        throw new Error(error);
-      }
 
       console.log('Reply comment deleted');
 
@@ -473,31 +438,17 @@ const removeCommentFn = async (id: string) => {
       const userName = session?.user?.name || t("CommentPanel.comment-author-user");
 
       // バックエンドにコメントを保存
-      // const response = await fetch('/api/comments', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     highlight_id: parentComment.highlightId ? parseInt(parentComment.highlightId, 10) : null,
-      //     parent_id: parseInt(parentId, 10),
-      //     author: userName,
-      //     text: replyText.trim(),
-      //   }),
-      // });
-
-      // if (!response.ok) {
-      //   const errorData = await response.json();
-      //   throw new Error(errorData.message || 'Failed to create comment');
-      // }
       const { data, error } = await apiClient<Comment>('/comments', {
         method: 'POST',
-        body: JSON.stringify({
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: {
           highlight_id: parentComment.highlightId ? parseInt(parentComment.highlightId, 10) : null,
           parent_id: parseInt(parentId, 10),
           author: userName,
           text: replyText.trim(),
-        }),
+        },
       });
       if (error || !data) {
         throw new Error(error || 'Failed to create comment');

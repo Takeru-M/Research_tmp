@@ -10,6 +10,7 @@ import {
   validateConfirmPassword,
   validateUsername,
 } from '../utils/validation';
+import { apiClient } from '@/utils/apiClient';
 
 const SignupPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -58,19 +59,18 @@ const SignupPage: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/signup`, {
+      const { data: res, error: resError } = await apiClient<any>('/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password, confirm_password: confirmPassword }),
+        body: { username, email, password, confirm_password: confirmPassword },
       });
 
-      const data = await res.json().catch(() => ({})); // JSON parse error対策
+      // const data = await res.json().catch(() => ({})); // JSON parse error対策
 
-      if (!res.ok) {
-        // FastAPI側の detail, message, errors などを確認して表示
+      if (resError || !res) {
         const errorMessage =
-          (data.detail as string) ||
-          (Array.isArray(data.errors) ? data.errors.join(', ') : undefined) ||
+          (res.detail as string) ||
+          (Array.isArray(res.errors) ? res.errors.join(', ') : undefined) ||
           t('Signup.error');
         setFormError(errorMessage);
         return;

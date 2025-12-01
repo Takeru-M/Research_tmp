@@ -2,4 +2,5 @@
 
 // API通信について
 // Next.js側はapiに，fastapi側には/v1/apiに通信
-// 基本の型はapiClient.tsに記述しており，各通信ではこれを用いるが，export.ts内のみ利用していないので注意
+// フロントからnext.jsへの通信はapiClient.tsを，next.jsからfastapiへの通信はapiV1Client.tsを利用
+// 基本的には共通型を用いているが，openai, s3, export関連については利用していないので注意

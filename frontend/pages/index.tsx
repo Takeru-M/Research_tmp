@@ -45,6 +45,7 @@ import LoginPage from './login';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import { useSelector as useReduxSelector } from 'react-redux';
 import LoadingOverlay from '../ components/LoadingOverlay';
+import { apiClient } from '@/utils/apiClient';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
 
@@ -52,12 +53,11 @@ const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false
 // 既存の EditorPage のロジック部分をコンポーネントとして内包
 const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
-  // ▼ ローディング状態
   const isGlobalLoading = useReduxSelector((state: RootState) => state.loading.isLoading);
   const globalLoadingMessage = useReduxSelector((state: RootState) => state.loading.message);
   const { t } = useTranslation();
   const router = useRouter();
-  const { data: session } = useSession(); // セッション情報を取得
+  const { data: session } = useSession();
 
   const file = useSelector(selectFile);
   const fileType = useSelector(selectFileType);
@@ -89,10 +89,16 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      const response = await fetch(`/api/highlights/get-by-fileId/${fileId}`);
+      // const response = await fetch(`/api/highlights/get-by-fileId/${fileId}`);
 
+      const { data: response, status } = await apiClient<any>(`/highlights/get-by-fileId/${fileId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
       // 404 → ハイライト未登録。エラー扱いしない
-      if (response.status === 404) {
+      if (status === 404) {
         console.info('[fetchHighlightsAndComments] No highlights yet for fileId:', fileId);
         dispatch(setHighlights([]));
         dispatch(setComments([]));
@@ -104,11 +110,10 @@ const EditorPageContent: React.FC = () => {
         return; // 非致命的: UI 継続
       }
 
-      const data = await response.json();
-      console.log('Fetched highlights and ALL comments:', data);
+      console.log('Fetched highlights and ALL comments:', response);
 
       // ハイライトの変換
-      const highlights: PdfHighlight[] = data.map((item: any) => {
+      const highlights: PdfHighlight[] = response.map((item: any) => {
         const h = item.highlight;
         // highlight_id の代わりに id を使用
         const highlightId = h.id || h.highlight_id;
@@ -143,7 +148,7 @@ const EditorPageContent: React.FC = () => {
       dispatch(setHighlights(highlights));
 
       // コメントの変換（ハイライトに紐づく全コメント）
-      const comments: CommentType[] = data.flatMap((item: any) => {
+      const comments: CommentType[] = response.flatMap((item: any) => {
         const h = item.highlight;
         const hId = (h.id || h.highlight_id)?.toString();
         if (!hId) return [];
@@ -174,35 +179,28 @@ const EditorPageContent: React.FC = () => {
   const fetchProjectFile = useCallback(async (projectId: number) => {
     dispatch(startLoading('Loading project file...'));
     try {
-      const response = await fetch(`/api/project-files/${projectId}`);
-      if (!response.ok) {
-        console.warn('[fetchProjectFile] Failed response:', response.status);
-        setIsFileUploaded(false);
+      // const response = await fetch(`/api/project-files/${projectId}`);
+      // if (!response.ok) {
+      //   console.warn('[fetchProjectFile] Failed response:', response.status);
+      //   setIsFileUploaded(false);
+      //   return;
+      // }
+      const {data: response, error } = await apiClient<any>(`/project-files/${projectId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
+
+      if (error || !response || response.length === 0) {
+        console.warn('[fetchProjectFile] Failed to fetch files:', error || 'No files found');
         return;
       }
 
-      const files = await response.json();
-      if (!files || files.length === 0) {
-        console.info('[fetchProjectFile] No files for project yet.');
-        setIsFileUploaded(false);
-        return;
-      }
-
-      const latestFile = files[0];
+      const latestFile = response[0];
       dispatch(setFileId(latestFile.id));
 
       const fileResponse = await fetch(`/api/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`);
-      if (fileResponse.status === 404) {
-        console.warn('[fetchProjectFile] S3 object not yet available (404).');
-        setIsFileUploaded(false);
-        return;
-      }
-      if (!fileResponse.ok) {
-        console.error('[fetchProjectFile] S3 fetch failed:', fileResponse.status);
-        setIsFileUploaded(false);
-        return;
-      }
-
       const blob = await fileResponse.blob();
       const fileUrl = URL.createObjectURL(blob);
 
@@ -230,17 +228,23 @@ const EditorPageContent: React.FC = () => {
     try {
       dispatch(startLoading('Loading project info...'));
 
-      const res = await fetch(`/api/projects/${projectId}`);
-      if (!res.ok) {
-        throw new Error('Failed to fetch project info');
-      }
-      const data = await res.json();
-      const stage = data?.stage;
+      // const res = await fetch(`/api/projects/${projectId}`);
+      // if (!res.ok) {
+      //   throw new Error('Failed to fetch project info');
+      // }
+      const {data: res, error } = await apiClient<any>(`/projects/${projectId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
+      if (error) { throw new Error(error); }
+      const stage = res?.stage;
 
       if (stage !== null && !Number.isNaN(stage)) {
         dispatch(setCompletionStage(stage));
       } else {
-        console.warn('Project info does not include a valid stage:', data);
+        console.warn('Project info does not include a valid stage:', res);
       }
     } catch (err: any) {
       console.error('Failed to load project info:', err.message);
@@ -286,40 +290,36 @@ const EditorPageContent: React.FC = () => {
         const errorData = await s3Response.json();
         throw new Error(errorData.message || 'Failed to upload PDF');
       }
-      const s3Data = await s3Response.json();
 
+      const s3Data = await s3Response.json();
       const project_id = getProjectIdFromCookie();
       if (!project_id) throw new Error('Project ID not found in cookies');
 
-      const dbResponse = await fetch('/api/project-files/save', {
+      const {data: dbResponse, error: dbError } = await apiClient<any>('/project-files/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        body: {
           project_id: parseInt(project_id.toString(), 10),
           file_name: file.name,
           file_key: s3Data.s3_key,
           file_url: s3Data.s3_url,
           mime_type: filetype,
           file_size: filesize,
-        }),
+        },
       });
+      if (dbError) { throw new Error(dbError); }
 
-      if (!dbResponse.ok) {
-        const errorData = await dbResponse.json();
-        console.error('DB save error:', errorData);
-        throw new Error(errorData.message || 'Failed to save PDF to DB');
-      }
-
-      const dbData = await dbResponse.json();
       console.log(dbResponse);
-      console.log(dbData);
 
-      dispatch(setFileId(dbData.id));
+      dispatch(setFileId(dbResponse.id));
       dispatch(setFile({
         file: null,
         fileType: filetype,
         fileContent: URL.createObjectURL(file),
-        fileId: dbData.savedFile.id,
+        fileId: dbResponse.savedFile.id,
       }));
 
       setIsFileUploaded(true);
@@ -500,10 +500,11 @@ const EditorPageContent: React.FC = () => {
           }
 
           const userName = getUserName();
-          const response = await fetch('/api/highlights', {
+
+          const { data: response, error, status } = await apiClient<any>('/highlights', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            body: {
               project_file_id: fileId,
               created_by: userName,
               memo: memo.trim(),
@@ -516,37 +517,34 @@ const EditorPageContent: React.FC = () => {
                 y2: rect.y2,
               })),
               element_type: pendingHighlight.elementType || 'pdf',
-            }),
+            },
           });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to save highlight');
+          if (error) {
+            throw new Error(error);
           }
 
-          const savedHighlight = await response.json();
-          console.log('Highlight saved:', savedHighlight);
+          console.log('Highlight saved:', response);
           
-          if (!savedHighlight.id) {
+          if (!response.id) {
             throw new Error('Highlight ID is missing in response');
           }
 
           // Reduxストアに追加
           const finalHighlight: Highlight = {
             ...pendingHighlight,
-            id: savedHighlight.id.toString(),
+            id: response.id.toString(),
             memo,
-            createdAt: savedHighlight.created_at,
+            createdAt: response.created_at,
             createdBy: userName,
           };
 
           const rootComment: CommentType = {
-            id: savedHighlight.comment_id.toString(),
-            highlightId: savedHighlight.id.toString(),
+            id: response.comment_id.toString(),
+            highlightId: response.id.toString(),
             parentId: null,
             author: userName,
             text: memo.trim(),
-            createdAt: savedHighlight.created_at,
+            createdAt: response.created_at,
             editedAt: null,
             deleted: false,
           };

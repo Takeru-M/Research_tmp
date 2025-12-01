@@ -30,7 +30,13 @@ const Projects: React.FC = () => {
       setLoading(true);
       setError(null);
       dispatch(clearAllState());
-      const { data, error } = await apiClient<Project[]>('/projects');
+      const { data, error } = await apiClient<Project[]>('/projects', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
       if (error) throw new Error('ドキュメント一覧の取得に失敗しました');
       setProjects(data || []);
       setLoading(false);
@@ -64,6 +70,10 @@ const Projects: React.FC = () => {
     try {
       const { data, error } = await apiClient<Project>('/projects', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
         body: {
           project_name: newProjectName,
           stage: STAGE.GIVE_OPTION_TIPS,
@@ -101,27 +111,13 @@ const Projects: React.FC = () => {
     e.stopPropagation();
     if (!confirm(t("Document.delete-confirm"))) return;
     
-    // try {
-    //   const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
-      
-    //   // 204 No Content は成功
-    //   if (res.status === 204 || res.ok) {
-    //     setProjects(projects.filter(p => p.id !== projectId));
-    //     setOpenMenuId(null);
-    //     return;
-    //   }
-      
-    //   // エラーレスポンスの処理
-    //   const errorData = await res.json().catch(() => ({ message: '削除に失敗しました' }));
-    //   throw new Error(errorData.message || '削除に失敗しました');
-    // } catch (err: any) {
-    //   console.error('Delete error:', err);
-    //   setError(err.message || '不明なエラー');
-    // }
-    const { data, error } = await apiClient<null>(`/projects/${projectId}`, {
+    const { error } = await apiClient<null>(`/projects/${projectId}`, {
       method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.accessToken}`,
+      },
     });
-    if (error) throw new Error('削除に失敗しました');
     setProjects(projects.filter(p => p.id !== projectId));
     setOpenMenuId(null);
   };
@@ -132,6 +128,10 @@ const Projects: React.FC = () => {
     try {
       const { data, error } = await apiClient<Project>(`/projects/${editingProject.id}`, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
         body: { project_name: editedName },
       });
       if (error) throw new Error('更新に失敗しました');

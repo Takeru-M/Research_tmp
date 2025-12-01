@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
 import { RESPONSE_SAMPLE_IN_STAGE1 } from '@/utils/test';
+import { apiClient } from '@/utils/apiClient';
 
 // pdf.js worker の堅牢な設定（Turbopack の file:/// 問題を回避）
 if (typeof window !== 'undefined') {
@@ -656,7 +657,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             systemPrompt: systemPrompt,
             userInput: userInput,
         });
-
         const responseData = parseJSONResponse(response.data.analysis);
         console.log(responseData);
 
@@ -672,36 +672,29 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           for (const hf of highlight_feedback) {
             if (hf.intervention_needed) {
               try {
-                // バックエンドにLLMコメントを保存
-                const commentResponse = await fetch('/api/comments', {
+                const { data: commentResponse, error: commentError} = await apiClient<any>('/comments', {
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
+                  headers: { 'Content-Type': 'application/json' },
+                  body: {
                     highlight_id: parseInt(hf.highlight_id, 10),
                     parent_id: parseInt(hf.id, 10),
                     author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
-                  }),
+                  }
                 });
-
-                if (!commentResponse.ok) {
-                  const errorData = await commentResponse.json();
-                  throw new Error(errorData.message || 'Failed to save LLM comment');
+                if (commentError) {
+                  throw new Error(commentError);
                 }
-
-                const savedComment = await commentResponse.json();
-                console.log('LLM comment saved:', savedComment);
+                console.log('LLM comment saved:', commentResponse);
                 // バックエンドから返されたIDを使用してReduxに追加
                 dispatch(
                   addComment({
-                    id: savedComment.id.toString(),
+                    id: commentResponse.id.toString(),
                     highlightId: hf.highlight_id,
                     parentId: hf.id,
                     author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
-                    createdAt: savedComment.created_at,
+                    createdAt: commentResponse.created_at,
                     editedAt: null,
                     deleted: false,
                 }));
@@ -725,13 +718,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     throw new Error('Project ID not found');
                   }
 
-                  // バックエンドにハイライトとコメントを保存
-                  const highlightResponse = await fetch('/api/highlights', {
+                  const { data: highlightResponse, error: highlightError} = await apiClient<any>('/highlights', {
                     method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
+                    headers: { 'Content-Type': 'application/json' },
+                    body: {
                       project_file_id: fileId,
                       created_by: userName,
                       memo: uhf.suggestion,
@@ -744,35 +734,32 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                         y2: rect.y2,
                       })),
                       element_type: 'pdf',
-                    }),
+                    }
                   });
-
-                  if (!highlightResponse.ok) {
-                    const errorData = await highlightResponse.json();
-                    throw new Error(errorData.message || 'Failed to save LLM highlight');
+                  if (highlightError) {
+                    throw new Error(highlightError);
                   }
 
-                  const savedHighlight = await highlightResponse.json();
-                  console.log('LLM highlight saved:', savedHighlight);
+                  console.log('LLM highlight saved:', highlightResponse);
 
                   // バックエンドから返されたIDを使用してハイライトを作成
                   const llmHighlight: PdfHighlight = {
-                    id: savedHighlight.id.toString(),
+                    id: highlightResponse.id.toString(),
                     type: "pdf",
                     text: uhf.unhighlighted_text,
                     rects: foundRects,
                     memo: uhf.suggestion,
-                    createdAt: savedHighlight.created_at,
+                    createdAt: highlightResponse.created_at,
                     createdBy: t("CommentPanel.comment-author-LLM"),
                   };
 
                   const rootComment: CommentType = {
-                    id: savedHighlight.comment_id.toString(),
-                    highlightId: savedHighlight.id.toString(),
+                    id: highlightResponse.comment_id.toString(),
+                    highlightId: highlightResponse.id.toString(),
                     parentId: null,
                     author: t("CommentPanel.comment-author-LLM"),
                     text: uhf.suggestion,
-                    createdAt: savedHighlight.created_at,
+                    createdAt: highlightResponse.created_at,
                     editedAt: null,
                     deleted: false,
                   };
@@ -789,23 +776,20 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const projectId = getProjectIdFromCookie();
           if (projectId) {
             try {
-              const updateResponse = await fetch(`/api/projects/update-stage/${projectId}`, {
+              const { data: updateResponse, error: updateError} = await apiClient<any>(`/projects/update-stage/${projectId}`, {
                 method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+                headers: { 'Content-Type': 'application/json' },
+                body: {
                   completion_stage: STAGE.GIVE_DELIBERATION_TIPS,
-                }),
+                }
               });
-
-              if (!updateResponse.ok) {
-                throw new Error('Failed to update completion stage');
+              if (updateError) {
+                throw new Error(updateError);
               }
 
               // レスポンスの stage をReduxに反映
-              const updated = await updateResponse.json().catch(() => null);
-              const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
+              // const updated = await updateResponse.json().catch(() => null);
+              const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
               const stageVal = Number(stageValRaw);
               console.log('Completion stage updated to', stageVal);
               dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_DELIBERATION_TIPS : stageVal));
@@ -888,57 +872,31 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 console.log(`Saving comment with parent_id: ${hf.id}, highlight_id: ${hf.highlight_id}`);
                 console.log(hf);
 
-                // バックエンドにLLMコメントを保存
-                const commentResponse = await fetch('/api/comments', {
+                const { data: commentResponse, error: commentError } = await apiClient<any>('/comments', {
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
+                  headers: { 'Content-Type': 'application/json' },
+                  body: {
                     highlight_id: parseInt(hf.highlight_id, 10),
                     parent_id: parseInt(hf.id, 10),
                     author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
-                  }),
+                  }
                 });
 
-                // レスポンスがJSONかどうか確認
-                const contentType = commentResponse.headers.get('content-type');
-                
-                if (!commentResponse.ok) {
-                  let errorMessage = 'Failed to save LLM comment';
-                  
-                  if (contentType?.includes('application/json')) {
-                    const errorData = await commentResponse.json();
-                    errorMessage = errorData.message || errorMessage;
-                  } else {
-                    const errorText = await commentResponse.text();
-                    console.error('Non-JSON error response:', errorText);
-                    errorMessage = `Server error: ${commentResponse.status}`;
-                  }
-                  
-                  throw new Error(errorMessage);
+                if (commentError) {
+                  throw new Error(commentError);
                 }
-
-                // 成功レスポンスもJSON確認
-                if (!contentType?.includes('application/json')) {
-                  const responseText = await commentResponse.text();
-                  console.error('Non-JSON success response:', responseText);
-                  throw new Error('Invalid response format from server');
-                }
-
-                const savedComment = await commentResponse.json();
-                console.log('LLM comment saved:', savedComment);
+                console.log('LLM comment saved:', commentResponse);
 
                 // バックエンドから返されたIDを使用してReduxに追加
                 dispatch(
                   addComment({
-                    id: savedComment.id.toString(),
+                    id: commentResponse.id.toString(),
                     highlightId: hf.highlight_id,
                     parentId: hf.id,
                     author: t("CommentPanel.comment-author-LLM"),
                     text: hf.suggestion,
-                    createdAt: savedComment.created_at,
+                    createdAt: commentResponse.created_at,
                     editedAt: null,
                     deleted: false,
               })
@@ -954,23 +912,20 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const projectId = getProjectIdFromCookie();
           if (projectId) {
             try {
-              const updateResponse = await fetch(`/api/projects/update-stage/${projectId}`, {
+              const { data: updateResponse, error: updateError} = await apiClient<any>(`/projects/update-stage/${projectId}`, {
                 method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+                headers: { 'Content-Type': 'application/json' },
+                body: {
                   completion_stage: STAGE.GIVE_MORE_DELIBERATION_TIPS,
-                }),
+                }
               });
-
-              if (!updateResponse.ok) {
-                throw new Error('Failed to update completion stage');
+              if (updateError) {
+                throw new Error(updateError);
               }
 
               // レスポンスの stage をReduxに反映
-              const updated = await updateResponse.json().catch(() => null);
-              const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.GIVE_MORE_DELIBERATION_TIPS;
+              // const updated = await updateResponse.json().catch(() => null);
+              const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_MORE_DELIBERATION_TIPS;
               const stageVal = Number(stageValRaw);
               console.log('Completion stage updated to', stageVal);
               dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
@@ -1048,32 +1003,19 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         window.URL.revokeObjectURL(urlObj);
         console.log('[Export][Frontend] Download triggered & URL revoked');
 
-        // ステージを EXPORT に更新（DB）
-        const updateResponse = await fetch(`/api/projects/update-stage/${projectId}`, {
+        const { data: updateResponse, error: updateError} = await apiClient<any>(`/projects/update-stage/${projectId}`, {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+          headers: { 'Content-Type': 'application/json' },
+          body: {
             completion_stage: STAGE.EXPORT,
-          }),
+          }
         });
-
-        console.log(`[Export][Frontend] Stage update response: ok=${updateResponse.ok}, status=${updateResponse.status}`);
-
-        if (!updateResponse.ok) {
-          const errorText = await updateResponse.text().catch(() => '');
-          console.error(`[Export][Frontend] Stage update failed. status=${updateResponse.status}, body=${errorText}`);
-          throw new Error(errorText || 'Failed to update completion stage');
+        if (updateError) {
+          throw new Error(updateError);
         }
 
-        // Reduxにも反映
-        const updated = await updateResponse.json().catch((e) => {
-          console.error('[Export][Frontend] Stage update json parse error:', e);
-          return null;
-        });
-        console.log('[Export][Frontend] Stage update json:', updated);
-        const stageValRaw = updated?.completion_stage ?? updated?.stage ?? STAGE.EXPORT;
+        console.log('[Export][Frontend] Stage update json:', updateResponse);
+        const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.EXPORT;
         const stageVal = Number(stageValRaw);
         dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
         router.push('/projects');
