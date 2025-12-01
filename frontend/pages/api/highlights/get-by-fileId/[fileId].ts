@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
+import { apiV1Client } from '@/utils/apiV1Client';
+import { HighlightEntity } from '@/types/Responses/Highlight';
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,24 +25,23 @@ export default async function handler(
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const response = await fetch(`${BACKEND_URL}/highlights/file/${fileId}`, {
+    const { data, error } = await apiV1Client<HighlightEntity[]>(`/highlights/file/${fileId}`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${session.accessToken}`,
       },
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      return res.status(response.status).json(errorData);
+    if (error || !data) {
+      return res.status(400).json({ message: error || 'Failed to fetch highlights' });
     }
 
-    const highlights = await response.json();
-    console.log('Fetched highlights from backend:', highlights);
+    console.log('Fetched highlights from backend:', data);
     
-    return res.status(200).json(highlights);
+    return res.status(200).json(data);
 
   } catch (error: any) {
     console.error('Error fetching highlights:', error);
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message || 'Internal server error' });
   }
 }

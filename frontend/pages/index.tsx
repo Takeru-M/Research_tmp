@@ -47,7 +47,6 @@ import { useSelector as useReduxSelector } from 'react-redux';
 import LoadingOverlay from '../ components/LoadingOverlay';
 
 const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false });
-// const TextViewer = dynamic(() => import('../ components/TextViewer'), { ssr: false });
 
 // -----------------------------------------------------
 // 既存の EditorPage のロジック部分をコンポーネントとして内包

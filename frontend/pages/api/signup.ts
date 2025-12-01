@@ -1,8 +1,8 @@
 // pages/api/signup.ts
 import type { NextApiRequest, NextApiResponse } from "next";
+import { apiV1Client } from "@/utils/apiV1Client";
 import { SignupRequest } from "@/types/Request";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
+import { SignupResponse } from "@/types/Responses/Auth";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -10,30 +10,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // 型チェックして必要なフィールドだけ送る
     const { username, email, password, confirm_password } = req.body as SignupRequest;
 
     if (!username || !email || !password || !confirm_password) {
       return res.status(400).json({ detail: "Missing required fields" });
     }
 
-    const response = await fetch(`${BACKEND_URL}/auth/signup`, {
+    const { data, error } = await apiV1Client<SignupResponse>("/auth/signup", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, email, password, confirm_password }),
+      body: { username, email, password, confirm_password },
     });
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      return res.status(response.status).json(data);
+    if (error || !data) {
+      return res.status(400).json({ detail: error || "Signup failed" });
     }
 
     return res.status(201).json(data);
-  } catch (error: any) {
-    console.error("Error in API route:", error);
+  } catch (e: any) {
+    console.error("Error in signup API:", e);
     return res.status(500).json({ message: "Internal server error" });
   }
 }

@@ -1,37 +1,5 @@
-// 開発環境
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+// 注意点
 
-// 本番環境
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-// テスト環境（Docker Composeネットワーク内でコマンドを実行）
-docker compose exec backend bash -c "php artisan migrate --env=testing && vendor/bin/phpunit"
-
-// キャッシュ削除
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --force-recreate -d
-docker system prune -a
-
-// コンテナ削除
-docker compose down --remove-orphans
-docker compose down -v
-
-// 管理者でコンテナに入る
-docker compose exec -it --user root コンテナ名 sh
-
-// モデルを追加・変更
-alembic revision --autogenerate -m "コメント"
-
-// マイグレーション実行
-alembic upgrade head
-
-// マイグレーションの取り消し
-alembic downgrade -1
-
-// シーディング（ユーザ）
-（backendコンテナ内で）python app/scripts/seed.py
-
-// シーディング削除
-（backendコンテナ内で）python app/scripts/unseed.py
-
-// commentsテーブル削除前
-SET FOREIGN_KEY_CHECKS = 0;
+// API通信について
+// Next.js側はapiに，fastapi側には/v1/apiに通信
+// 基本の型はapiClient.tsに記述しており，各通信ではこれを用いるが，export.ts内のみ利用していないので注意
