@@ -1,7 +1,7 @@
 // src/components/Layout.tsx
 import Head from 'next/head';
 import React, { ChangeEvent, PropsWithChildren, useCallback } from 'react';
-import styles from '../styles/Home.module.css';
+import styles from '../styles/Layout.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
 import { useSession, signOut } from 'next-auth/react';
@@ -17,7 +17,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
-  const documentName = useSelector((state: RootState) => state.editor.documentName); // Reduxからプロジェクト名を取得
+  const documentName = useSelector((state: RootState) => state.editor.documentName);
 
   const handleScaleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const newScale = parseFloat(event.target.value);
@@ -26,18 +26,11 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
   const handleLogout = useCallback(() => {
     signOut({ callbackUrl: '/login' });
-  }, [session]);
+  }, []);
 
   const handleBackToProjects = useCallback(() => {
     router.push('/projects');
   }, [router]);
-
-  const headerContainerStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-  };
 
   if (status === 'loading') {
     return null;
@@ -56,42 +49,23 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
       {/* ログイン済みのみヘッダー表示 */}
       {isAuthenticated && (
-        <header className={styles.header || 'header'}>
-          <div className={styles.container || 'container'} style={headerContainerStyle}>
-            <h1>{t("main-title")}</h1>
+        <header className={styles.header}>
+          <div className={styles.headerContainer}>
+            <h1 className={styles.headerTitle}>{t("main-title")}</h1>
+            
             {/* プロジェクト名を表示 */}
             {router.pathname === '/' && documentName && (
-              <h2 style={{ margin: '0', fontSize: '1.5rem', color: '#333' }}>
+              <h2 className={styles.documentName}>
                 {documentName}
               </h2>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            
+            <div className={styles.headerActions}>
               {/* プロジェクト一覧に戻るボタン (projectsページ以外で表示) */}
               {!isProjectsPage && (
                 <button
                   onClick={handleBackToProjects}
-                  style={{
-                    padding: '6px 14px',
-                    cursor: 'pointer',
-                    backgroundColor: '#f1f3f5',
-                    border: '1px solid #d0d7de',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    color: '#333',
-                    fontWeight: 600,
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#e9ecef';
-                    e.currentTarget.style.borderColor = '#c1c8ce';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f1f3f5';
-                    e.currentTarget.style.borderColor = '#d0d7de';
-                  }}
+                  className={styles.backButton}
                 >
                   <span>←</span>
                   <span>{t("header.back-to-document-list")}</span>
@@ -100,13 +74,15 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
 
               {/* PDF倍率変更UI (projectsページ以外で表示) */}
               {!isProjectsPage && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <label htmlFor="pdf-scale-select">{t("Scale")}:</label>
+                <div className={styles.scaleSelector}>
+                  <label htmlFor="pdf-scale-select" className={styles.scaleLabel}>
+                    {t("Scale")}:
+                  </label>
                   <select
                     id="pdf-scale-select"
                     value={pdfScale.toString()}
                     onChange={handleScaleChange}
-                    style={{ padding: '5px', minWidth: '80px' }}
+                    className={styles.scaleSelect}
                   >
                     {SCALE_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>
@@ -118,27 +94,12 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
               )}
 
               {/* ユーザー情報とログアウトボタン */}
-              {session?.user?.name && <span style={{ marginRight: '10px' }}>{session.user.name}</span>}
+              {session?.user?.name && (
+                <span className={styles.userName}>{session.user.name}</span>
+              )}
               <button
                 onClick={handleLogout}
-                style={{
-                  padding: '6px 14px',
-                  cursor: 'pointer',
-                  backgroundColor: '#f1f3f5',
-                  border: '1px solid #d0d7de',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  color: '#333',
-                  transition: 'background-color 0.2s, border-color 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e9ecef';
-                  e.currentTarget.style.borderColor = '#c1c8ce';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f1f3f5';
-                  e.currentTarget.style.borderColor = '#d0d7de';
-                }}
+                className={styles.logoutButton}
               >
                 {t("Logout.button-text")}
               </button>
@@ -147,32 +108,17 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
         </header>
       )}
 
-      <main
-        className={styles.main || 'main-content'}
-        style={{
-          display: 'flex',
-          justifyContent: isAuthPage ? 'center' : 'flex-start',
-          alignItems: isAuthPage ? 'center' : 'flex-start',
-          minHeight: isAuthPage ? '100%' : 'auto',
-          padding: isAuthPage ? '0 20px' : undefined,
-          backgroundColor: '#f3f4f6',
-        }}
-      >
-        <div className={styles.container || 'container'}
-          style={{
-            width: '100%',
-            // maxWidth: isAuthPage ? '400px' : undefined
-          }}
-        >
+      <main className={`${styles.main} ${isAuthPage ? styles.authPage : ''}`}>
+        <div className={`${styles.mainContainer} ${isAuthPage ? styles.authPage : ''}`}>
           {children}
         </div>
       </main>
 
       {/* ログイン済みのみフッター表示 */}
       {isAuthenticated && (
-        <footer className={styles.footer || 'footer'}>
-          <div className={styles.container || 'container'}>
-            <p>
+        <footer className={styles.footer}>
+          <div className={styles.footerContainer}>
+            <p className={styles.footerText}>
               <Trans
                 i18nKey="footer-txt"
                 values={{ year: new Date().getFullYear() }}

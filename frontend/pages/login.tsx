@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import styles from '../styles/Login.module.css';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -35,94 +36,63 @@ const LoginPage: React.FC = () => {
     }
   }, [email, password, t]);
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid #d1d5db',
-    outline: 'none',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '12px',
-    backgroundColor: loading ? '#60a5fa' : '#3b82f6',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    fontWeight: 600,
-    cursor: loading ? 'not-allowed' : 'pointer',
-  };
-
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}>{t('Loading...')}</div>;
+    return <div className={styles.loading}>{t('Loading...')}</div>;
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      width: '100%',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#f3f4f6',
-      padding: '20px',
-    }}>
-      <form style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '30px',
-        borderRadius: '16px',
-        backgroundColor: '#fff',
-        boxShadow: '0 8px 24px rgba(149, 157, 165, 0.2)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-      }} onSubmit={handleLogin}>
-        <h2 style={{ textAlign: 'center', fontSize: '1.6rem', fontWeight: 600, color: '#333' }}>
+    <div className={styles.container}>
+      <form className={styles.form} onSubmit={handleLogin}>
+        <h2 className={styles.title}>
           {t('Login.title')}
         </h2>
 
         {(authError || router.query.error) && (
-          <p style={{ color: '#dc2626', textAlign: 'center' }}>
+          <p className={styles.error}>
             {authError || t('Login.error-message')}
           </p>
         )}
 
-        <div>
-          <label htmlFor="email">{t('Login.email')}</label>
+        <div className={styles.inputGroup}>
+          <label htmlFor="email" className={styles.label}>
+            {t('Login.email')}
+          </label>
           <input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={inputStyle}
+            className={styles.input}
             required
           />
         </div>
 
-        <div>
-          <label htmlFor="password">{t('Login.password')}</label>
+        <div className={styles.inputGroup}>
+          <label htmlFor="password" className={styles.label}>
+            {t('Login.password')}
+          </label>
           <input
             id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={inputStyle}
+            className={styles.input}
             required
           />
         </div>
 
-        <button type="submit" style={buttonStyle}>
+        <button
+          type="submit"
+          className={styles.button}
+          disabled={loading}
+        >
           {loading ? t('Login.logging-in') : t('Login.button-text')}
         </button>
       </form>
 
-      <p style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.9rem', color: '#4b5563' }}>
+      <p className={styles.footer}>
         {t('Login.no-account')}<br />
-        <Link href="/signup" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
+        <Link href="/signup" className={styles.link}>
           {t('Login.signup-link-text')}
         </Link>
       </p>

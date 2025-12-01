@@ -35,7 +35,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import HighlightMemoModal from '../ components/HighlightMemoModal';
 import CommentPanel from '../ components/CommentPanel';
-import styles from '../styles/Home.module.css';
+import styles from '../styles/Index.module.css';
 import { v4 as uuidv4 } from 'uuid';
 import "../lang/config";
 import { useTranslation } from "react-i18next";
@@ -187,7 +187,7 @@ const EditorPageContent: React.FC = () => {
       if (error || !response || response.length === 0) {
         console.info('[fetchProjectFile] No files found for this project yet.');
         setIsFileUploaded(false);
-        dispatch(stopLoading()); // ← ここで stopLoading を呼ぶ
+        dispatch(stopLoading());
         return;
       }
 
@@ -199,7 +199,7 @@ const EditorPageContent: React.FC = () => {
       if (!fileResponse.ok) {
         console.warn('[fetchProjectFile] Failed to fetch file from S3:', fileResponse.status);
         setIsFileUploaded(false);
-        dispatch(stopLoading()); // ← ここでも stopLoading を呼ぶ
+        dispatch(stopLoading());
         return;
       }
 
@@ -253,7 +253,7 @@ const EditorPageContent: React.FC = () => {
   // コンポーネントマウント時にプロジェクト情報とファイルを取得（stageはバックエンドからのみ）
   useEffect(() => {
     const projectId = getProjectIdFromCookie();
-    const isNewProject = router.query.new === 'true'; // 新規作成フラグをクエリパラメータで判定
+    const isNewProject = router.query.new === 'true';
     
     if (projectId && !isNewProject) {
       // 既存プロジェクトの場合のみ情報を取得
@@ -272,7 +272,6 @@ const EditorPageContent: React.FC = () => {
   // ---------------------------
   // S3アップロード + バックエンド保存
   // ---------------------------
-  // useCallbackでメモ化（依存が毎回変わる警告を解消）
   const uploadPdfToS3AndSave = useCallback(async (file: File, filetype: string, filesize: number) => {
     if (!file) return;
 
@@ -339,7 +338,6 @@ const EditorPageContent: React.FC = () => {
     return Math.max(MIN_PDF_WIDTH, window.innerWidth * 0.7 - MIN_COMMENT_PANEL_WIDTH / 2);
   });
   const isResizing = useRef(false);
-  // ------------------------------------
 
   const viewerContentRef = useRef<HTMLDivElement>(null);
   const [viewerHeight, setViewerHeight] = useState<number | 'auto'>(300);
@@ -347,52 +345,40 @@ const EditorPageContent: React.FC = () => {
   // PDFレンダリング完了後やリサイズ時に高さを測定するロジック
   const measureHeight = useCallback(() => {
     if (viewerContentRef.current) {
-      // offsetHeight: パディングとボーダーを含む視覚的な高さを取得
       const height = viewerContentRef.current.offsetHeight;
       setViewerHeight(height);
     }
   }, []);
 
-  // PDFビューアーがレンダリングを完了した際に呼ばれるコールバック
   const handlePdfRenderComplete = useCallback(() => {
-      // レンダリング完了後、DOMが完全に更新されるのを待つため、setTimeoutで非同期に実行
-      setTimeout(measureHeight, 0);
+    setTimeout(measureHeight, 0);
   }, [measureHeight]);
 
   useEffect(() => {
     // 初回ロード時とファイル切り替え時、およびリサイズ時の処理
     measureHeight();
     const handleResize = () => {
-        // ウィンドウリサイズ時にも高さを再測定
-        measureHeight();
+      measureHeight();
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [fileContent, fileType, measureHeight]); // measureHeightを依存配列に追加
-
-
-  // --- リサイズハンドルのためのロジック ---
+  }, [fileContent, fileType, measureHeight]);
 
   // マウスダウン時の処理 (ドラッグ開始)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isResizing.current = true;
-    document.body.style.userSelect = 'none'; // テキスト選択防止
-    document.body.style.cursor = 'col-resize'; // カーソル変更
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
   }, []);
 
   // マウス移動時の処理 (ドラッグ中)
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing.current || !mainContainerRef.current) return;
 
-    // メインコンテナの左端からの相対位置を計算
     const containerRect = mainContainerRef.current.getBoundingClientRect();
     const newWidth = e.clientX - containerRect.left;
-
-    // 最大幅 (コンテナ幅 - コメントパネル最小幅 - ハンドル幅)
     const maxPdfWidth = containerRect.width - MIN_COMMENT_PANEL_WIDTH - HANDLE_WIDTH;
-
-    // 最小/最大幅の制約
     const constrainedWidth = Math.max(MIN_PDF_WIDTH, Math.min(maxPdfWidth, newWidth));
 
     setPdfViewerWidth(constrainedWidth);
@@ -401,11 +387,10 @@ const EditorPageContent: React.FC = () => {
   // マウスアップ時の処理 (ドラッグ終了)
   const handleMouseUp = useCallback(() => {
     if (isResizing.current) {
-        isResizing.current = false;
-        document.body.style.userSelect = '';
-        document.body.style.cursor = '';
-        // ドラッグ終了後、高さを再測定
-        measureHeight();
+      isResizing.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      measureHeight();
     }
   }, [measureHeight]);
 
@@ -467,12 +452,11 @@ const EditorPageContent: React.FC = () => {
         alert(t("Alert.file-support"));
       }
     },
-    [dispatch, t, isFileUploaded, uploadPdfToS3AndSave] // uploadPdfToS3AndSave は useCallback済み
+    [dispatch, t, isFileUploaded, uploadPdfToS3AndSave]
   );
 
   // === Request highlight (open memo modal) ===
   const handleRequestAddHighlight = useCallback((h: PdfHighlight) => {
-    // fileId 未設定時は警告
     if (!fileId) {
       alert(t('Error.file-id-missing') || 'ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。');
       return;
@@ -531,7 +515,6 @@ const EditorPageContent: React.FC = () => {
             throw new Error('Highlight ID is missing in response');
           }
 
-          // Reduxストアに追加
           const finalHighlight: Highlight = {
             ...pendingHighlight,
             id: response.id.toString(),
@@ -568,12 +551,11 @@ const EditorPageContent: React.FC = () => {
         }
       }
 
-      // 既存のハイライトのメモ更新
       dispatch(updateHighlightMemo({ id, memo }));
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, fileId] // 依存に fileId を追加
+    [dispatch, pendingHighlight, getUserName, t, fileId]
   );
 
   // === Highlight Click ===
@@ -583,11 +565,9 @@ const EditorPageContent: React.FC = () => {
 
   // === Viewer ===
   const renderViewer = () => {
-    // 判定を file ではなく fileContent に変更
-    if (!fileContent) return <p>{t("file-upload-txt")}</p>;
+    if (!fileContent) return <p className={styles.noFileMessage}>{t("file-upload-txt")}</p>;
 
     if (fileType && fileType.includes('pdf')) {
-      // デバッグ用ログ
       console.log('Rendering PdfViewer with highlights:', pdfHighlights);
       console.log('Number of highlights:', pdfHighlights.length);
 
@@ -603,61 +583,40 @@ const EditorPageContent: React.FC = () => {
       );
     }
 
-    return <p>{t("Error.file-format")}</p>;
-  };
-
-  // メインコンテナのレイアウト
-  const mainLayoutStyle: CSSProperties = {
-    display: "flex",
-    alignItems: "flex-start",
-    width: '100%',
-    padding: '0 2%',
+    return <p className={styles.errorMessage}>{t("Error.file-format")}</p>;
   };
 
   return (
-    <div className={styles.container} style={mainLayoutStyle} ref={mainContainerRef}>
+    <div className={styles.container} ref={mainContainerRef}>
       <LoadingOverlay isVisible={isGlobalLoading} />
 
-      {/* 1. PDFビューアエリア - 動的に幅を適用 */}
+      {/* 1. PDFビューアエリア */}
       <div
+        className={styles.pdfViewerWrapper}
         style={{
           width: pdfViewerWidth,
           minWidth: MIN_PDF_WIDTH,
-          flexShrink: 0,
-          paddingTop: "2%",
-          display: 'flex',
-          flexDirection: 'column',
         }}
       >
-        {/* ファイルアップロード済みの場合は表示しない */}
         {!isFileUploaded && (
           <div className={styles.fileInputSection}>
             <input type="file" onChange={handleFileUpload} accept=".pdf, .txt, text/*" />
           </div>
         )}
 
-        {/* Viewerコンテンツ部分 */}
-        <div className={styles.viewerContainer} ref={viewerContentRef} style={{minWidth: MIN_PDF_WIDTH, overflowX: "auto",}}>
+        <div className={styles.viewerContainer} ref={viewerContentRef}>
           {renderViewer()}
         </div>
       </div>
 
-      {/* 2. リサイズハンドル - クリック＆ドラッグで幅を変更 */}
+      {/* 2. リサイズハンドル */}
       <div
-        className="resize-handle"
-        style={{
-          width: HANDLE_WIDTH,
-          minWidth: HANDLE_WIDTH,
-          cursor: 'col-resize',
-          backgroundColor: '#ddd',
-          height: '100%',
-          flexShrink: 0,
-        }}
+        className={`${styles.resizeHandle} resize-handle`}
         onMouseDown={handleMouseDown}
       />
 
-      {/* 3. コメントパネルエリア - 残りの幅を全て占める */}
-      <div style={{ flexGrow: 1, minWidth: MIN_COMMENT_PANEL_WIDTH, height: '100%', overflowY: 'auto', paddingTop: "2%" }}>
+      {/* 3. コメントパネルエリア */}
+      <div className={styles.commentPanelWrapper}>
         <CommentPanel viewerHeight={viewerHeight} />
       </div>
 
@@ -679,7 +638,6 @@ const EditorPageContent: React.FC = () => {
 
 // -----------------------------------------------------
 
-// ★ メインのエントリポイント (認証チェック)
 const IndexPage: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -687,19 +645,15 @@ const IndexPage: React.FC = () => {
   const isAuthenticated = status === 'authenticated';
   const isLoading = status === 'loading';
 
-  // ロード中は何もしない
   if (isLoading) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>;
+    return <div className={styles.loadingContainer}>Loading...</div>;
   }
 
-  // 未認証の場合はログインページへリダイレクト
   if (!isAuthenticated) {
-    // router.push を使うことで、NextAuthの設定で指定したsignInページに飛ばす
     router.push('/login');
     return null;
   }
 
-  // 認証済みであれば EditorPageContent を表示
   return <EditorPageContent />;
 };
 

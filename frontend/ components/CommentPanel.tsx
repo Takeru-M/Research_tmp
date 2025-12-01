@@ -1,4 +1,4 @@
-// ../ components/CommentPanel.tsx
+// ../components/CommentPanel.tsx
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
@@ -14,18 +14,13 @@ import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes
 import { Comment } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
 import { useSession } from "next-auth/react";
-import "../styles/CommentPanel.module.css";
+import styles from "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE } from "@/utils/constants";
 import { apiClient } from "@/utils/apiClient";
 
 // 動的なパディングを計算するヘルパー関数
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
   return (typeof viewerHeight !== 'number') ? 500 : viewerHeight;
-};
-
-const menuStyle: React.CSSProperties = {
-  position: "relative",
-  display: "inline-block",
 };
 
 // CommentHeader コンポーネント
@@ -39,6 +34,7 @@ const CommentHeader: React.FC<{
   removeCommentFn: (id: string) => void;
   menuRef: (element: HTMLDivElement | null) => void;
   currentUserName?: string | null;
+  completionStage?: string;
 }> = ({
   comment,
   highlightText,
@@ -49,12 +45,13 @@ const CommentHeader: React.FC<{
   removeCommentFn,
   menuRef,
   currentUserName,
+  completionStage,
 }) => {
   const { t } = useTranslation();
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
-  const completionStage = useSelector(selectCompletionStage);
+  const isExportStage = completionStage === STAGE.EXPORT;
   
   // セッション情報から取得したユーザー名を優先的に使用
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
@@ -65,13 +62,16 @@ const CommentHeader: React.FC<{
     return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + ' ' + date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   }, [comment.createdAt]);
 
+  const isLLMComment = displayAuthor === t("CommentPanel.comment-author-LLM");
+  const showMenu = !isLLMComment && !isExportStage;
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-      <div style={{ flex: 1 }}>
+    <div className={styles.commentHeader}>
+      <div className={styles.commentHeaderLeft}>
         {/* ユーザー情報と時刻 */}
-        <div style={{ display: "flex", alignItems: "baseline" }}>
-          <strong style={{ fontSize: 14 }}>{displayAuthor}</strong>
-          <small style={{ marginLeft: 4, color: "#666", fontSize: 12 }}>
+        <div className={styles.commentUserInfo}>
+          <strong className={styles.commentAuthor}>{displayAuthor}</strong>
+          <small className={styles.commentTime}>
             {time}
           </small>
         </div>
@@ -79,24 +79,7 @@ const CommentHeader: React.FC<{
         {/* ハイライトテキスト表示 */}
         {highlightText && (
           <div
-            style={{
-              marginTop: 6,
-              padding: "6px 8px",
-              backgroundColor: "#f8f9fa",
-              borderLeft: "3px solid #8e8a83",
-              borderRadius: 4,
-              fontSize: 13,
-              color: "#555",
-              lineHeight: 1.4,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              maxHeight: 60,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
-            }}
+            className={styles.highlightTextPreview}
             title={highlightText}
           >
             <em>{highlightText}</em>
@@ -105,64 +88,32 @@ const CommentHeader: React.FC<{
       </div>
 
       {/* メニューボタン */}
-      { (displayAuthor === t("CommentPanel.comment-author-LLM")) || (completionStage !== STAGE.EXPORT) && (
+      {showMenu && (
         <div
-          style={menuStyle}
+          className={styles.menuContainer}
           ref={menuRef}
           onClick={(e) => e.stopPropagation()}
-          onMouseEnter={() => setIsMenuAreaHovered(true)}
+          onMouseEnter={() => !isExportStage && setIsMenuAreaHovered(true)}
           onMouseLeave={() => setIsMenuAreaHovered(false)}
         >
           <button
-            style={{
-              cursor: "pointer",
-              fontSize: 18,
-              color: "black",
-              padding: "0.5% 1%",
-              borderRadius: "50%",
-              lineHeight: 1,
-              background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
-              border: 'none',
-              transition: 'background-color 0.1s',
-              flexShrink: 0,
-              marginLeft: 8,
-            }}
+            className={`${styles.menuButton} ${(isMenuAreaHovered || isMenuOpen) && !isExportStage ? styles.active : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              toggleMenu(comment.id);
+              if (!isExportStage) {
+                toggleMenu(comment.id);
+              }
             }}
+            disabled={isExportStage}
           >
             ⋮
           </button>
 
-          {isMenuOpen && (
-            <div style={{
-              position: "absolute",
-              top: "20px",
-              right: "0px",
-              background: "#fff",
-              border: "1px solid #ddd",
-              boxShadow: "0px 3px 10px rgba(0,0,0,0.15)",
-              borderRadius: 8,
-              zIndex: 100,
-              width: 100,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}>
+          {isMenuOpen && !isExportStage && (
+            <div className={styles.dropdownMenu}>
               {!isEditing && (
                 <button
-                  style={{
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    color: "black",
-                    fontSize: 14,
-                    background: hoveredMenuItem === 'edit' ? '#f5f5f5' : '#fff',
-                    borderBottom: "1px solid #eee",
-                    textAlign: 'left',
-                    width: '100%',
-                    border: 'none',
-                  }}
+                  className={styles.menuItem}
                   onMouseEnter={() => setHoveredMenuItem('edit')}
                   onMouseLeave={() => setHoveredMenuItem(null)}
                   onClick={(e) => {
@@ -174,17 +125,7 @@ const CommentHeader: React.FC<{
                 </button>
               )}
               <button
-                style={{
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  color: "red",
-                  fontSize: 14,
-                  borderBottom: "none",
-                  background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
-                  textAlign: 'left',
-                  width: '100%',
-                  border: 'none',
-                }}
+                className={`${styles.menuItem} ${styles.delete}`}
                 onMouseEnter={() => setHoveredMenuItem('delete')}
                 onMouseLeave={() => setHoveredMenuItem(null)}
                 onClick={(e) => {
@@ -212,6 +153,9 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const { data: session } = useSession();
 
   const { comments, activeHighlightId, activeCommentId, highlights } = useSelector((s: any) => s.editor);
+  const completionStage = useSelector(selectCompletionStage);
+  const isExportStage = completionStage === STAGE.EXPORT;
+
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -219,7 +163,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const commentPanelRef = useRef<HTMLDivElement>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
-  const completionStage = useSelector(selectCompletionStage);
 
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const threadRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -328,82 +271,81 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
   };
 
-const removeCommentFn = async (id: string) => {
-  if (!window.confirm(t("Alert.comment-delete"))) return;
+  const removeCommentFn = async (id: string) => {
+    if (!window.confirm(t("Alert.comment-delete"))) return;
 
-  const comment = comments.find((c: Comment) => c.id === id);
-  if (!comment) return;
+    const comment = comments.find((c: Comment) => c.id === id);
+    if (!comment) return;
 
-  try {
-    // ルートコメントを削除する場合
-    if (comment.parentId === null) {
-      if (comment.highlightId) {
-        // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
-        const { error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
+    try {
+      // ルートコメントを削除する場合
+      if (comment.parentId === null) {
+        if (comment.highlightId) {
+          // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
+          const { error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          console.log('Highlight and related comments deleted');
+          
+          // Reduxストアからハイライトを削除（関連コメントも自動削除される）
+          dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
+        } else {
+          // ハイライトが無いルートコメントは、そのルートに属する全コメントを削除
+          const threadComments = comments.filter(c => findRootId(c.id) === comment.id);
+          
+          // バックエンドから全てのコメントを削除
+          for (const threadComment of threadComments) {
+            const { error } = await apiClient<void>(`/comments/${threadComment.id}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+          }
+
+          // ルート自身も削除
+          if (!threadComments.find(c => c.id === comment.id)) {
+            const { error } = await apiClient<void>(`/comments/${comment.id}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+          }
+
+          console.log('Thread comments deleted');
+
+          // Reduxストアから削除
+          threadComments.forEach(c => dispatch(deleteComment({ id: c.id })));
+          if (!threadComments.find(c => c.id === comment.id)) {
+            dispatch(deleteComment({ id: comment.id }));
+          }
+        }
+      } else {
+        // 返信の削除
+        const { error } = await apiClient<void>(`/comments/${id}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
           },
         });
 
-        console.log('Highlight and related comments deleted');
-        
-        // Reduxストアからハイライトを削除（関連コメントも自動削除される）
-        dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
-      } else {
-        // ハイライトが無いルートコメントは、そのルートに属する全コメントを削除
-        const threadComments = comments.filter(c => findRootId(c.id) === comment.id);
-        
-        // バックエンドから全てのコメントを削除
-        for (const threadComment of threadComments) {
-          const { error } = await apiClient<void>(`/comments/${threadComment.id}`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-        }
-
-        // ルート自身も削除
-        if (!threadComments.find(c => c.id === comment.id)) {
-
-          const { error } = await apiClient<void>(`/comments/${comment.id}`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-        }
-
-        console.log('Thread comments deleted');
+        console.log('Reply comment deleted');
 
         // Reduxストアから削除
-        threadComments.forEach(c => dispatch(deleteComment({ id: c.id })));
-        if (!threadComments.find(c => c.id === comment.id)) {
-          dispatch(deleteComment({ id: comment.id }));
-        }
+        dispatch(deleteComment({ id }));
       }
-    } else {
-      // 返信の削除
-      const { error } = await apiClient<void>(`/comments/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
 
-      console.log('Reply comment deleted');
-
-      // Reduxストアから削除
-      dispatch(deleteComment({ id }));
+      closeMenu(id);
+    } catch (error: any) {
+      console.error('Failed to delete comment:', error);
+      alert(t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
     }
-
-    closeMenu(id);
-  } catch (error: any) {
-    console.error('Failed to delete comment:', error);
-    alert(t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
-  }
-};
+  };
 
   const sendReply = async (parentId: string) => {
     const replyText = replyTextMap[parentId] || "";
@@ -466,46 +408,29 @@ const removeCommentFn = async (id: string) => {
   const renderCommentBody = (comment: Comment) => {
     const isEditing = editingId === comment.id;
     return isEditing ? (
-      <div onClick={(e) => e.stopPropagation()}>
+      <div className={styles.editContainer} onClick={(e) => e.stopPropagation()}>
         <textarea
           value={editText}
           onChange={(e) => setEditText(e.target.value)}
-          style={{ width: "100%", marginTop: 4, padding: 6, borderRadius: 4, border: "1px solid #ccc", boxSizing: 'border-box', fontSize: 14 }}
+          className={styles.editTextarea}
         />
-        <button
-          style={{
-            marginTop: 4,
-            marginRight: 2,
-            padding: "6px 12px",
-            fontSize: 14,
-            borderRadius: 4,
-            background: "#1976d2",
-            color: "#fff",
-            border: "none",
-            cursor: "pointer",
-          }}
-          onClick={(e) => { e.stopPropagation(); saveEdit(comment.id); }}
-        >
-          {t("Utils.save")}
-        </button>
-        <button
-          style={{
-            marginTop: 4,
-            padding: "6px 12px",
-            fontSize: 14,
-            borderRadius: 4,
-            background: "#6c757d",
-            color: "#fff",
-            border: "none",
-            cursor: "pointer",
-          }}
-          onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
-        >
-          {t("Utils.cancel")}
-        </button>
+        <div className={styles.editButtonGroup}>
+          <button
+            className={styles.saveButton}
+            onClick={(e) => { e.stopPropagation(); saveEdit(comment.id); }}
+          >
+            {t("Utils.save")}
+          </button>
+          <button
+            className={styles.cancelButton}
+            onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
+          >
+            {t("Utils.cancel")}
+          </button>
+        </div>
       </div>
     ) : (
-      <p style={{ marginTop: 6, marginBottom: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{comment.text}</p>
+      <p className={styles.commentBody}>{comment.text}</p>
     );
   };
 
@@ -608,18 +533,16 @@ const removeCommentFn = async (id: string) => {
   return (
     <div
       ref={commentPanelRef}
+      className={styles.commentPanel}
       style={{
-        minWidth: "300px",
-        padding: "1%",
         maxHeight: viewerHeight !== 'auto'
           ? `calc(${viewerHeight}px)`
           : 'auto',
-        overflowY: 'auto',
       }}
-      className="comment-panel"
     >
       <div
         ref={scrollContainerRef}
+        className={styles.scrollContainer}
         style={{
           paddingTop: DYNAMIC_PADDING_PX,
           paddingBottom: DYNAMIC_PADDING_PX,
@@ -636,20 +559,13 @@ const removeCommentFn = async (id: string) => {
             : replies;
 
           const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
-          const rootHighlightText = getHighlightText(root.highlightId);
+          const isActive = activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId);
 
           return (
             <div
               key={root.id}
               ref={(el) => { threadRefs.current[root.id] = el; }}
-              style={{
-                background: activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId) ? "#f0f7ff" : "#fff",
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                padding: 8,
-                marginBottom: 8,
-                cursor: 'pointer',
-              }}
+              className={`${styles.threadCard} ${isActive ? styles.active : ''}`}
               onClick={() => {
                 dispatch(setActiveCommentId(root.id));
                 dispatch(setActiveHighlightId(root.highlightId));
@@ -666,6 +582,7 @@ const removeCommentFn = async (id: string) => {
                 removeCommentFn={removeCommentFn}
                 menuRef={(el) => (menuRefs.current[root.id] = el)}
                 currentUserName={session?.user?.name || null}
+                completionStage={completionStage}
               />
 
               {renderCommentBody(root)}
@@ -673,15 +590,7 @@ const removeCommentFn = async (id: string) => {
               {visibleReplies.map((reply) => (
                 <div
                   key={reply.id}
-                  style={{
-                    marginLeft: 14,
-                    marginTop: 6,
-                    borderLeft: "2px solid #eee",
-                    paddingLeft: 8,
-                    background: activeCommentId === reply.id ? "#e6f3ff" : "transparent",
-                    paddingTop: 4,
-                    paddingBottom: 4,
-                  }}
+                  className={`${styles.replyContainer} ${activeCommentId === reply.id ? styles.active : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     dispatch(setActiveCommentId(reply.id));
@@ -699,6 +608,7 @@ const removeCommentFn = async (id: string) => {
                     removeCommentFn={removeCommentFn}
                     menuRef={(el) => (menuRefs.current[reply.id] = el)}
                     currentUserName={session?.user?.name || null}
+                    completionStage={completionStage}
                   />
                   {renderCommentBody(reply)}
                 </div>
@@ -709,56 +619,33 @@ const removeCommentFn = async (id: string) => {
                 value={replyTextMap[root.id] || ""}
                 onChange={(e) => handleReplyTextChange(root.id, e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: "100%",
-                  marginTop: 6,
-                  fontSize: 14,
-                  padding: 6,
-                  borderRadius: 6,
-                  border: "1px solid #ccc",
-                  boxSizing: 'border-box',
-                  resize: 'none',
-                }}
+                disabled={isExportStage}
+                className={styles.replyTextarea}
               />
 
-              {completionStage !== STAGE.EXPORT && (
-                <button
-                  style={{
-                    marginTop: 6,
-                    padding: "6px 14px",
-                    fontSize: 14,
-                    borderRadius: 6,
-                    background: "#1976d2",
-                    color: "#fff",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
+              <button
+                className={styles.replyButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isExportStage) {
                     sendReply(root.id);
-                  }}
-                >
-                  {t("CommentPanel.reply")}
-                </button>
-              )}
+                  }
+                }}
+                disabled={isExportStage}
+              >
+                {t("CommentPanel.reply")}
+              </button>
 
               {showCollapseButton && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleCollapse(root.id);
+                    if (!isExportStage) {
+                      toggleCollapse(root.id);
+                    }
                   }}
-                  style={{
-                    marginTop: 8,
-                    padding: "4px 8px",
-                    fontSize: 12,
-                    color: "#1976d2",
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    width: '100%',
-                  }}
+                  disabled={isExportStage}
+                  className={styles.collapseButton}
                 >
                   {isCollapsed
                     ? `${t("CommentPanel.show-more")} (${totalReplies - visibleReplies.length} 件)`

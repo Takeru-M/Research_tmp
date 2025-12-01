@@ -1,0 +1,181 @@
+.pdfViewerContainer {
+  position: relative;
+  width: 100%;
+}
+
+.pdfDocument {
+  /* Document container styles if needed */
+}
+
+.pageContainer {
+  position: relative;
+  margin-bottom: 12px;
+  margin-left: auto;
+  margin-right: auto;
+  width: max-content;
+}
+
+.highlightOverlay {
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+.highlightOverlay.active {
+  z-index: 50;
+}
+
+.highlightOverlay.inactive {
+  z-index: 10;
+}
+
+.selectionMenu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  font-size: 14px;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.menuButton {
+  font-size: 14px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.menuButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+}
+
+.menuButton:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.3);
+}
+
+.emptyMessage {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
+.buttonContainer {
+  text-align: center;
+  padding: 20px 0;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.completeButton {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.completeButton.primary {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+}
+
+.completeButton.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
+}
+
+.completeButton.secondary {
+  background: linear-gradient(135deg, #666666 0%, #555555 100%);
+}
+
+.completeButton.secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 102, 102, 0.4);
+}
+
+.completeButton:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+  transform: none;
+}
+
+.completeButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .selectionMenu {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .menuButton {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  .buttonContainer {
+    padding: 15px 10px;
+    gap: 8px;
+  }
+
+  .completeButton {
+    padding: 10px 18px;
+    font-size: 14px;
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pageContainer {
+    margin-bottom: 8px;
+  }
+
+  .selectionMenu {
+    left: 50% !important;
+    transform: translateX(-50%);
+    width: calc(100% - 40px);
+    max-width: 300px;
+  }
+
+  .completeButton {
+    width: 100%;
+    max-width: none;
+  }
+}

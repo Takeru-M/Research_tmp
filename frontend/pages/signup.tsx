@@ -2,8 +2,8 @@ import React, { useState, useCallback, FormEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import styles from '../styles/Home.module.css';
 import Link from 'next/link';
+import styles from '../styles/Signup.module.css';
 import {
   validateEmail,
   validatePassword,
@@ -33,7 +33,7 @@ const SignupPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/projects'); // サインアップ後の遷移先を変更
+      router.push('/projects');
     }
   }, [status, router]);
 
@@ -54,7 +54,7 @@ const SignupPage: React.FC = () => {
     setConfirmPasswordError(cError);
 
     if (uError || eError || pError || cError) {
-      setFormError(t('Signup.validation.fix-errors')); // 全体エラー
+      setFormError(t('Signup.validation.fix-errors'));
       return;
     }
 
@@ -64,8 +64,6 @@ const SignupPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: { username, email, password, confirm_password: confirmPassword },
       });
-
-      // const data = await res.json().catch(() => ({})); // JSON parse error対策
 
       if (resError || !res) {
         const errorMessage =
@@ -86,16 +84,14 @@ const SignupPage: React.FC = () => {
       });
 
       if (loginResult?.ok) {
-        router.push('/projects'); // サインアップ直後の自動ログイン時も遷移先を変更
+        router.push('/projects');
       } else {
-        // ログイン失敗時にフォームエラー表示も可
         setFormError(t('Signup.login-failed'));
         router.push('/login');
       }
     } catch (err: unknown) {
       console.error('Signup error:', err);
 
-      // ネットワークエラーや予期しないエラーも明確に
       if (err instanceof Error) {
         setFormError(`${t('Signup.error')}: ${err.message}`);
       } else {
@@ -104,67 +100,38 @@ const SignupPage: React.FC = () => {
     }
   }, [username, email, password, confirmPassword, router, t]);
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid #d1d5db',
-    outline: 'none',
-  };
-
-  const errorTextStyle: React.CSSProperties = {
-    color: '#dc2626',
-    fontSize: '0.85rem',
-    marginTop: '4px',
-  };
-
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#f3f4f6',
-      padding: '20px',
-      width: '100%'
-    }}>
-      <form style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '30px',
-        borderRadius: '16px',
-        backgroundColor: '#fff',
-        boxShadow: '0 8px 24px rgba(149, 157, 165, 0.2)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-      }} onSubmit={handleSignup}>
-        <h2 style={{ textAlign: 'center', fontSize: '1.6rem', fontWeight: 600, color: '#333' }}>
+    <div className={styles.container}>
+      <form className={styles.form} onSubmit={handleSignup}>
+        <h2 className={styles.title}>
           {t('Signup.title')}
         </h2>
 
-        {formError && <p style={{ color: '#dc2626', textAlign: 'center' }}>{formError}</p>}
-        {successMessage && <p style={{ color: '#16a34a', textAlign: 'center' }}>{successMessage}</p>}
+        {formError && <p className={styles.formError}>{formError}</p>}
+        {successMessage && <p className={styles.successMessage}>{successMessage}</p>}
 
         {/* ユーザ名入力 */}
-        <div>
-          <label htmlFor="username">{t('Signup.username')}</label>
+        <div className={styles.inputGroup}>
+          <label htmlFor="username" className={styles.label}>
+            {t('Signup.username')}
+          </label>
           <input
             id="username"
             type="text"
             value={username}
             onChange={e => setUsername(e.target.value)}
-            onBlur={() => setUsernameError(validateUsername(username, t))} // blur時にチェック
+            onBlur={() => setUsernameError(validateUsername(username, t))}
             required
-            style={inputStyle}
+            className={`${styles.input} ${usernameError ? styles.inputError : ''}`}
           />
-          {usernameError && <p style={errorTextStyle}>{usernameError}</p>}
+          {usernameError && <p className={styles.errorText}>{usernameError}</p>}
         </div>
 
         {/* メールアドレス入力 */}
-        <div>
-          <label htmlFor="email">{t('Signup.email')}</label>
+        <div className={styles.inputGroup}>
+          <label htmlFor="email" className={styles.label}>
+            {t('Signup.email')}
+          </label>
           <input
             id="email"
             type="email"
@@ -172,14 +139,16 @@ const SignupPage: React.FC = () => {
             onChange={e => setEmail(e.target.value)}
             onBlur={() => setEmailError(validateEmail(email, t))}
             required
-            style={inputStyle}
+            className={`${styles.input} ${emailError ? styles.inputError : ''}`}
           />
-          {emailError && <p style={errorTextStyle}>{emailError}</p>}
+          {emailError && <p className={styles.errorText}>{emailError}</p>}
         </div>
 
         {/* パスワード入力 */}
-        <div>
-          <label htmlFor="password">{t('Signup.password')}</label>
+        <div className={styles.inputGroup}>
+          <label htmlFor="password" className={styles.label}>
+            {t('Signup.password')}
+          </label>
           <input
             id="password"
             type="password"
@@ -187,14 +156,16 @@ const SignupPage: React.FC = () => {
             onChange={e => setPassword(e.target.value)}
             onBlur={() => setPasswordError(validatePassword(password, t))}
             required
-            style={inputStyle}
+            className={`${styles.input} ${passwordError ? styles.inputError : ''}`}
           />
-          {passwordError && <p style={errorTextStyle}>{passwordError}</p>}
+          {passwordError && <p className={styles.errorText}>{passwordError}</p>}
         </div>
 
         {/* パスワード確認 */}
-        <div>
-          <label htmlFor="confirm-password">{t('Signup.confirm-password')}</label>
+        <div className={styles.inputGroup}>
+          <label htmlFor="confirm-password" className={styles.label}>
+            {t('Signup.confirm-password')}
+          </label>
           <input
             id="confirm-password"
             type="password"
@@ -202,31 +173,21 @@ const SignupPage: React.FC = () => {
             onChange={e => setConfirmPassword(e.target.value)}
             onBlur={() => setConfirmPasswordError(validateConfirmPassword(password, confirmPassword, t))}
             required
-            style={inputStyle}
+            className={`${styles.input} ${confirmPasswordError ? styles.inputError : ''}`}
           />
-          {confirmPasswordError && <p style={errorTextStyle}>{confirmPasswordError}</p>}
+          {confirmPasswordError && <p className={styles.errorText}>{confirmPasswordError}</p>}
         </div>
 
         {/* サインアップボタン */}
-        <button type="submit" style={{
-          width: '100%',
-          padding: '12px',
-          backgroundColor: '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          fontSize: '1rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}>
+        <button type="submit" className={styles.button}>
           {t('Signup.button-text')}
         </button>
       </form>
 
       {/* ログインリンク */}
-      <p style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.9rem', color: '#4b5563' }}>
+      <p className={styles.footer}>
         {t('Signup.has-account')}<br />
-        <Link href="/login" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
+        <Link href="/login" className={styles.link}>
           {t('Signup.login-link-text')}
         </Link>
       </p>

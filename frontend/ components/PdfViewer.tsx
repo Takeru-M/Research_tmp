@@ -21,20 +21,18 @@ import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
 import { RESPONSE_SAMPLE_IN_STAGE1 } from '@/utils/test';
 import { apiClient } from '@/utils/apiClient';
+import styles from '../styles/PdfViewer.module.css';
 
 // pdf.js worker の堅牢な設定（Turbopack の file:/// 問題を回避）
 if (typeof window !== 'undefined') {
   try {
     const candidate = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-    // Turbopack dev だと file:/// になることがある → CDN にフォールバック
     const useCdn = candidate.startsWith('file:');
     const cdnModule = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
     const cdnLegacy = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js`;
 
-    // 一部環境で module worker が弾かれる場合があるため、CDN 使用時は legacy へ
     pdfjs.GlobalWorkerOptions.workerSrc = useCdn ? cdnLegacy : candidate;
   } catch {
-    // import.meta.url 未対応などの例外時も CDN にフォールバック
     pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js`;
   }
 }
@@ -279,31 +277,20 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       return pageRects.map((rect, idx) => (
         <div
           key={`${h.id}-${idx}`}
+          className={`${styles.highlightOverlay} ${isActive ? styles.active : styles.inactive}`}
           style={{
-            position: 'absolute',
             left: `${rect.x1 * scale}px`,
             top: `${rect.y1 * scale}px`,
             width: `${(rect.x2 - rect.x1) * scale}px`,
             height: `${(rect.y2 - rect.y1) * scale}px`,
             backgroundColor: isActive ? activeBg : baseBg,
             border: `${isActive ? 3 : 2}px solid ${isActive ? activeBorderColor : baseBorderColor}`,
-            borderRadius: '2px',
-            // ハイライトレイヤーのマウス操作を無効化
-            pointerEvents: 'none',
-            boxSizing: 'border-box',
             boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.12)' : undefined,
-            zIndex: isActive ? 50 : 10,
           }}
-          // クリックハンドラは無効化（テキスト操作を優先）
-          // onClick={(e) => {
-          //   e.stopPropagation();
-          //   dispatch(setActiveHighlightId(h.id));
-          //   onHighlightClick?.(h.id);
-          // }}
         />
       ));
     });
-  },[highlights,pageData,pageScales,effectiveActiveHighlightId, onHighlightClick, dispatch]);
+  },[highlights,pageData,pageScales,effectiveActiveHighlightId, onHighlightClick, dispatch, t]);
 
 
   // TextNode対応 helper

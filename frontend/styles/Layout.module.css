@@ -1,0 +1,246 @@
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.headerContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.headerTitle {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+  color: white;
+}
+
+.documentName {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.backButton {
+  padding: 8px 16px;
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: white;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(10px);
+}
+
+.backButton:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.scaleSelector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.scaleLabel {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.scaleSelect {
+  padding: 6px 10px;
+  min-width: 80px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.scaleSelect:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.scaleSelect option {
+  background-color: #667eea;
+  color: white;
+}
+
+.userName {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+  margin-right: 10px;
+}
+
+.logoutButton {
+  padding: 8px 16px;
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: white;
+  font-weight: 600;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.logoutButton:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.main {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  min-height: calc(100vh - 180px);
+  background-color: #f3f4f6;
+}
+
+.main.authPage {
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 0 20px;
+}
+
+.mainContainer {
+  width: 100%;
+}
+
+.mainContainer.authPage {
+  max-width: 400px;
+}
+
+.footer {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px 0;
+  text-align: center;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: auto;
+}
+
+.footerContainer {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.footerText {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 1024px) {
+  .headerContainer {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .documentName {
+    font-size: 1.2rem;
+    width: 100%;
+    text-align: center;
+    order: -1;
+  }
+
+  .headerActions {
+    gap: 12px;
+  }
+
+  .scaleSelector {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 768px) {
+  .headerTitle {
+    font-size: 1.4rem;
+  }
+
+  .documentName {
+    font-size: 1rem;
+  }
+
+  .headerActions {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .backButton,
+  .logoutButton {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+
+  .scaleSelect {
+    min-width: 70px;
+    padding: 5px 8px;
+    font-size: 0.85rem;
+  }
+
+  .userName {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 12px 0;
+  }
+
+  .headerContainer {
+    padding: 0 12px;
+  }
+
+  .headerTitle {
+    font-size: 1.2rem;
+  }
+
+  .headerActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .scaleSelector {
+    flex: 1;
+  }
+}
