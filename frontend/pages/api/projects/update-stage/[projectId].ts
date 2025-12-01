@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]';
 import { apiV1Client } from '@/utils/apiV1Client';
-import { UpdateCompletionStageRequest, UpdateCompletionStageResponse } from '@/types/Responses/Project';
+import { UpdateCompletionStageResponse } from '@/types/Responses/Project';
+import { UpdateCompletionStageRequest } from '@/types/Requests/Project';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { projectId } = req.query;

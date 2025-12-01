@@ -54,7 +54,6 @@ const PdfViewer = dynamic(() => import('../ components/PdfViewer'), { ssr: false
 const EditorPageContent: React.FC = () => {
   const dispatch: AppDispatch = useDispatch();
   const isGlobalLoading = useReduxSelector((state: RootState) => state.loading.isLoading);
-  const globalLoadingMessage = useReduxSelector((state: RootState) => state.loading.message);
   const { t } = useTranslation();
   const router = useRouter();
   const { data: session } = useSession();
@@ -89,8 +88,6 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      // const response = await fetch(`/api/highlights/get-by-fileId/${fileId}`);
-
       const { data: response, status } = await apiClient<any>(`/highlights/get-by-fileId/${fileId}`, {
         method: 'GET',
         headers: {
@@ -104,16 +101,17 @@ const EditorPageContent: React.FC = () => {
         dispatch(setComments([]));
         return;
       }
-
-      if (!response.ok) {
-        console.warn('[fetchHighlightsAndComments] Non-OK response:', response.status);
-        return; // 非致命的: UI 継続
+      if (!response) {
+        console.warn('[fetchHighlightsAndComments] No response data for fileId:', fileId);
+        dispatch(setHighlights([]));
+        dispatch(setComments([]));
+        return;
       }
 
       console.log('Fetched highlights and ALL comments:', response);
 
       // ハイライトの変換
-      const highlights: PdfHighlight[] = response.map((item: any) => {
+      const highlights: PdfHighlight[] = await response.map((item: any) => {
         const h = item.highlight;
         // highlight_id の代わりに id を使用
         const highlightId = h.id || h.highlight_id;
@@ -179,12 +177,6 @@ const EditorPageContent: React.FC = () => {
   const fetchProjectFile = useCallback(async (projectId: number) => {
     dispatch(startLoading('Loading project file...'));
     try {
-      // const response = await fetch(`/api/project-files/${projectId}`);
-      // if (!response.ok) {
-      //   console.warn('[fetchProjectFile] Failed response:', response.status);
-      //   setIsFileUploaded(false);
-      //   return;
-      // }
       const {data: response, error } = await apiClient<any>(`/project-files/${projectId}`, {
         method: 'GET',
         headers: {
@@ -193,7 +185,9 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (error || !response || response.length === 0) {
-        console.warn('[fetchProjectFile] Failed to fetch files:', error || 'No files found');
+        console.info('[fetchProjectFile] No files found for this project yet.');
+        setIsFileUploaded(false);
+        dispatch(stopLoading()); // ← ここで stopLoading を呼ぶ
         return;
       }
 
@@ -201,6 +195,14 @@ const EditorPageContent: React.FC = () => {
       dispatch(setFileId(latestFile.id));
 
       const fileResponse = await fetch(`/api/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`);
+      
+      if (!fileResponse.ok) {
+        console.warn('[fetchProjectFile] Failed to fetch file from S3:', fileResponse.status);
+        setIsFileUploaded(false);
+        dispatch(stopLoading()); // ← ここでも stopLoading を呼ぶ
+        return;
+      }
+
       const blob = await fileResponse.blob();
       const fileUrl = URL.createObjectURL(blob);
 
@@ -217,21 +219,16 @@ const EditorPageContent: React.FC = () => {
     } catch (error: any) {
       console.error('[fetchProjectFile] Exception:', error);
       setIsFileUploaded(false);
-      // alert 削除
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, fetchHighlightsAndComments]);
+  }, [dispatch, fetchHighlightsAndComments, session?.accessToken]);
 
   // プロジェクト情報の取得（stageをReduxへ反映）
   const fetchProjectInfo = useCallback(async (projectId: number) => {
     try {
       dispatch(startLoading('Loading project info...'));
 
-      // const res = await fetch(`/api/projects/${projectId}`);
-      // if (!res.ok) {
-      //   throw new Error('Failed to fetch project info');
-      // }
       const {data: res, error } = await apiClient<any>(`/projects/${projectId}`, {
         method: 'GET',
         headers: {
@@ -256,11 +253,16 @@ const EditorPageContent: React.FC = () => {
   // コンポーネントマウント時にプロジェクト情報とファイルを取得（stageはバックエンドからのみ）
   useEffect(() => {
     const projectId = getProjectIdFromCookie();
-    if (projectId) {
-      // プロジェクト情報（stage）取得
+    const isNewProject = router.query.new === 'true'; // 新規作成フラグをクエリパラメータで判定
+    
+    if (projectId && !isNewProject) {
+      // 既存プロジェクトの場合のみ情報を取得
       fetchProjectInfo(projectId);
-      // プロジェクトの最新ファイル取得
       fetchProjectFile(projectId);
+    } else if (projectId && isNewProject) {
+      // 新規プロジェクトの場合はプロジェクト情報（stage）のみ取得
+      fetchProjectInfo(projectId);
+      console.log('New project created. Skipping file fetch.');
     } else {
       console.warn('No project ID found in cookies');
       router.push('/projects');
@@ -614,8 +616,7 @@ const EditorPageContent: React.FC = () => {
 
   return (
     <div className={styles.container} style={mainLayoutStyle} ref={mainContainerRef}>
-      {/* ▼ 置き換え: コンポーネント化されたローディングオーバーレイ */}
-      <LoadingOverlay isVisible={isGlobalLoading} message={globalLoadingMessage} />
+      <LoadingOverlay isVisible={isGlobalLoading} />
 
       {/* 1. PDFビューアエリア - 動的に幅を適用 */}
       <div

@@ -248,31 +248,26 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
       
-      // LLMによるハイライトの色を判定
       const isLLMHighlight = h.createdBy === t("CommentPanel.comment-author-LLM");
-      
+
       let baseBg: string;
       let activeBg: string;
       let baseBorderColor: string;
       let activeBorderColor: string;
 
       if (isLLMHighlight) {
-        // LLMハイライト: ユーザー返信有無で色を分ける
         if (h.hasUserReply) {
-          // ユーザー返信あり → 緑色
           baseBg = 'rgba(76, 175, 80, 0.30)';
           activeBg = 'rgba(76, 175, 80, 0.50)';
           baseBorderColor = '#4CAF50';
           activeBorderColor = '#388E3C';
         } else {
-          // ユーザー返信なし → 青色（元のLLM色）
           baseBg = 'rgba(52, 168, 224, 0.30)';
           activeBg = 'rgba(52, 168, 224, 0.50)';
           baseBorderColor = '#34a8e0';
           activeBorderColor = '#1e88c6';
         }
       } else {
-        // ユーザーハイライト → 黄色
         baseBg = 'rgba(255, 235, 59, 0.40)';
         activeBg = 'rgba(255, 235, 59, 0.65)';
         baseBorderColor = '#ffeb3b';
@@ -293,17 +288,18 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             backgroundColor: isActive ? activeBg : baseBg,
             border: `${isActive ? 3 : 2}px solid ${isActive ? activeBorderColor : baseBorderColor}`,
             borderRadius: '2px',
-            cursor: 'pointer',
-            pointerEvents: 'auto',
+            // ハイライトレイヤーのマウス操作を無効化
+            pointerEvents: 'none',
             boxSizing: 'border-box',
             boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.12)' : undefined,
             zIndex: isActive ? 50 : 10,
           }}
-          onClick={(e) => {
-            e.stopPropagation();
-            dispatch(setActiveHighlightId(h.id));
-            onHighlightClick?.(h.id);
-          }}
+          // クリックハンドラは無効化（テキスト操作を優先）
+          // onClick={(e) => {
+          //   e.stopPropagation();
+          //   dispatch(setActiveHighlightId(h.id));
+          //   onHighlightClick?.(h.id);
+          // }}
         />
       ));
     });
@@ -1080,7 +1076,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         </Document>
       ): <p style={{textAlign:'center'}}>{t("Alert.not_input_pdf")}</p> }
 
-      {selectionMenu.visible && (
+      {(selectionMenu.visible) && (completionStage !== STAGE.EXPORT) && (
         <div className="pdf-add-menu"
           style={{
             position:"fixed",
@@ -1095,7 +1091,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             fontSize:12,
             zIndex:9999
           }}>
-          <button style={{fontSize:12,padding:"2px 6px"}} onClick={addHighlight}>{t("PdfViewer.add-comment")}</button>
+            <button style={{fontSize:12,padding:"2px 6px"}} onClick={addHighlight}>{t("PdfViewer.add-comment")}</button>
         </div>
       )}
       <div style={{textAlign:'center', padding: '20px 0'}}>
@@ -1118,7 +1114,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               {t("PdfViewer.complete")}
           </button>
           )}
-          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) && (completionStage !== STAGE.EXPORT) && (
+          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) || (completionStage === STAGE.EXPORT) && (
               <button
                   onClick={handleCompletionforExport}
                   disabled={isLoading}
@@ -1133,7 +1129,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                       opacity: isLoading ? 0.6 : 1,
                   }}
               >
-                  {t("PdfViewer.finish")}
+                {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
               </button>
           )}
       </div>

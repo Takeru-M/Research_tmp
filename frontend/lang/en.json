@@ -9,7 +9,8 @@
     "delete": "Delete",
     "save": "Save",
     "cancel": "Cancel",
-    "complete": "Complete"
+    "complete": "Complete",
+    "waiting": "Please wait a moment"
   },
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "Please upload a file",
@@ -61,7 +62,8 @@
   "PdfViewer": {
     "add-comment": "Add Comment",
     "complete": "Complete",
-    "finish": "Finish"
+    "finish": "Finish",
+    "export-again": "Export Again"
   },
   "HighlightCommentModal": {
     "comment-title": "Comment",

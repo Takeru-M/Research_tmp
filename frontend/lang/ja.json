@@ -9,7 +9,8 @@
     "delete": "削除",
     "save": "保存",
     "cancel": "キャンセル",
-    "complete": "完了"
+    "complete": "完了",
+    "waiting": "しばらくお待ちください"
   },
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
@@ -61,7 +62,8 @@
   "PdfViewer": {
     "add-comment": "コメントを追加",
     "complete": "完了する",
-    "finish": "終了する"
+    "finish": "終了する",
+    "export-again": "再度エクスポートする"
   },
   "HighlightCommentModal": {
     "comment-title": "コメント",

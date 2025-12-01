@@ -1,7 +1,7 @@
 // pages/api/signup.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { apiV1Client } from "@/utils/apiV1Client";
-import { SignupRequest } from "@/types/Request";
+import { SignupRequest } from "@/types/Requests/Auth";
 import { SignupResponse } from "@/types/Responses/Auth";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

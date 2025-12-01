@@ -17,10 +17,10 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, message }) =
       <div className="loading-container">
         <div className="loading-spinner" />
         <p className="loading-text">
-          {message || t('LoadingOverlay.analyzing')}
+          { t('Utils.waiting')}
         </p>
         <p className="loading-subtext">
-          {t('LoadingOverlay.please-wait')}
+          {message ? message : ''}
         </p>
       </div>
     </div>

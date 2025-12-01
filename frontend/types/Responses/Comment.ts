@@ -12,10 +12,6 @@ export interface CommentEntity {
   updated_at: string;
 }
 
-export interface CommentUpdateRequest {
-  text: string;
-}
-
 export interface CommentDeleteResponse {
   message: string;
 }

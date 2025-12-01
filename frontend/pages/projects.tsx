@@ -60,6 +60,7 @@ const Projects: React.FC = () => {
     // プロジェクト名を Redux に保存
     dispatch(setDocumentName(projectName));
     
+    // 既存プロジェクトフラグなし（通常の遷移）
     router.push('/');
   };
 
@@ -87,7 +88,9 @@ const Projects: React.FC = () => {
       // 新規作成したドキュメントIDをクッキーに保存してトップページへ遷移
       Cookies.set('projectId', newProject.id.toString(), { sameSite: 'lax', secure: true });
       Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
-      router.push('/');
+      
+      // 新規プロジェクトフラグを付けて遷移
+      router.push('/?new=true');
     } catch (err: any) {
       setError(err.message || '不明なエラー');
     } finally {

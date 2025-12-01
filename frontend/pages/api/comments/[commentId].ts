@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { apiV1Client } from '@/utils/apiV1Client';
-import { CommentUpdateRequest, CommentEntity, CommentDeleteResponse } from '@/types/Responses/Comment';
+import { CommentEntity, CommentDeleteResponse } from '@/types/Responses/Comment';
+import { CommentUpdateRequest } from '@/types/Requests/Comment';
 
 export default async function handler(
   req: NextApiRequest,

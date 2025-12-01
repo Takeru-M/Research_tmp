@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { apiV1Client } from '@/utils/apiV1Client';
-import { ProjectEntity, ProjectCreateRequest } from '@/types/Responses/Project';
+import { ProjectEntity } from '@/types/Responses/Project';
+import { ProjectCreateRequest } from '@/types/Requests/Project';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions as any) as any;

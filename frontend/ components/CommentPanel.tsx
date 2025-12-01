@@ -9,12 +9,13 @@ import {
   setActiveCommentId,
   setActiveHighlightId,
 } from "../redux/features/editor/editorSlice";
+import { selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
 import { Comment } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
 import { useSession } from "next-auth/react";
 import "../styles/CommentPanel.module.css";
-import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD } from "@/utils/constants";
+import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE } from "@/utils/constants";
 import { apiClient } from "@/utils/apiClient";
 
 // 動的なパディングを計算するヘルパー関数
@@ -53,6 +54,7 @@ const CommentHeader: React.FC<{
   const isEditing = editingId === comment.id;
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
+  const completionStage = useSelector(selectCompletionStage);
   
   // セッション情報から取得したユーザー名を優先的に使用
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
@@ -103,97 +105,99 @@ const CommentHeader: React.FC<{
       </div>
 
       {/* メニューボタン */}
-      <div
-        style={menuStyle}
-        ref={menuRef}
-        onClick={(e) => e.stopPropagation()}
-        onMouseEnter={() => setIsMenuAreaHovered(true)}
-        onMouseLeave={() => setIsMenuAreaHovered(false)}
-      >
-        <button
-          style={{
-            cursor: "pointer",
-            fontSize: 18,
-            color: "black",
-            padding: "0.5% 1%",
-            borderRadius: "50%",
-            lineHeight: 1,
-            background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
-            border: 'none',
-            transition: 'background-color 0.1s',
-            flexShrink: 0,
-            marginLeft: 8,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleMenu(comment.id);
-          }}
+      { completionStage !== STAGE.EXPORT && (
+        <div
+          style={menuStyle}
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          onMouseEnter={() => setIsMenuAreaHovered(true)}
+          onMouseLeave={() => setIsMenuAreaHovered(false)}
         >
-          ⋮
-        </button>
+          <button
+            style={{
+              cursor: "pointer",
+              fontSize: 18,
+              color: "black",
+              padding: "0.5% 1%",
+              borderRadius: "50%",
+              lineHeight: 1,
+              background: (isMenuAreaHovered || isMenuOpen) ? '#eee' : 'none',
+              border: 'none',
+              transition: 'background-color 0.1s',
+              flexShrink: 0,
+              marginLeft: 8,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMenu(comment.id);
+            }}
+          >
+            ⋮
+          </button>
 
-        {isMenuOpen && (
-          <div style={{
-            position: "absolute",
-            top: "20px",
-            right: "0px",
-            background: "#fff",
-            border: "1px solid #ddd",
-            boxShadow: "0px 3px 10px rgba(0,0,0,0.15)",
-            borderRadius: 8,
-            zIndex: 100,
-            width: 100,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}>
-            {!isEditing && (
+          {isMenuOpen && (
+            <div style={{
+              position: "absolute",
+              top: "20px",
+              right: "0px",
+              background: "#fff",
+              border: "1px solid #ddd",
+              boxShadow: "0px 3px 10px rgba(0,0,0,0.15)",
+              borderRadius: 8,
+              zIndex: 100,
+              width: 100,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}>
+              {!isEditing && (
+                <button
+                  style={{
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    color: "black",
+                    fontSize: 14,
+                    background: hoveredMenuItem === 'edit' ? '#f5f5f5' : '#fff',
+                    borderBottom: "1px solid #eee",
+                    textAlign: 'left',
+                    width: '100%',
+                    border: 'none',
+                  }}
+                  onMouseEnter={() => setHoveredMenuItem('edit')}
+                  onMouseLeave={() => setHoveredMenuItem(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEditing(comment.id, comment.text);
+                  }}
+                >
+                  {t("Utils.edit")}
+                </button>
+              )}
               <button
                 style={{
                   padding: "8px 12px",
                   cursor: "pointer",
-                  color: "black",
+                  color: "red",
                   fontSize: 14,
-                  background: hoveredMenuItem === 'edit' ? '#f5f5f5' : '#fff',
-                  borderBottom: "1px solid #eee",
+                  borderBottom: "none",
+                  background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
                   textAlign: 'left',
                   width: '100%',
                   border: 'none',
                 }}
-                onMouseEnter={() => setHoveredMenuItem('edit')}
+                onMouseEnter={() => setHoveredMenuItem('delete')}
                 onMouseLeave={() => setHoveredMenuItem(null)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  startEditing(comment.id, comment.text);
+                  removeCommentFn(comment.id);
                 }}
               >
-                {t("Utils.edit")}
+                {t("Utils.delete")}
               </button>
-            )}
-            <button
-              style={{
-                padding: "8px 12px",
-                cursor: "pointer",
-                color: "red",
-                fontSize: 14,
-                borderBottom: "none",
-                background: hoveredMenuItem === 'delete' ? '#f5f5f5' : '#fff',
-                textAlign: 'left',
-                width: '100%',
-                border: 'none',
-              }}
-              onMouseEnter={() => setHoveredMenuItem('delete')}
-              onMouseLeave={() => setHoveredMenuItem(null)}
-              onClick={(e) => {
-                e.stopPropagation();
-                removeCommentFn(comment.id);
-              }}
-            >
-              {t("Utils.delete")}
-            </button>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -215,6 +219,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const commentPanelRef = useRef<HTMLDivElement>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+  const completionStage = useSelector(selectCompletionStage);
 
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const threadRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -297,21 +302,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   const saveEdit = async (id: string) => {
     try {
-      // バックエンドにコメント更新を送信
-      // const response = await fetch(`/api/comments/${id}`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     text: editText,
-      //   }),
-      // });
-
-      // if (!response.ok) {
-      //   const errorData = await response.json();
-      //   throw new Error(errorData.message || 'Failed to update comment');
-      // }
       const { data, error } = await apiClient<Comment>(`/comments/${id}`, {
         method: 'PUT',
         headers: {
@@ -376,17 +366,7 @@ const removeCommentFn = async (id: string) => {
 
         // ルート自身も削除
         if (!threadComments.find(c => c.id === comment.id)) {
-          // const response = await fetch(`/api/comments/${comment.id}`, {
-          //   method: 'DELETE',
-          //   headers: {
-          //     'Content-Type': 'application/json',
-          //   },
-          // });
 
-          // if (!response.ok) {
-          //   const errorData = await response.json();
-          //   throw new Error(errorData.message || 'Failed to delete comment');
-          // }
           const { error } = await apiClient<void>(`/comments/${comment.id}`, {
             method: 'DELETE',
             headers: {
@@ -712,7 +692,6 @@ const removeCommentFn = async (id: string) => {
                 >
                   <CommentHeader
                     comment={reply}
-                    highlightText={getHighlightText(reply.highlightId)}
                     editingId={editingId}
                     toggleMenu={toggleMenu}
                     menuOpenMap={menuOpenMap}
@@ -742,24 +721,26 @@ const removeCommentFn = async (id: string) => {
                 }}
               />
 
-              <button
-                style={{
-                  marginTop: 6,
-                  padding: "6px 14px",
-                  fontSize: 14,
-                  borderRadius: 6,
-                  background: "#1976d2",
-                  color: "#fff",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  sendReply(root.id);
-                }}
-              >
-                {t("CommentPanel.reply")}
-              </button>
+              {completionStage !== STAGE.EXPORT && (
+                <button
+                  style={{
+                    marginTop: 6,
+                    padding: "6px 14px",
+                    fontSize: 14,
+                    borderRadius: 6,
+                    background: "#1976d2",
+                    color: "#fff",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendReply(root.id);
+                  }}
+                >
+                  {t("CommentPanel.reply")}
+                </button>
+              )}
 
               {showCollapseButton && (
                 <button
