@@ -105,7 +105,7 @@ const CommentHeader: React.FC<{
       </div>
 
       {/* メニューボタン */}
-      { completionStage !== STAGE.EXPORT && (
+      { (displayAuthor === t("CommentPanel.comment-author-LLM")) || (completionStage !== STAGE.EXPORT) && (
         <div
           style={menuStyle}
           ref={menuRef}
