@@ -8,6 +8,7 @@ import {
   deleteComment,
   setActiveCommentId,
   setActiveHighlightId,
+  toggleSelectRootComment,
 } from "../redux/features/editor/editorSlice";
 import { selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
@@ -35,6 +36,9 @@ const CommentHeader: React.FC<{
   menuRef: (element: HTMLDivElement | null) => void;
   currentUserName?: string | null;
   completionStage?: string;
+  isRoot?: boolean;
+  isSelected?: boolean;
+  onSelectRoot?: (id: string) => void;
 }> = ({
   comment,
   highlightText,
@@ -46,6 +50,9 @@ const CommentHeader: React.FC<{
   menuRef,
   currentUserName,
   completionStage,
+  isRoot = false,
+  isSelected = false,
+  onSelectRoot,
 }) => {
   const { t } = useTranslation();
   const isEditing = editingId === comment.id;
@@ -62,12 +69,16 @@ const CommentHeader: React.FC<{
     return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + ' ' + date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   }, [comment.createdAt]);
 
-  // const isLLMComment = displayAuthor === t("CommentPanel.comment-author-LLM");
   const showMenu = !isExportStage;
 
   return (
     <div className={styles.commentHeader}>
       <div className={styles.commentHeaderLeft}>
+        {/* 選択状態バッジ（ルートで選択されている場合のみ表示） */}
+        {isRoot && isSelected && (
+          <span className={styles.selectedBadge}>✓ {t("CommentPanel.selected")}</span>
+        )}
+        
         {/* ユーザー情報と時刻 */}
         <div className={styles.commentUserInfo}>
           <strong className={styles.commentAuthor}>{displayAuthor}</strong>
@@ -111,6 +122,21 @@ const CommentHeader: React.FC<{
 
           {isMenuOpen && !isExportStage && (
             <div className={styles.dropdownMenu}>
+              {/* ルートのみ「選択」または「選択解除」ボタン表示 */}
+              {isRoot && (
+                <button
+                  className={`${styles.menuItem} ${isSelected ? styles.unselectItem : ''}`}
+                  onMouseEnter={() => setHoveredMenuItem('select')}
+                  onMouseLeave={() => setHoveredMenuItem(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectRoot?.(comment.id);
+                  }}
+                  title={isSelected ? t("CommentPanel.unselect") : t("CommentPanel.select")}
+                >
+                  {isSelected ? t("CommentPanel.unselect") : t("CommentPanel.select")}
+                </button>
+              )}
               {!isEditing && (
                 <button
                   className={styles.menuItem}
@@ -152,7 +178,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const { t } = useTranslation();
   const { data: session } = useSession();
 
-  const { comments, activeHighlightId, activeCommentId, highlights } = useSelector((s: any) => s.editor);
+  const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: any) => s.editor);
   const completionStage = useSelector(selectCompletionStage);
   const isExportStage = completionStage === STAGE.EXPORT;
 
@@ -492,6 +518,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
   }, [activeCommentId, activeHighlightId]);
 
+  // ルートコメント行レンダリング時に isRoot/isSelected/onSelectRoot を渡す
   return (
     <div
       ref={commentPanelRef}
@@ -522,12 +549,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
           const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
           const isActive = activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId);
+          const isSelected = selectedRootCommentIds.includes(root.id);
 
           return (
             <div
               key={root.id}
               ref={(el) => { threadRefs.current[root.id] = el; }}
-              className={`${styles.threadCard} ${isActive ? styles.active : ''}`}
+              className={`${styles.threadCard} ${isActive ? styles.active : ''} ${isSelected ? styles.selected : ''}`}
               onClick={() => {
                 dispatch(setActiveCommentId(root.id));
                 dispatch(setActiveHighlightId(root.highlightId));
@@ -545,6 +573,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                 menuRef={(el) => (menuRefs.current[root.id] = el)}
                 currentUserName={session?.user?.name || null}
                 completionStage={completionStage}
+                isRoot={true}
+                isSelected={isSelected}
+                onSelectRoot={(id) => {
+                  dispatch(toggleSelectRootComment(id));
+                  closeMenu(id);
+                }}
               />
 
               {renderCommentBody(root)}
@@ -571,6 +605,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                     menuRef={(el) => (menuRefs.current[reply.id] = el)}
                     currentUserName={session?.user?.name || null}
                     completionStage={completionStage}
+                    // 返信には選択ボタンは表示しない（isRoot=false）
+                    isRoot={false}
                   />
                   {renderCommentBody(reply)}
                 </div>

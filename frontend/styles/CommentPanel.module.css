@@ -27,6 +27,13 @@
   border-color: #3b82f6;
 }
 
+/* 選択状態のスレッドカード */
+.threadCard.selected {
+  background-color: #e3f2fd;
+  border-left: 4px solid #1976d2;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.2);
+}
+
 .commentHeader {
   display: flex;
   justify-content: space-between;
@@ -146,6 +153,28 @@
 
 .menuItem.delete {
   color: red;
+}
+
+.menuItem.unselectItem {
+  color: #d32f2f;
+  font-weight: 500;
+}
+
+.menuItem.unselectItem:hover {
+  background-color: #ffebee;
+}
+
+/* 選択バッジ */
+.selectedBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 8px;
+  background-color: #1976d2;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border-radius: 12px;
+  vertical-align: middle;
 }
 
 .commentBody {

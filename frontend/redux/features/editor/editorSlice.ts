@@ -22,6 +22,7 @@ const initialState: EditorState = {
   responses: {} as Record<string, string>,
   documentName: null,
   completionStage: STAGE.GIVE_OPTION_TIPS,
+  selectedRootCommentIds: [] as string[],
 };
 
 const editorSlice = createSlice({
@@ -248,6 +249,19 @@ const editorSlice = createSlice({
       state.pdfScale = action.payload;
     },
 
+    toggleSelectRootComment(state, action: PayloadAction<string>) {
+      const id = action.payload;
+      const idx = state.selectedRootCommentIds.indexOf(id);
+      if (idx >= 0) {
+        state.selectedRootCommentIds.splice(idx, 1);
+      } else {
+        state.selectedRootCommentIds.push(id);
+      }
+    },
+    clearSelectedRootComments(state) {
+      state.selectedRootCommentIds = [];
+    },
+
     clearAllState(state) {
       state.file = null;
       state.fileType = null;
@@ -266,6 +280,7 @@ const editorSlice = createSlice({
       state.responses = {};
       state.documentName = null;
       state.completionStage = STAGE.GIVE_OPTION_TIPS;
+      state.selectedRootCommentIds = [];
     },
 
     addLLMResponse: (state, action) => {
@@ -307,6 +322,8 @@ export const {
   addLLMResponse,
   setDocumentName,
   setCompletionStage,
+  toggleSelectRootComment,
+  clearSelectedRootComments,
 } = editorSlice.actions;
 
 export default editorSlice.reducer;

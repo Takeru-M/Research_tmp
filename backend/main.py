@@ -16,11 +16,10 @@ app = FastAPI(
 )
 app.include_router(api_router)
 
-# TODO: docker用に変更
 # CORS設定
 origins = [
-    # "http://localhost:3000",
-    "*"
+    "http://localhost:3000",
+    "http://backend:8000",
 ]
 app.add_middleware(
     CORSMiddleware,

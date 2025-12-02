@@ -10,7 +10,7 @@ import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
 import { RootState } from '@/redux/store';
 import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo, setCompletionStage } from '../redux/features/editor/editorSlice';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import LoadingOverlay from './LoadingOverlay';
@@ -18,8 +18,7 @@ import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from 'uuid';
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
-import { RESPONSE_SAMPLE_IN_STAGE1 } from '@/utils/test';
+import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, OPTION_DIALOGUE_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, DELIBERATION_DIALOGUE_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
 import { apiClient } from '@/utils/apiClient';
 import styles from '../styles/PdfViewer.module.css';
 
@@ -69,6 +68,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const completionStage = useSelector(selectCompletionStage);
   const isLoading = useSelector((state: RootState) => state.loading.isLoading);
   const fileId = useSelector((state: RootState) => state.editor.fileId);
+  const selectedRootCommentIds = useSelector((state: RootState) => state.editor.selectedRootCommentIds);
 
   const activeHighlightFromComment = React.useMemo(() => {
     if (!activeCommentId) return null;
@@ -595,6 +595,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const handleCompletion = useCallback(async () => {
     // ローディング開始
     dispatch(startLoading(t('PdfViewer.analyzing')));
+    dispatch(clearSelectedRootComments());
     console.log('Completion stage:', completionStage);
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
@@ -1011,6 +1012,170 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       }
     }, [dispatch, fileId, t]);
 
+  const handleDialogue = useCallback(async () => {
+    if (selectedRootCommentIds.length === 0) {
+      alert(t('PdfViewer.no-comments-selected') || '対話するコメントが選択されていません');
+      return;
+    }
+
+    // ローディング開始
+    dispatch(startLoading(t('PdfViewer.processing-dialogue') || '対話を処理中...'));
+
+    try {
+      // 選択されたルートコメントに関連するハイライトとコメントを取得
+      const selectedThreads: Array<{
+        rootCommentId: string;
+        highlightId: string | null;
+        highlightText: string;
+        comments: Array<{
+          id: string;
+          author: string;
+          text: string;
+          createdAt: string;
+        }>;
+      }> = [];
+
+      for (const rootCommentId of selectedRootCommentIds) {
+        // ルートコメントを取得
+        const rootComment = comments.find(c => c.id === rootCommentId && c.parentId === null);
+        if (!rootComment) continue;
+
+        // ルートコメントに紐づくハイライトを取得
+        const highlight = rootComment.highlightId 
+          ? highlights.find(h => h.id === rootComment.highlightId)
+          : null;
+
+        // このルートコメントに関連する全てのコメント（ルート + 返信）を取得
+        const threadComments = comments.filter(c => {
+          // ルートコメント自身
+          if (c.id === rootCommentId) return true;
+          // ルートコメントへの直接の返信
+          if (c.parentId === rootCommentId) return true;
+          // ネストした返信を辿る
+          let parent = comments.find(p => p.id === c.parentId);
+          while (parent) {
+            if (parent.id === rootCommentId) return true;
+            parent = comments.find(p => p.id === parent?.parentId);
+          }
+          return false;
+        }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        selectedThreads.push({
+          rootCommentId,
+          highlightId: rootComment.highlightId,
+          highlightText: highlight?.text.trim() || '',
+          comments: threadComments.map(c => ({
+            id: c.id,
+            author: c.author,
+            text: c.text.trim(),
+            createdAt: c.createdAt,
+          })),
+        });
+      }
+
+      console.log('Selected threads for dialogue:', selectedThreads);
+
+      // ステージに応じてシステムプロンプトとAPIエンドポイントを選択
+      let systemPrompt: string;
+      let apiEndpoint: string;
+
+      if (completionStage === STAGE.GIVE_DELIBERATION_TIPS) {
+        systemPrompt = OPTION_DIALOGUE_SYSTEM_PROMPT;
+        apiEndpoint = '/api/openai/option-dialogue';
+      } else if (completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) {
+        systemPrompt = DELIBERATION_DIALOGUE_SYSTEM_PROMPT;
+        apiEndpoint = '/api/openai/deliberation-dialogue';
+      } else {
+        throw new Error(`Unsupported completion stage for dialogue: ${completionStage}`);
+      }
+
+      // ユーザー入力を準備
+      const userInput = {
+        pdf_text: pdfTextContent,
+        selected_threads: selectedThreads,
+      };
+
+      // APIリクエスト
+      console.log(`Sending dialogue request to ${apiEndpoint} with stage ${completionStage}`);
+      const response = await axios.post(apiEndpoint, {
+        systemPrompt,
+        userInput,
+      });
+
+      console.log('Raw dialogue response:', response.data.analysis);
+      const responseData = parseJSONResponse(response.data.analysis);
+      console.log('Parsed dialogue data:', responseData);
+
+      // レスポンスデータの処理
+      if (responseData && responseData.dialogue_responses) {
+        for (const dr of responseData.dialogue_responses) {
+          if (dr.root_comment_id && dr.response_text) {
+            try {
+              // 対応するルートコメントを取得
+              const rootComment = comments.find(c => c.id === dr.root_comment_id);
+              if (!rootComment) {
+                console.warn(`Root comment ${dr.root_comment_id} not found`);
+                continue;
+              }
+
+              // LLMからの返信をDBに保存
+              const { data: commentResponse, error: commentError } = await apiClient<any>('/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: {
+                  highlight_id: rootComment.highlightId ? parseInt(rootComment.highlightId, 10) : null,
+                  parent_id: parseInt(dr.root_comment_id, 10),
+                  author: t("CommentPanel.comment-author-LLM"),
+                  text: dr.response_text,
+                }
+              });
+
+              if (commentError) {
+                throw new Error(commentError);
+              }
+
+              console.log('LLM dialogue comment saved:', commentResponse);
+
+              // Reduxに追加
+              dispatch(
+                addComment({
+                  id: commentResponse.id.toString(),
+                  highlightId: rootComment.highlightId,
+                  parentId: dr.root_comment_id,
+                  author: t("CommentPanel.comment-author-LLM"),
+                  text: dr.response_text,
+                  createdAt: commentResponse.created_at,
+                  editedAt: null,
+                  deleted: false,
+                })
+              );
+            } catch (error) {
+              console.error('Failed to save LLM dialogue comment:', error);
+              alert(`コメントの保存に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+        }
+
+        // 選択をクリア
+        dispatch(clearSelectedRootComments());
+
+        // alert(t('PdfViewer.dialogue-completed') || '対話が完了しました');
+      } else {
+        throw new Error('Invalid response format from dialogue API');
+      }
+    } catch (error) {
+      console.error('Dialogue failed:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('API Route Error:', error.response?.data || error.message);
+        alert(`対話処理に失敗しました: ${error.response?.data?.error || error.message}`);
+      } else {
+        alert(`対話処理に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    } finally {
+      dispatch(stopLoading());
+    }
+  }, [selectedRootCommentIds, comments, highlights, pdfTextContent, completionStage, dispatch, t]);
+
   return (
     <div
         style={{
@@ -1083,7 +1248,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       )}
       <div style={{textAlign:'center', padding: '20px 0'}}>
         {completionStage !== STAGE.EXPORT && (
-          <button
+          <>
+            <button
               onClick={handleCompletion}
               disabled={isLoading}
               style={{
@@ -1095,30 +1261,52 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   borderRadius: '5px',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   opacity: isLoading ? 0.6 : 1,
-                  marginRight: completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS ? '10px' : '0',
+                  marginRight: (selectedRootCommentIds.length > 0 || completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) ? '10px' : '0',
               }}
-          >
+            >
               {t("PdfViewer.complete")}
-          </button>
-          )}
-          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) || (completionStage === STAGE.EXPORT) && (
+            </button>
+
+            {selectedRootCommentIds.length > 0 && (
               <button
-                  onClick={handleCompletionforExport}
-                  disabled={isLoading}
-                  style={{
-                      padding: '10px 20px',
-                      fontSize: '16px',
-                      backgroundColor: isLoading ? '#cccccc' : '#666666',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '5px',
-                      cursor: isLoading ? 'not-allowed' : 'pointer',
-                      opacity: isLoading ? 0.6 : 1,
-                  }}
+                onClick={handleDialogue}
+                disabled={isLoading}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '16px',
+                  backgroundColor: isLoading ? '#cccccc' : '#1976d2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  opacity: isLoading ? 0.6 : 1,
+                  marginRight: completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS ? '10px' : '0',
+                }}
               >
-                {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
+                {t("PdfViewer.dialogue")}
               </button>
-          )}
+            )}
+          </>
+        )}
+
+        {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) || (completionStage === STAGE.EXPORT) && (
+          <button
+            onClick={handleCompletionforExport}
+            disabled={isLoading}
+            style={{
+                padding: '10px 20px',
+                fontSize: '16px',
+                backgroundColor: isLoading ? '#cccccc' : '#666666',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.6 : 1,
+            }}
+          >
+            {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
+          </button>
+        )}
       </div>
     </div>
   );

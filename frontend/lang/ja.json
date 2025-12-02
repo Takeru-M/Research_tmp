@@ -63,7 +63,8 @@
     "add-comment": "コメントを追加",
     "complete": "完了する",
     "finish": "終了する",
-    "export-again": "再度エクスポートする"
+    "export-again": "再度エクスポートする",
+    "dialogue": "対話する"
   },
   "HighlightCommentModal": {
     "comment-title": "コメント",
@@ -75,7 +76,10 @@
     "reply-placeholder": "返信を書く",
     "reply": "返信",
     "show-less": "一部を表示",
-    "show-more": "全体を表示"
+    "show-more": "全体を表示",
+    "select": "選択",
+    "unselect": "選択解除",
+    "selected": "選択済み"
   },
   "Alert": {
     "session_expired": "セッションの有効期限が切れました。再度ログインしてください。",

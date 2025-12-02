@@ -81,6 +81,7 @@ export interface EditorState {
   dividedMeetingTexts?: DividedMeetingTexts;
   documentName?: string | null;
   completionStage: number;
+  selectedRootCommentIds: string[];
 }
 
 export type Comment = {

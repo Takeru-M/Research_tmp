@@ -63,7 +63,8 @@
     "add-comment": "Add Comment",
     "complete": "Complete",
     "finish": "Finish",
-    "export-again": "Export Again"
+    "export-again": "Export Again",
+    "dialogue": "Dialogue"
   },
   "HighlightCommentModal": {
     "comment-title": "Comment",
@@ -75,7 +76,10 @@
     "reply-placeholder": "Write a reply",
     "reply": "Reply",
     "show-less": "Show less",
-    "show-more": "Show all"
+    "show-more": "Show all",
+    "select": "Select",
+    "unselect": "Unselect",
+    "selected": "Selected"
   },
   "Alert": {
     "session_expired": "Your session has expired. Please log in again.",
