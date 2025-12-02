@@ -65,22 +65,17 @@ def run_migrations_online() -> None:
 
     """
     # 環境変数からURLを動的に構築
-    # DB_HOST = os.getenv("MYSQL_HOST")
-    # DB_ROOT = os.getenv("MYSQL_ROOT")
-    # DB_USER = os.getenv("MYSQL_USER")
-    # DB_ROOT_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD")
-    # DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
-    # DB_NAME = os.getenv("MYSQL_DATABASE")
+    DB_HOST = os.getenv("MYSQL_HOST")
+    DB_ROOT = os.getenv("MYSQL_ROOT")
+    DB_USER = os.getenv("MYSQL_USER")
+    DB_ROOT_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD")
+    DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
+    DB_NAME = os.getenv("MYSQL_DATABASE")
 
-    # url = (
-    #   f"mysql+pymysql://{DB_ROOT}:{DB_ROOT_PASSWORD}@{DB_HOST}/{DB_NAME}"
-    # )
-    
-    # TODO: 環境変数から接続URLを構築（charset付き）
-    db_url = "mysql+pymysql://root:Suntory@db:3306/mysql_db?charset=utf8mb4&collation=utf8mb4_unicode_ci"
-    if db_url and "charset" not in db_url:
-        db_url += "?charset=utf8mb4&collation=utf8mb4_unicode_ci"
-    
+    db_url = (
+      f"mysql+pymysql://{DB_HOST}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?charset=utf8mb4&collation=utf8mb4_unicode_ci"
+    )
+
     # alembic.iniのURLを上書き
     if db_url:
         config.set_main_option("sqlalchemy.url", db_url)
