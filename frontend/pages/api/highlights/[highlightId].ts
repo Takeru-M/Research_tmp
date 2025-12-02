@@ -16,12 +16,12 @@ export default async function handler(
 
   if (req.method === 'DELETE') {
     try {
-      const { highlight_id } = req.query;
-      if (!highlight_id || Array.isArray(highlight_id)) {
+      const { highlightId } = req.query;
+      if (!highlightId || Array.isArray(highlightId)) {
         return res.status(400).json({ message: 'Highlight ID is required' });
       }
 
-      const { data, error } = await apiV1Client<HighlightDeleteResponse | null>(`/highlights/${highlight_id}`, {
+      const { data, error } = await apiV1Client<HighlightDeleteResponse | null>(`/highlights/${highlightId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.accessToken}` },
       });

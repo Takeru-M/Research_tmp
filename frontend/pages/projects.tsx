@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { STAGE } from '../utils/constants';
 import type { Project } from '../redux/features/editor/editorTypes';
 import Cookies from 'js-cookie';
@@ -21,29 +22,56 @@ const Projects: React.FC = () => {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editedName, setEditedName] = useState('');
+  const [hasAuthError, setHasAuthError] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch();
   const { data: session, status } = useSession();
 
   useEffect(() => {
     if (status === 'loading') return;
+
     const fetchProjects = async () => {
       setLoading(true);
       setError(null);
       dispatch(clearAllState());
-      const { data, error } = await apiClient<Project[]>('/projects', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
-      });
-      if (error) throw new Error('ドキュメント一覧の取得に失敗しました');
-      setProjects(data || []);
-      setLoading(false);
+
+      try {
+        const { data, error } = await apiClient<Project[]>('/projects', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.accessToken}`,
+          },
+        });
+
+        if (error || !data) {
+          // 401など認証エラーの場合のみログインへ
+          if (error && (error.includes('401') || error.includes('Unauthorized'))) {
+            setHasAuthError(true);
+            await signIn(undefined, { callbackUrl: '/projects' });
+            return;
+          }
+          
+          // それ以外のエラーはエラーメッセージのみ表示
+          setError(t('Error.fetch-projects-failed') || 'プロジェクト取得に失敗しました');
+          return;
+        }
+
+        setProjects(data);
+        setHasAuthError(false);
+      } catch (e: any) {
+        console.error('Failed to fetch projects:', e);
+        setError(t('Error.fetch-projects-failed') || 'プロジェクト取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
     };
-    fetchProjects();
-  }, [session, status, router, dispatch]);
+
+    // 認証エラー発生中は再実行しない
+    if (!hasAuthError) {
+      fetchProjects();
+    }
+  }, [session, status, dispatch, t, hasAuthError]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -145,7 +173,7 @@ const Projects: React.FC = () => {
     setEditedName('');
   };
 
-  if (status === 'loading') {
+  if (status === 'loading' || hasAuthError) {
     return <div className={styles.loadingText}>Loading...</div>;
   }
 

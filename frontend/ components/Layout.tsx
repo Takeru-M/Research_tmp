@@ -1,10 +1,10 @@
 // src/components/Layout.tsx
 import Head from 'next/head';
-import React, { ChangeEvent, PropsWithChildren, useCallback } from 'react';
+import React, { ChangeEvent, PropsWithChildren, useCallback, useEffect } from 'react';
 import styles from '../styles/Layout.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession, signOut, signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
 import { setPdfScale } from '../redux/features/editor/editorSlice';
@@ -19,6 +19,10 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const documentName = useSelector((state: RootState) => state.editor.documentName);
 
+
+  const isAuthPage = ['/login', '/signup'].includes(router.pathname);
+  const isProjectsPage = router.pathname === '/projects';
+
   const handleScaleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const newScale = parseFloat(event.target.value);
     dispatch(setPdfScale(newScale));
@@ -32,12 +36,17 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     router.push('/projects');
   }, [router]);
 
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (!isAuthPage && status === 'unauthenticated') {
+      // 認証が必要なページで未認証 → ログインへ
+      signIn();
+    }
+  }, [status, router.pathname, isAuthPage]);
+
   if (status === 'loading') {
     return null;
   }
-
-  const isAuthPage = ['/login', '/signup'].includes(router.pathname);
-  const isProjectsPage = router.pathname === '/projects';
 
   return (
     <>

@@ -1,7 +1,7 @@
 """Added stage column to projects table
 
 Revision ID: 7a500d26f8ce
-Revises: d8dc816adbb8
+Revises: 8a2f8b1f6a48
 Create Date: 2025-11-19 23:29:13.952085
 
 """
@@ -14,7 +14,7 @@ import sqlmodel
 
 # revision identifiers, used by Alembic.
 revision: str = '7a500d26f8ce'
-down_revision: Union[str, None] = 'd8dc816adbb8'
+down_revision: Union[str, None] = '8a2f8b1f6a48'  # 変更: aa32b7c541e8 → 8a2f8b1f6a48
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

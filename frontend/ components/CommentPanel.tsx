@@ -62,8 +62,8 @@ const CommentHeader: React.FC<{
     return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + ' ' + date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   }, [comment.createdAt]);
 
-  const isLLMComment = displayAuthor === t("CommentPanel.comment-author-LLM");
-  const showMenu = !isLLMComment && !isExportStage;
+  // const isLLMComment = displayAuthor === t("CommentPanel.comment-author-LLM");
+  const showMenu = !isExportStage;
 
   return (
     <div className={styles.commentHeader}>
@@ -278,66 +278,28 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     if (!comment) return;
 
     try {
-      // ルートコメントを削除する場合
       if (comment.parentId === null) {
         if (comment.highlightId) {
-          // ハイライトがある場合は、ハイライトを削除（関連コメントも削除される）
           const { error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
             method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
 
-          console.log('Highlight and related comments deleted');
-          
-          // Reduxストアからハイライトを削除（関連コメントも自動削除される）
+          // Redux更新
           dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
         } else {
-          // ハイライトが無いルートコメントは、そのルートに属する全コメントを削除
-          const threadComments = comments.filter(c => findRootId(c.id) === comment.id);
-          
-          // バックエンドから全てのコメントを削除
-          for (const threadComment of threadComments) {
-            const { error } = await apiClient<void>(`/comments/${threadComment.id}`, {
-              method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            });
-          }
-
-          // ルート自身も削除
-          if (!threadComments.find(c => c.id === comment.id)) {
-            const { error } = await apiClient<void>(`/comments/${comment.id}`, {
-              method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            });
-          }
-
-          console.log('Thread comments deleted');
-
-          // Reduxストアから削除
-          threadComments.forEach(c => dispatch(deleteComment({ id: c.id })));
-          if (!threadComments.find(c => c.id === comment.id)) {
-            dispatch(deleteComment({ id: comment.id }));
-          }
+          // ハイライトなしのルートコメント削除（子はDBのCASCADEで削除）
+          const { error } = await apiClient<void>(`/comments/${comment.id}`, {
+            method: 'DELETE',
+            headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+          });
         }
       } else {
         // 返信の削除
         const { error } = await apiClient<void>(`/comments/${id}`, {
           method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
-
-        console.log('Reply comment deleted');
-
-        // Reduxストアから削除
-        dispatch(deleteComment({ id }));
       }
 
       closeMenu(id);
