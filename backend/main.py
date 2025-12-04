@@ -1,4 +1,5 @@
 import os
+import time
 # import mysql.connector
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -10,24 +11,23 @@ from app.core.exceptions import (
     validation_exception_handler,
     general_exception_handler
 )
+from app.core.logging import setup_loggers, LoggingMiddleware
 from contextlib import asynccontextmanager
 import logging
+
 logging.basicConfig(level=logging.INFO)
+setup_loggers()
 
 load_dotenv()
 
 app = FastAPI(
   title="FastAPI NextAuth JWT Backend",
-  # openapi_url="/api/openapi.json"
 )
 app.include_router(api_router)
 
 # CORS設定
 origins = [
-    # "http://localhost:3000",
-    # "http://backend:8000",
-    # "http://frontend:3000",
-    "*"
+    "http://localhost:3000",
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -43,25 +43,14 @@ app.add_middleware(
 def read_root():
     return {"message": "Welcome to FastAPI backend"}
 
+# ----------------- 例外ハンドラ -----------------
+
 # カスタム例外ハンドラを登録
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
-# ライフサイクルイベント（アプリケーション起動・終了時の処理）
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     """
-#     アプリケーション起動時 (startup) の処理を記述
-#     """
-#     print("Startup: データベース接続を初期化します。")
-#     # 開発環境でテーブルを自動生成したい場合にコメントアウトを外す
-#     # create_db_and_tables()
+# ----------------- ミドルウェア -----------------
 
-#     yield # ここでアプリケーションがリクエストの処理を開始します
-
-#     """
-#     アプリケーション終了時 (shutdown) の処理を記述
-#     """
-#     print("Shutdown: アプリケーションを終了します。")
-#     # 必要であればここでデータベース接続をクローズするなどの処理を記述
+# APIアクセスログミドルウェアを追加
+app.add_middleware(LoggingMiddleware)

@@ -115,7 +115,7 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      console.log('Fetched highlights and ALL comments:', response);
+      console.log('Fetched highlights and ALL comments:');
 
       const highlights: PdfHighlight[] = response.map((item: any) => {
         const h = item.highlight;
@@ -147,7 +147,7 @@ const EditorPageContent: React.FC = () => {
         } as PdfHighlight;
       }).filter(Boolean) as PdfHighlight[];
 
-      console.log('Converted highlights:', highlights);
+      console.log('Converted highlights:');
       dispatch(setHighlights(highlights));
 
       const comments: CommentType[] = response.flatMap((item: any) => {
@@ -167,7 +167,7 @@ const EditorPageContent: React.FC = () => {
         }));
       });
 
-      console.log('Converted ALL comments:', comments);
+      console.log('Converted ALL comments:');
       dispatch(setComments(comments));
     } finally {
       dispatch(stopLoading());
@@ -236,20 +236,10 @@ const EditorPageContent: React.FC = () => {
         },
       });
 
-      // TODO: エラーハンドリングを適用
       if (error) {
         setErrorMessage(error);
         return;
       }
-
-      // const { data: res, error } = await apiV1Client<any>(`/projects/${projectId}/`, {
-      //   method: 'GET',
-      //   headers: { Authorization: `Bearer ${session?.accessToken}` },
-      // });
-      // if (error) {
-      //   setErrorMessage(error);
-      //   return;
-      // }
 
       const stage = res?.completion_stage ?? res?.stage ?? null;
 
@@ -272,7 +262,7 @@ const EditorPageContent: React.FC = () => {
       fetchProjectFile(projectId);
     } else if (projectId && isNewProject) {
       fetchProjectInfo(projectId);
-      console.log('New project created. Skipping file fetch.');
+      console.log('New project created.');
     } else {
       console.warn('No project ID found in cookies');
       router.push('/projects');
@@ -582,9 +572,6 @@ const EditorPageContent: React.FC = () => {
     if (!fileContent) return <p className={styles.noFileMessage}>{t("file-upload-txt")}</p>;
 
     if (fileType && fileType.includes('pdf')) {
-      console.log('Rendering PdfViewer with highlights:', pdfHighlights);
-      console.log('Number of highlights:', pdfHighlights.length);
-
       return (
         <PdfViewer
           file={fileContent}

@@ -21,8 +21,6 @@ const LoginPage: React.FC = () => {
     setAuthError(null);
     setIsLoading(true);
 
-    console.log("[Login] Attempting sign-in with:", { email, passwordLength: password.length });
-
     const result = await signIn('credentials', {
       email,
       password,
@@ -40,7 +38,6 @@ const LoginPage: React.FC = () => {
 
     if (result?.ok) {
       console.log("[Login] Sign-in successful, redirecting to /projects");
-      // セッション更新を待ってから遷移
       await new Promise(resolve => setTimeout(resolve, 500));
       router.push('/projects');
     }

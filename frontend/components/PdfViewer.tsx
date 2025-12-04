@@ -23,19 +23,6 @@ import { apiClient } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
 import styles from '../styles/PdfViewer.module.css';
 
-// pdf.js worker の堅牢な設定（Turbopack の file:/// 問題を回避）
-// if (typeof window !== 'undefined') {
-//   try {
-//     const candidate = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-//     const useCdn = candidate.startsWith('file:');
-//     const cdnModule = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-//     const cdnLegacy = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js`;
-
-//     pdfjs.GlobalWorkerOptions.workerSrc = useCdn ? cdnLegacy : candidate;
-//   } catch {
-//     pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js`;
-//   }
-// }
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -599,7 +586,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     // ローディング開始
     dispatch(startLoading(t('PdfViewer.analyzing')));
     dispatch(clearSelectedRootComments());
-    console.log('Completion stage:', completionStage);
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
@@ -624,13 +610,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             });
           }
         }
-        console.log(highlightCommentList);
 
         const firstResponse = await axios.post('/api/openai/format-data', {
           formatDataPrompt: FORMAT_DATA_SYSTEM_PROMPT,
           pdfTextData: pdfTextContent
         });
-        console.log('Raw first response:', firstResponse.data.analysis);
         const firstResponseData = parseJSONResponse(firstResponse.data.analysis);
         setDividedMeetingTexts(firstResponseData);
 
@@ -645,7 +629,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             userInput: userInput,
         });
         const responseData = parseJSONResponse(response.data.analysis);
-        console.log(responseData);
 
         if (responseData) {
           const highlight_feedback = responseData.highlight_feedback;
@@ -669,7 +652,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 return;
               }
               
-              console.log('LLM comment saved:', commentResponse);
+              console.log('LLM comment saved:');
               dispatch(
                 addComment({
                   id: commentResponse.id.toString(),
@@ -721,7 +704,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   return;
                 }
 
-                console.log('LLM highlight saved:', highlightResponse);
+                console.log('LLM highlight saved:');
 
                   // バックエンドから返されたIDを使用してハイライトを作成
                   const llmHighlight: PdfHighlight = {
@@ -767,7 +750,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
             const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
             const stageVal = Number(stageValRaw);
-            console.log('Completion stage updated to', stageVal);
             dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_DELIBERATION_TIPS : stageVal));
           }
         }
@@ -785,8 +767,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
     else if (completionStage == STAGE.GIVE_DELIBERATION_TIPS){
       try {
-        console.log(highlights);
-        console.log(comments);
         const systemPrompt = DELIBERATION_SYSTEM_PROMPT;
         const highlightCommentsList: HighlightCommentsList = [];
         for (const h of highlights) {
@@ -808,7 +788,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             }
           }
         }
-        console.log(highlightCommentsList);
 
         const userInput = {
           "mt_text": dividedMeetingTexts,
@@ -820,14 +799,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             userInput: userInput,
         });
 
-        console.log('Raw deliberation response:', response.data.analysis);
         const responseData = parseJSONResponse(response.data.analysis);
-        console.log('Parsed deliberation data:', responseData);
 
         if (responseData) {
           // ハイライト有箇所に対するLLMコメントをDBに保存
           for (const hf of responseData.suggestions) {
-            console.log(hf);
             if (hf.suggestion) {
               const parentCommentExists = comments.some(c => c.id === hf.id);
               
@@ -853,7 +829,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 return;
               }
 
-              console.log('LLM comment saved:', commentResponse);
+              console.log('LLM comment saved:');
 
               dispatch(
                 addComment({
@@ -1047,8 +1023,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         });
       }
 
-      console.log('Selected threads for dialogue:', selectedThreads);
-
       // ステージに応じてシステムプロンプトとAPIエンドポイントを選択
       let systemPrompt: string;
       let apiEndpoint: string;
@@ -1076,9 +1050,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         userInput,
       });
 
-      console.log('Raw dialogue response:', response.data.analysis);
       const responseData = parseJSONResponse(response.data.analysis);
-      console.log('Parsed dialogue data:', responseData);
 
       if (responseData && responseData.dialogue_responses) {
         for (const dr of responseData.dialogue_responses) {
@@ -1103,8 +1075,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               setErrorMessage(commentError);
               return;
             }
-
-            console.log('LLM dialogue comment saved:', commentResponse);
 
             dispatch(
               addComment({

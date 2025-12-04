@@ -62,11 +62,11 @@ const SignupPage: React.FC = () => {
 
     const { data, error } = await apiClient<any>('/signup', {
       method: 'POST',
-      body: { 
-        username, 
-        email, 
-        password, 
-        confirm_password: confirmPassword 
+      body: {
+        username,
+        email,
+        password,
+        confirm_password: confirmPassword
       },
     });
 

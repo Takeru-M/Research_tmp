@@ -37,9 +37,6 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        // const url = typeof window === "undefined"
-        //   ? `${process.env.NEXT_PUBLIC_API_URL}`
-        //   : `${process.env.NEXT_PUBLIC_API_URL1}`
         const url = `${process.env.NEXT_PUBLIC_API_URL}`;
         try {
           const response = await fetch(

@@ -1,3 +1,5 @@
+import { logApiCall } from './logger';
+
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface ApiRequestOptions {
@@ -61,6 +63,7 @@ export async function apiClient<T>(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<ApiResponse<T>> {
+  const startTime = performance.now();
   const { method = 'GET', body, headers = {}, responseType = 'json' } = options;
 
   try {
@@ -83,6 +86,9 @@ export async function apiClient<T>(
       headers: fetchHeaders,
       body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
+
+    const duration = performance.now() - startTime;
+    logApiCall(method, path, res.status, duration);
 
     if (!res.ok) {
       const errorMessage = await parseErrorMessage(res);
@@ -114,6 +120,8 @@ export async function apiClient<T>(
 
     return { data, error: null, status: res.status };
   } catch (err: any) {
+    const duration = performance.now() - startTime;
+    logApiCall(method, path, 0, duration);
     return {
       data: null,
       error: err?.message || 'ネットワークエラーが発生しました',
