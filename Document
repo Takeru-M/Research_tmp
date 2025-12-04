@@ -1,6 +1,12 @@
-// 注意点
+// 本番環境構成図
 
-// API通信について
-// Next.js側はapiに，fastapi側には/v1/apiに通信
-// フロントからnext.jsへの通信はapiClient.tsを，next.jsからfastapiへの通信はapiV1Client.tsを利用
-// 基本的には共通型を用いているが，openai, s3, export関連については利用していないので注意
+| functions                  | AWS Service        
+| -------------------------- | -------------------
+| Frontend(Next.js Static)   | S3 + CloudFront    
+| Backend(FastAPI)           | ECS Fargate        
+| DB(MySQL)                  | Lightsail DB       
+| Docker Image Management    | ECR                
+| HTTPS / CDN                | CloudFront + ACM   
+| Secrets                    | SSM Parameter Store
+
+// 開発の流れ

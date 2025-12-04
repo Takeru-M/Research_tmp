@@ -4,7 +4,7 @@ interface ApiRequestOptions {
   method?: HttpMethod;
   body?: any;
   headers?: Record<string, string>;
-  responseType?: 'json' | 'arrayBuffer' | 'text';
+  responseType?: 'json' | 'arrayBuffer' | 'text' | 'blob'; // 追加
 }
 
 interface ApiResponse<T> {
@@ -13,7 +13,49 @@ interface ApiResponse<T> {
   status: number;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_NEXT_API_URL1 || '';
+interface ErrorResponse {
+  detail: string | { msg?: string }[] | Array<{ loc?: any; msg?: string; type?: string }>;
+}
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_NEXT_API_URL;
+
+// FastAPIのエラーレスポンス(detailがstring or array)を安全に取り出して文字列化
+async function parseErrorMessage(res: Response): Promise<string> {
+  const contentType = res.headers.get('Content-Type') || '';
+  let fallback = res.statusText || 'Request failed';
+
+  try {
+    if (contentType.includes('application/json')) {
+      const json = (await res.json()) as ErrorResponse;
+      const detail = (json as any)?.detail;
+
+      if (!detail) return fallback;
+
+      // detail: string
+      if (typeof detail === 'string') return detail;
+
+      // detail: Array (422 ValidationErrorなど)
+      if (Array.isArray(detail)) {
+        const msgs = detail
+          .map((e: any) => {
+            if (typeof e === 'string') return e;
+            if (e?.msg) return e.msg;
+            return '';
+          })
+          .filter(Boolean);
+        if (msgs.length > 0) return msgs.join('\n');
+      }
+
+      return fallback;
+    }
+
+    // JSON以外のときはtextをそのまま
+    const text = await res.text();
+    return text || fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export async function apiClient<T>(
   path: string,
@@ -22,43 +64,60 @@ export async function apiClient<T>(
   const { method = 'GET', body, headers = {}, responseType = 'json' } = options;
 
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers: {
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const fetchHeaders: Record<string, string> = { ...headers };
 
-    const contentType = res.headers.get('Content-Type') || '';
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      return {
-        data: null,
-        error: errorText || res.statusText,
-        status: res.status
-      };
+    // Accept-Language を自動付与（未指定時のみ）
+    if (!fetchHeaders['Accept-Language'] && typeof navigator !== 'undefined') {
+      const lang = (navigator.language || 'en').split('-')[0];
+      fetchHeaders['Accept-Language'] = lang;
     }
 
+    // Content-TypeはFormData以外かつ未指定時のみ自動付与
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body && !isFormData && !fetchHeaders['Content-Type']) {
+      fetchHeaders['Content-Type'] = 'application/json';
+    }
+
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: fetchHeaders,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+    });
+
+    if (!res.ok) {
+      const errorMessage = await parseErrorMessage(res);
+      return { data: null, error: errorMessage, status: res.status };
+    }
+
+    // 成功時のレスポンス解析
     let data: T | null = null;
-    
-    if (method === 'DELETE') {
-      data = null;
-    } else if (responseType === 'arrayBuffer') {
+
+    if (responseType === 'arrayBuffer') {
       data = (await res.arrayBuffer()) as T;
+    } else if (responseType === 'blob') {
+      data = (await res.blob()) as T;
     } else if (responseType === 'text') {
       data = (await res.text()) as T;
-    } else if (contentType.includes('application/json')) {
-      data = await res.json();
+    } else {
+      // json優先だが、空ボディも許容
+      const contentType = res.headers.get('Content-Type') || '';
+      const text = await res.text();
+      if (!text || text.length === 0) {
+        data = null;
+      } else if (contentType.includes('application/json')) {
+        data = JSON.parse(text);
+      } else {
+        // JSON以外が返るケースはtextとして返す
+        data = text as T;
+      }
     }
 
     return { data, error: null, status: res.status };
   } catch (err: any) {
     return {
       data: null,
-      error: err.message || 'Unknown error',
-      status: 0 // ネットワークエラー等
+      error: err?.message || 'ネットワークエラーが発生しました',
+      status: 0,
     };
   }
 }

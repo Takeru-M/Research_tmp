@@ -1,27 +1,57 @@
 services:
+  # Next.jsはS3+CloudFrontで配信するため、本番ビルドのみ実行
   frontend:
     build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
       target: production
-    # ports:
-    #   - "3000:3000" # Nginx経由なので通常は不要。直接アクセスしたい場合のみ有効化
+    # 本番環境ではコンテナとして起動せず、ビルド成果物のみ使用
+    profiles:
+      - build-only
 
+  # FastAPIバックエンド（ECS Fargateで実行）
   backend:
     build:
-      target: production
-    # 本番用の.env設定（Secretや外部設定サービスからの取得を推奨）
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: fastapi_backend_prod
     environment:
       APP_ENV: production
+      # Lightsail DBのエンドポイントを環境変数で指定
+      DB_HOST: ${PROD_DB_HOST}  # Lightsail DBのエンドポイント
+      DB_PORT: 3306
+      DB_DATABASE: ${MYSQL_DATABASE}
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@${PROD_DB_HOST}:3306/${MYSQL_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
+      # SSM Parameter Storeから取得する値（ECSタスク定義で上書き）
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+    ports:
+      - "8000:8000"
+    networks:
+      - app-network
 
+  # 本番環境ではNginxは不要（ECS ALB + CloudFrontで代替）
   nginx:
-    # portsはクラウド環境のロードバランサ等に任せるため不要だが、確認用に設定する場合
-    # ports:
-    #   - "80:80"
+    profiles:
+      - disabled
 
-  # 本番では通常db_testは不要なので、オーバーライドで除外
+  # テスト用DBは本番環境では使用しない
   db_test:
-    deploy:
-      resources:
-        limits:
-          memory: 0 # サービスを事実上停止
+    profiles:
+      - disabled
 
-# ボリュームも本番用と分ける場合は、ここでオーバーライド
+  # 開発用DBも本番環境では使用しない（Lightsail DBを使用）
+  db:
+    profiles:
+      - disabled
+
+networks:
+  app-network:
+    driver: bridge

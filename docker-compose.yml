@@ -18,7 +18,7 @@ services:
     container_name: fastapi_backend # コンテナ名を変更
     # アプリケーションコードのマウント（開発中にホスト側で編集したコードをコンテナに反映）
     volumes:
-      - ./backend:/app # WORKDIR /app に合わせて修正
+      - ./backend:/app
     networks:
       - app-network
     depends_on:

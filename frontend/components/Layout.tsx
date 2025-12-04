@@ -36,14 +36,6 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     router.push('/projects');
   }, [router]);
 
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (!isAuthPage && status === 'unauthenticated') {
-      // 認証が必要なページで未認証 → ログインへ
-      signIn();
-    }
-  }, [status, router.pathname, isAuthPage]);
-
   if (status === 'loading') {
     return null;
   }

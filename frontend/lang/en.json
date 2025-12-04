@@ -10,7 +10,9 @@
     "save": "Save",
     "cancel": "Cancel",
     "complete": "Complete",
-    "waiting": "Please wait a moment"
+    "waiting": "Please wait a moment",
+    "error": "Error",
+    "close": "Close"
   },
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "Please upload a file",
@@ -40,7 +42,7 @@
     "title": "Login",
     "email": "Email Address",
     "password": "Password",
-    "logging_in": "Logging in...",
+    "logging-in": "Logging in...",
     "button-text": "Login",
     "no-account": "Don't have an account?",
     "signup-link-text": "Sign up",

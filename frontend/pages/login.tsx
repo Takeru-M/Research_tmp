@@ -1,4 +1,4 @@
-import React, { useState, useCallback, FormEvent, useEffect } from 'react';
+import React, { useState, useCallback, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -9,20 +9,19 @@ const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { t } = useTranslation();
   const router = useRouter();
-  const { status } = useSession();
-  const loading = status === 'loading';
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      router.push('/projects');
-    }
-  }, [status, router]);
+  const { status } = useSession({
+    required: false,
+  });
 
   const handleLogin = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
+    setIsLoading(true);
+
+    console.log("[Login] Attempting sign-in with:", { email, passwordLength: password.length });
 
     const result = await signIn('credentials', {
       email,
@@ -30,14 +29,31 @@ const LoginPage: React.FC = () => {
       redirect: false,
     });
 
-    if (result?.error) {
-      setAuthError(t('Login.error-message'));
-      console.error("Login failed:", result.error);
-    }
-  }, [email, password, t]);
+    console.log("[Login] SignIn result:", result);
 
-  if (loading) {
+    if (result?.error) {
+      console.error("[Login] Sign-in error:", result.error);
+      setAuthError(t('Login.error-message'));
+      setIsLoading(false);
+      return;
+    }
+
+    if (result?.ok) {
+      console.log("[Login] Sign-in successful, redirecting to /projects");
+      // セッション更新を待ってから遷移
+      await new Promise(resolve => setTimeout(resolve, 500));
+      router.push('/projects');
+    }
+  }, [email, password, router, t]);
+
+  if (status === 'loading') {
     return <div className={styles.loading}>{t('Loading...')}</div>;
+  }
+
+  // ログイン済みならフォームを出さずに画面遷移
+  if (status === "authenticated") {
+    router.push('/projects');
+    return null;
   }
 
   return (
@@ -64,6 +80,7 @@ const LoginPage: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             className={styles.input}
             required
+            disabled={isLoading}
           />
         </div>
 
@@ -78,15 +95,16 @@ const LoginPage: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             className={styles.input}
             required
+            disabled={isLoading}
           />
         </div>
 
         <button
           type="submit"
           className={styles.button}
-          disabled={loading}
+          disabled={isLoading}
         >
-          {loading ? t('Login.logging-in') : t('Login.button-text')}
+          {isLoading ? t('Login.logging-in') : t('Login.button-text')}
         </button>
       </form>
 

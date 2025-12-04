@@ -11,9 +11,8 @@ RUN npm install
 # 開発用ビルドステージ (docker-compose.dev.ymlでボリュームマウントを前提)
 FROM base AS dev
 # 開発中はソースコードをボリュームマウントで対応するため、ここではコピーしない
-# CMDはdocker-compose.dev.ymlで上書きされるため、ここでは不要だが、明示的に記述する場合は以下のようになる
-# CMD ["npm", "run", "dev"]
-
+# 開発サーバーを起動（docker-composeで上書き可能）
+CMD ["npm", "run", "dev"]
 
 # 本番用ビルドステージ
 FROM base AS build

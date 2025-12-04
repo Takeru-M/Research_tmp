@@ -17,6 +17,7 @@ const SignupPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 各入力欄ごとのエラーを保持
   const [usernameError, setUsernameError] = useState<string | null>(null);
@@ -33,7 +34,7 @@ const SignupPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.push('/projects');
+      router.replace('/projects');
     }
   }, [status, router]);
 
@@ -42,7 +43,6 @@ const SignupPage: React.FC = () => {
     setFormError(null);
     setSuccessMessage(null);
 
-    // フォーム送信時にすべてのバリデーションを確認
     const uError = validateUsername(username, t);
     const eError = validateEmail(email, t);
     const pError = validatePassword(password, t);
@@ -58,45 +58,43 @@ const SignupPage: React.FC = () => {
       return;
     }
 
-    try {
-      const { data: res, error: resError } = await apiClient<any>('/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: { username, email, password, confirm_password: confirmPassword },
-      });
+    setIsSubmitting(true);
 
-      if (resError || !res) {
-        const errorMessage =
-          (res.detail as string) ||
-          (Array.isArray(res.errors) ? res.errors.join(', ') : undefined) ||
-          t('Signup.error');
-        setFormError(errorMessage);
-        return;
-      }
+    const { data, error } = await apiClient<any>('/signup', {
+      method: 'POST',
+      body: { 
+        username, 
+        email, 
+        password, 
+        confirm_password: confirmPassword 
+      },
+    });
 
-      setSuccessMessage(t('Signup.success'));
+    if (error) {
+      setFormError(error);
+      setIsSubmitting(false);
+      return;
+    }
 
-      // 自動ログイン
-      const loginResult = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
-      });
+    if (!data) {
+      setFormError(t('Signup.error'));
+      setIsSubmitting(false);
+      return;
+    }
 
-      if (loginResult?.ok) {
-        router.push('/projects');
-      } else {
-        setFormError(t('Signup.login-failed'));
-        router.push('/login');
-      }
-    } catch (err: unknown) {
-      console.error('Signup error:', err);
+    setSuccessMessage(t('Signup.success'));
 
-      if (err instanceof Error) {
-        setFormError(`${t('Signup.error')}: ${err.message}`);
-      } else {
-        setFormError(t('Signup.error'));
-      }
+    const loginResult = await signIn('credentials', {
+      redirect: false,
+      email,
+      password,
+    });
+
+    if (loginResult?.ok) {
+      router.replace('/projects');
+    } else {
+      setFormError(t('Signup.login-failed'));
+      setIsSubmitting(false);
     }
   }, [username, email, password, confirmPassword, router, t]);
 

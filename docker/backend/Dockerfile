@@ -1,5 +1,3 @@
-# backend/Dockerfile
-
 # Pythonの公式スリムイメージをベースとする
 FROM python:3.11-slim
 
@@ -7,6 +5,7 @@ FROM python:3.11-slim
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUNBUFFERED=1
 
 # 作業ディレクトリの設定
 WORKDIR /app
@@ -14,6 +13,7 @@ WORKDIR /app
 # 必要なら tzdata 等も
 RUN apt-get update && apt-get install -y --no-install-recommends \
   fonts-noto-cjk \
+  # fonts-noto-cjk curl ca-certificates default-libmysqlclient-dev gcc \
   && rm -rf /var/lib/apt/lists/*
 
 # 依存関係ファイルのコピーとインストール
@@ -21,13 +21,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# （任意）フォントキャッシュ（fontconfig不要なら省略可）
-# RUN fc-cache -fv || true
-
 # アプリケーションコードをコピー
 COPY . .
 
-# 実行ユーザーの追加（セキュリティ向上 - オプション）
+# エントリポイントで migration → 起動
+# COPY docker/backend/entrypoint.sh /entrypoint.sh
+# RUN chmod +x /entrypoint.sh
+
+# ヘルスチェック用エンドポイント
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+#   CMD curl -f http://localhost:8000/ || exit 1
+
 RUN adduser --disabled-password --gecos '' fastapiuser
 USER fastapiuser
 

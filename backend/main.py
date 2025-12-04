@@ -1,9 +1,15 @@
 import os
 # import mysql.connector
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware # Next.jsからのアクセスを許可するため
 from dotenv import load_dotenv
 from app.api.api import api_router
+from app.core.exceptions import (
+    http_exception_handler,
+    validation_exception_handler,
+    general_exception_handler
+)
 from contextlib import asynccontextmanager
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -18,8 +24,10 @@ app.include_router(api_router)
 
 # CORS設定
 origins = [
-    "http://localhost:3000",
-    "http://backend:8000",
+    # "http://localhost:3000",
+    # "http://backend:8000",
+    # "http://frontend:3000",
+    "*"
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +42,11 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to FastAPI backend"}
+
+# カスタム例外ハンドラを登録
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 # ライフサイクルイベント（アプリケーション起動・終了時の処理）
 # @asynccontextmanager

@@ -10,7 +10,9 @@
     "save": "保存",
     "cancel": "キャンセル",
     "complete": "完了",
-    "waiting": "しばらくお待ちください"
+    "waiting": "しばらくお待ちください",
+    "error": "エラー",
+    "close": "閉じる"
   },
   "footer-txt": "© <year>{{year}}</year> FileEditor",
   "file-upload-txt": "ファイルをアップロードしてください",
@@ -40,7 +42,7 @@
     "title": "ログイン",
     "email": "メールアドレス",
     "password": "パスワード",
-    "logging_in": "ログイン中...",
+    "logging-in": "ログイン中...",
     "button-text": "ログイン",
     "no-account": "アカウントをお持ちでない方はこちら",
     "signup-link-text": "サインアップ",

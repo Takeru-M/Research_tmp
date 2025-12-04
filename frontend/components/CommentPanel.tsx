@@ -18,6 +18,7 @@ import { useSession } from "next-auth/react";
 import styles from "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE } from "@/utils/constants";
 import { apiClient } from "@/utils/apiClient";
+import { ErrorDisplay } from "./ErrorDisplay";
 
 // 動的なパディングを計算するヘルパー関数
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
@@ -177,6 +178,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const dispatch = useDispatch();
   const { t } = useTranslation();
   const { data: session } = useSession();
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: any) => s.editor);
   const completionStage = useSelector(selectCompletionStage);
@@ -271,7 +273,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   const saveEdit = async (id: string) => {
     try {
-      const { data, error } = await apiClient<Comment>(`/comments/${id}`, {
+      const { data, error, status } = await apiClient<Comment>(`/comments/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -281,11 +283,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         },
       });
       if (error || !data) {
-        throw new Error(error || 'Failed to update comment');
+        throw new Error(error || t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
       }
-
-      const updatedComment = await data;
-      console.log('Comment updated:', updatedComment);
 
       // Reduxストアを更新
       dispatch(updateComment({ id, text: editText }));
@@ -293,7 +292,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       setEditText("");
     } catch (error: any) {
       console.error('Failed to update comment:', error);
-      alert(t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
+      setErrorMessage(error?.message || t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
     }
   };
 
@@ -310,28 +309,28 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
+          if (error) throw new Error(error);
 
-          // Redux更新
           dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
         } else {
-          // ハイライトなしのルートコメント削除（子はDBのCASCADEで削除）
           const { error } = await apiClient<void>(`/comments/${comment.id}`, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
+          if (error) throw new Error(error);
         }
       } else {
-        // 返信の削除
         const { error } = await apiClient<void>(`/comments/${id}`, {
           method: 'DELETE',
           headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
+        if (error) throw new Error(error);
       }
 
       closeMenu(id);
     } catch (error: any) {
       console.error('Failed to delete comment:', error);
-      alert(t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
+      setErrorMessage(error?.message || t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
     }
   };
 
@@ -340,14 +339,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     if (!replyText.trim()) return;
 
     const parentComment = comments.find((c: Comment) => c.id === parentId);
-    if (!parentComment) {
-      return;
-    }
+    if (!parentComment) return;
 
     try {
       const userName = session?.user?.name || t("CommentPanel.comment-author-user");
 
-      // バックエンドにコメントを保存
       const { data, error } = await apiClient<Comment>('/comments', {
         method: 'POST',
         headers: {
@@ -361,13 +357,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         },
       });
       if (error || !data) {
-        throw new Error(error || 'Failed to create comment');
+        throw new Error(error || t('Error.save-reply-failed') || '返信の保存に失敗しました');
       }
 
       const savedComment = data;
-      console.log('Comment saved:', savedComment);
 
-      // Reduxストアに追加
       dispatch(
         addComment({
           id: savedComment.id.toString(),
@@ -385,7 +379,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
     } catch (error: any) {
       console.error('Failed to save reply:', error);
-      alert(t('Error.save-reply-failed') || '返信の保存に失敗しました');
+      setErrorMessage(error?.message || t('Error.save-reply-failed') || '返信の保存に失敗しました');
     }
   };
 
@@ -520,141 +514,150 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   // ルートコメント行レンダリング時に isRoot/isSelected/onSelectRoot を渡す
   return (
-    <div
-      ref={commentPanelRef}
-      className={styles.commentPanel}
-      style={{
-        maxHeight: viewerHeight !== 'auto'
-          ? `calc(${viewerHeight}px)`
-          : 'auto',
-      }}
-    >
+    <>
+      {errorMessage && (
+        <ErrorDisplay
+          title={t('Utils.error')}
+          message={errorMessage}
+          onClose={() => setErrorMessage("")}
+        />
+      )}
       <div
-        ref={scrollContainerRef}
-        className={styles.scrollContainer}
+        ref={commentPanelRef}
+        className={styles.commentPanel}
         style={{
-          paddingTop: DYNAMIC_PADDING_PX,
-          paddingBottom: DYNAMIC_PADDING_PX,
+          maxHeight: viewerHeight !== 'auto'
+            ? `calc(${viewerHeight}px)`
+            : 'auto',
         }}
       >
-        {sortedRootComments.map((root, rootIdx) => {
-          const replies = getReplies(root.id);
-          const totalReplies = replies.length;
-          const isInitiallyCollapsed = totalReplies > COLLAPSE_THRESHOLD;
-          const isCollapsed = collapsedMap[root.id] === undefined ? isInitiallyCollapsed : collapsedMap[root.id];
+        <div
+          ref={scrollContainerRef}
+          className={styles.scrollContainer}
+          style={{
+            paddingTop: DYNAMIC_PADDING_PX,
+            paddingBottom: DYNAMIC_PADDING_PX,
+          }}
+        >
+          {sortedRootComments.map((root, rootIdx) => {
+            const replies = getReplies(root.id);
+            const totalReplies = replies.length;
+            const isInitiallyCollapsed = totalReplies > COLLAPSE_THRESHOLD;
+            const isCollapsed = collapsedMap[root.id] === undefined ? isInitiallyCollapsed : collapsedMap[root.id];
 
-          const visibleReplies = isCollapsed && totalReplies > COLLAPSE_THRESHOLD
-            ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
-            : replies;
+            const visibleReplies = isCollapsed && totalReplies > COLLAPSE_THRESHOLD
+              ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
+              : replies;
 
-          const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
-          const isActive = activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId);
-          const isSelected = selectedRootCommentIds.includes(root.id);
+            const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
+            const isActive = activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId);
+            const isSelected = selectedRootCommentIds.includes(root.id);
 
-          return (
-            <div
-              key={root.id}
-              ref={(el) => { threadRefs.current[root.id] = el; }}
-              className={`${styles.threadCard} ${isActive ? styles.active : ''} ${isSelected ? styles.selected : ''}`}
-              onClick={() => {
-                dispatch(setActiveCommentId(root.id));
-                dispatch(setActiveHighlightId(root.highlightId));
-                setCollapsedMap(prev => ({ ...prev, [root.id]: false }));
-              }}
-            >
-              <CommentHeader
-                comment={root}
-                highlightText={getHighlightText(root.highlightId)}
-                editingId={editingId}
-                toggleMenu={toggleMenu}
-                menuOpenMap={menuOpenMap}
-                startEditing={startEditing}
-                removeCommentFn={removeCommentFn}
-                menuRef={(el) => (menuRefs.current[root.id] = el)}
-                currentUserName={session?.user?.name || null}
-                completionStage={completionStage}
-                isRoot={true}
-                isSelected={isSelected}
-                onSelectRoot={(id) => {
-                  dispatch(toggleSelectRootComment(id));
-                  closeMenu(id);
+            return (
+              <div
+                key={root.id}
+                ref={(el) => { threadRefs.current[root.id] = el; }}
+                className={`${styles.threadCard} ${isActive ? styles.active : ''} ${isSelected ? styles.selected : ''}`}
+                onClick={() => {
+                  dispatch(setActiveCommentId(root.id));
+                  dispatch(setActiveHighlightId(root.highlightId));
+                  setCollapsedMap(prev => ({ ...prev, [root.id]: false }));
                 }}
-              />
-
-              {renderCommentBody(root)}
-
-              {visibleReplies.map((reply) => (
-                <div
-                  key={reply.id}
-                  className={`${styles.replyContainer} ${activeCommentId === reply.id ? styles.active : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    dispatch(setActiveCommentId(reply.id));
-                    dispatch(setActiveHighlightId(reply.highlightId));
-                    const rootId = findRootId(reply.id);
-                    if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
-                  }}
-                >
-                  <CommentHeader
-                    comment={reply}
-                    editingId={editingId}
-                    toggleMenu={toggleMenu}
-                    menuOpenMap={menuOpenMap}
-                    startEditing={startEditing}
-                    removeCommentFn={removeCommentFn}
-                    menuRef={(el) => (menuRefs.current[reply.id] = el)}
-                    currentUserName={session?.user?.name || null}
-                    completionStage={completionStage}
-                    // 返信には選択ボタンは表示しない（isRoot=false）
-                    isRoot={false}
-                  />
-                  {renderCommentBody(reply)}
-                </div>
-              ))}
-
-              <textarea
-                placeholder={t("CommentPanel.reply-placeholder")}
-                value={replyTextMap[root.id] || ""}
-                onChange={(e) => handleReplyTextChange(root.id, e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                disabled={isExportStage}
-                className={styles.replyTextarea}
-              />
-
-              <button
-                className={styles.replyButton}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isExportStage) {
-                    sendReply(root.id);
-                  }
-                }}
-                disabled={isExportStage}
               >
-                {t("CommentPanel.reply")}
-              </button>
+                <CommentHeader
+                  comment={root}
+                  highlightText={getHighlightText(root.highlightId)}
+                  editingId={editingId}
+                  toggleMenu={toggleMenu}
+                  menuOpenMap={menuOpenMap}
+                  startEditing={startEditing}
+                  removeCommentFn={removeCommentFn}
+                  menuRef={(el) => (menuRefs.current[root.id] = el)}
+                  currentUserName={session?.user?.name || null}
+                  completionStage={completionStage}
+                  isRoot={true}
+                  isSelected={isSelected}
+                  onSelectRoot={(id) => {
+                    dispatch(toggleSelectRootComment(id));
+                    closeMenu(id);
+                  }}
+                />
 
-              {showCollapseButton && (
+                {renderCommentBody(root)}
+
+                {visibleReplies.map((reply) => (
+                  <div
+                    key={reply.id}
+                    className={`${styles.replyContainer} ${activeCommentId === reply.id ? styles.active : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch(setActiveCommentId(reply.id));
+                      dispatch(setActiveHighlightId(reply.highlightId));
+                      const rootId = findRootId(reply.id);
+                      if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
+                    }}
+                  >
+                    <CommentHeader
+                      comment={reply}
+                      editingId={editingId}
+                      toggleMenu={toggleMenu}
+                      menuOpenMap={menuOpenMap}
+                      startEditing={startEditing}
+                      removeCommentFn={removeCommentFn}
+                      menuRef={(el) => (menuRefs.current[reply.id] = el)}
+                      currentUserName={session?.user?.name || null}
+                      completionStage={completionStage}
+                      // 返信には選択ボタンは表示しない（isRoot=false）
+                      isRoot={false}
+                    />
+                    {renderCommentBody(reply)}
+                  </div>
+                ))}
+
+                <textarea
+                  placeholder={t("CommentPanel.reply-placeholder")}
+                  value={replyTextMap[root.id] || ""}
+                  onChange={(e) => handleReplyTextChange(root.id, e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={isExportStage}
+                  className={styles.replyTextarea}
+                />
+
                 <button
+                  className={styles.replyButton}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isExportStage) {
-                      toggleCollapse(root.id);
+                      sendReply(root.id);
                     }
                   }}
                   disabled={isExportStage}
-                  className={styles.collapseButton}
                 >
-                  {isCollapsed
-                    ? `${t("CommentPanel.show-more")} (${totalReplies - visibleReplies.length} 件)`
-                    : t("CommentPanel.show-less")}
+                  {t("CommentPanel.reply")}
                 </button>
-              )}
 
-            </div>
-          );
-        })}
+                {showCollapseButton && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isExportStage) {
+                        toggleCollapse(root.id);
+                      }
+                    }}
+                    disabled={isExportStage}
+                    className={styles.collapseButton}
+                  >
+                    {isCollapsed
+                      ? `${t("CommentPanel.show-more")} (${totalReplies - visibleReplies.length} 件)`
+                      : t("CommentPanel.show-less")}
+                  </button>
+                )}
+
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

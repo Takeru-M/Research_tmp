@@ -1,7 +1,25 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
+import NextAuth, { NextAuthOptions, Session } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { apiV1Client } from "@/utils/apiV1Client";
+import { JWT } from "next-auth/jwt";
 import { FastApiAuthResponse } from "@/types/Responses/Auth";
+
+declare module "next-auth" {
+  interface Session {
+    accessToken?: string;
+    user: {
+      id?: string;
+      name?: string;
+      email?: string;
+    };
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    fastApiToken?: string;
+    id?: string;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -19,85 +37,79 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const { data, error } = await apiV1Client<FastApiAuthResponse>("/auth/token", {
-          method: "POST",
-          body: {
-            email: credentials.email,
-            password: credentials.password,
-          },
-        });
+        // const url = typeof window === "undefined"
+        //   ? `${process.env.NEXT_PUBLIC_API_URL}`
+        //   : `${process.env.NEXT_PUBLIC_API_URL1}`
+        const url = `${process.env.NEXT_PUBLIC_API_URL}`;
+        try {
+          const response = await fetch(
+            `${url}/auth/token`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                email: credentials.email,
+                password: credentials.password,
+              }),
+            }
+          );
 
-        if (error || !data) {
-          console.error("FastAPI Authentication failed:", error);
-          return null;
-        }
+          if (!response.ok) {
+            console.error("FastAPI Authentication failed:", response.statusText);
+            return null;
+          }
 
-        if (!data.access_token || !data.user_id) {
+          const data: FastApiAuthResponse = await response.json();
+
+          if (!data.access_token || !data.user_id) {
             console.error("Missing required fields in response");
             return null;
-        }
+          }
 
-        return {
-          id: String(data.user_id),
-          name: data.name || data.email,
-          email: data.email,
-          fastApiToken: data.access_token,
-        };
+          return {
+            id: String(data.user_id),
+            name: data.name || data.email,
+            email: data.email,
+            fastApiToken: data.access_token,
+          };
+        } catch (error) {
+          console.error("Authorization error:", error);
+          return null;
+        }
       },
     }),
   ],
 
   callbacks: {
-    async jwt({ token, user, account, trigger }) {
-      console.log("JWT callback - user:", user);
-      console.log("JWT callback - token before:", token);
-
+    async jwt({ token, user }) {
       if (user) {
-        // 新規ログイン時：FastAPIのトークンを保存
         token.fastApiToken = (user as any).fastApiToken;
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
-      } else if (token.accessToken && !token.fastApiToken) {
-        // 既存トークンの移行（古い構造から新しい構造へ）
-        token.fastApiToken = token.accessToken as string;
-        token.id = token.user?.id;
-        token.name = token.user?.name;
-        token.email = token.user?.email;
-        // 古いプロパティを削除
-        delete token.accessToken;
-        delete token.user;
       }
-
-      console.log("JWT callback - token after:", token);
       return token;
     },
 
     async session({ session, token }) {
-      console.log("Session callback - token:", token);
-      console.log("Session callback - session before:", session);
-
-      if (token) {
-        // FastAPIのトークンをaccessTokenとして保存
-        session.accessToken = (token.fastApiToken || token.accessToken) as string;
-        session.user = {
-          ...session.user,
-          id: (token.id || token.user?.id) as string,
-          name: (token.name || token.user?.name) as string,
-          email: (token.email || token.user?.email) as string,
-        };
+      if (token && session.user) {
+        session.accessToken = (token.fastApiToken as string) || undefined;
+        session.user.id = (token.id as string) || undefined;
+        session.user.name = (token.name as string) || undefined;
+        session.user.email = (token.email as string) || undefined;
       }
-
-      console.log("Session callback - session after:", session);
       return session;
     },
   },
 
   pages: {
     signIn: "/login",
+    error: "/login",
   },
 
-  debug: true, // デバッグモードを有効化
+  debug: process.env.NODE_ENV === "development",
 };
 
 export default NextAuth(authOptions);

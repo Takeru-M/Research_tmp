@@ -9,7 +9,7 @@ from sqlalchemy import pool
 
 from sqlmodel import SQLModel
 
-import app.models  # <--- あなたのモデル定義ファイルへのパスに置き換えてください
+import app.models  # モデル定義ファイルへのパスに置き換える
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -77,8 +77,8 @@ def run_migrations_online() -> None:
     )
 
     # alembic.iniのURLを上書き
-    if db_url:
-        config.set_main_option("sqlalchemy.url", db_url)
+    # if db_url:
+    #     config.set_main_option("sqlalchemy.url", db_url)
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
