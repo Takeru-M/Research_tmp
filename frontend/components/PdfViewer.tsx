@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
+import { useSession } from 'next-auth/react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
@@ -49,7 +50,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const dispatch = useDispatch();
   const { t } = useTranslation();
   const router = useRouter();
-
+  const { data: session } = useSession();
+  
   const [selectionMenu, setSelectionMenu] = useState({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
   });
@@ -74,6 +76,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   };
+
+  // ユーザーIDを取得するヘルパー関数を追加
+  const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
 
   // PDF以外クリックで選択解除
   useEffect(() => {
@@ -114,13 +119,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       logUserAction('pdf_selection_menu_closed', {
         reason: 'outside_click',
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     };
     document.addEventListener('mousedown', handleMenuClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleMenuClickOutside);
     };
-  }, [selectionMenu.visible]);
+  }, [selectionMenu.visible, getUserId]);
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: PDFDocumentProxy) => {
     setNumPages(numPages);
@@ -129,8 +134,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     logUserAction('pdf_document_loaded', {
       totalPages: numPages,
       timestamp: new Date().toISOString(),
-    });
-  }, []);
+    }, getUserId());
+  }, [getUserId]);
 
   useEffect(() => {
     setNumPages(null);
@@ -163,7 +168,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         pageNumber: n,
         reason: error instanceof Error ? error.message : 'unknown',
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     }
 
     try {
@@ -176,11 +181,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           pageNumber: n,
           reason: error instanceof Error ? error.message : 'unknown',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
     }
 
     setPageData(p=>({...p,[n]:newPageData}));
-  },[]);
+  },[getUserId]);
 
   // 全ページロード完了後に全テキストをReduxに保存するロジック
   useEffect(() => {
@@ -201,10 +206,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             totalPages: numPages,
             textLength: fullText.length,
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
       }
     }
-  }, [numPages, pageData, dispatch]);
+  }, [numPages, pageData, dispatch, getUserId]);
 
   // PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック
   useEffect(()=>{
@@ -248,10 +253,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       logUserAction('pdf_rendering_complete', {
         totalPages: numPages,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       onRenderSuccess();
     }
-  }, [numPages, pageScales, pageData, onRenderSuccess]);
+  }, [numPages, pageScales, pageData, onRenderSuccess, getUserId]);
 
 
   // ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
@@ -360,7 +365,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               pageNumber: pageNum,
               isLLMHighlight: clickedHighlight.createdBy === t("CommentPanel.comment-author-LLM"),
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId());
 
             // スクロールターゲット設定ロジック（画面上の絶対Yを渡す）
             const rect = clickedHighlight.rects.find(r => r.pageNum === pageNum);
@@ -422,10 +427,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       selectedTextLength: text.length,
       numberOfRects: allRects.length,
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId());
 
     sel.removeAllRanges();
-  },[pageScales, highlights, dispatch, onHighlightClick, viewerRef, t]);
+  },[pageScales, highlights, dispatch, onHighlightClick, viewerRef, t, getUserId]);
 
   const handleRequestShapeHighlight = useCallback((rects: PdfRectWithPage[]) => {
     const firstRect = rects[0];
@@ -449,8 +454,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       pageNumber: firstRect.pageNum,
       numberOfRects: rects.length,
       timestamp: new Date().toISOString(),
-    });
-  }, [t]);
+    }, getUserId());
+  }, [t, getUserId]);
 
   const addHighlight = () => {
       if (selectionMenu.pendingHighlight) {
@@ -459,7 +464,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           logUserAction('pdf_selection_menu_add_highlight_clicked', {
             highlightText: selectionMenu.pendingHighlight.text.substring(0, 50),
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
       }
   };
 
@@ -641,7 +646,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       highlightCount: highlights.length,
       commentCount: comments.length,
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId());
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
@@ -710,7 +715,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   stage: 'save_highlight_comment',
                   reason: commentError,
                   timestamp: new Date().toISOString(),
-                });
+                }, getUserId());
                 return;
               }
               
@@ -745,7 +750,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     stage: 'create_llm_highlight',
                     reason: 'project_id_missing',
                     timestamp: new Date().toISOString(),
-                  });
+                  }, getUserId());
                   return;
                 }
 
@@ -774,7 +779,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     stage: 'save_llm_highlight',
                     reason: highlightError,
                     timestamp: new Date().toISOString(),
-                  });
+                  }, getUserId());
                   return;
                 }
 
@@ -824,7 +829,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 stage: 'update_completion_stage',
                 reason: updateError,
                 timestamp: new Date().toISOString(),
-              });
+              }, getUserId());
               return;
             }
 
@@ -834,7 +839,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             logUserAction('analysis_completed', {
               newCompletionStage: stageVal,
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId());
           }
         }
       } catch (error) {
@@ -845,7 +850,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             stage: 'api_error',
             reason: error.message,
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
         } else {
           console.error('[handleCompletion] Unexpected error:', error);
           setErrorMessage(error instanceof Error ? t('Error.analysis-failed') : t('Error.analysis-failed'));
@@ -853,7 +858,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             stage: 'unexpected_error',
             reason: error instanceof Error ? error.message : 'unknown',
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
         }
       } finally {
         dispatch(stopLoading());
@@ -925,7 +930,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   stage: 'save_deliberation_comment',
                   reason: commentError,
                   timestamp: new Date().toISOString(),
-                });
+                }, getUserId());
                 return;
               }
 
@@ -962,7 +967,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 stage: 'update_deliberation_stage',
                 reason: updateError,
                 timestamp: new Date().toISOString(),
-              });
+              }, getUserId());
               return;
             }
 
@@ -973,7 +978,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             logUserAction('deliberation_analysis_completed', {
               newCompletionStage: stageVal,
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId());
           }
         }
       } catch (error) {
@@ -984,7 +989,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             stage: 'deliberation_api_error',
             reason: error.message,
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
         } else {
           console.error('[handleCompletion] Unexpected error:', error);
           setErrorMessage(error instanceof Error ? t('Error.analysis-failed') : t('Error.analysis-failed'));
@@ -992,7 +997,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             stage: 'deliberation_unexpected_error',
             reason: error instanceof Error ? error.message : 'unknown',
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
         }
       } finally {
         dispatch(stopLoading());
@@ -1001,15 +1006,15 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       logUserAction('give_more_deliberation_tips_stage', {
         completionStage,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, completionStage, dividedMeetingTexts, fileId]);
+  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, completionStage, dividedMeetingTexts, fileId, getUserId]);
 
   const handleCompletionforExport = useCallback(async () => {
     dispatch(startLoading(t('PdfViewer.exporting')));
     logUserAction('export_started', {
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId());
     
     try {
       const projectId = getProjectIdFromCookie();
@@ -1019,7 +1024,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         logUserAction('export_failed', {
           reason: 'project_id_missing',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
       if (!fileId) {
@@ -1028,7 +1033,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         logUserAction('export_failed', {
           reason: 'file_id_missing',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -1049,7 +1054,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           reason: 'export_api_error',
           status: exportRes.status,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -1091,7 +1096,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           reason: 'stage_update_error',
           error: updateError,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -1103,7 +1108,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         filename,
         blobSize: blob.size,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       router.push('/projects');
     } catch (error) {
       console.error('[handleCompletionforExport] Error:', error);
@@ -1111,12 +1116,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       logUserAction('export_failed', {
         reason: error instanceof Error ? error.message : 'unknown',
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     } finally {
       console.log(`[Export][Frontend] End at ${new Date().toISOString()}`);
       dispatch(stopLoading());
     }
-  }, [dispatch, fileId, t]);
+  }, [dispatch, fileId, t, getUserId]);
 
   const handleDialogue = useCallback(async () => {
     if (selectedRootCommentIds.length === 0) {
@@ -1124,7 +1129,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       setErrorMessage(t('PdfViewer.no-comments-selected') || '対話するコメントが選択されていません');
       logUserAction('dialogue_no_comments_selected', {
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       return;
     }
 
@@ -1133,7 +1138,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       selectedRootCommentCount: selectedRootCommentIds.length,
       completionStage,
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId());
 
     try {
       // 選択されたルートコメントに関連するハイライトとコメントを取得
@@ -1204,7 +1209,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           reason: 'unsupported_completion_stage',
           completionStage,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -1248,7 +1253,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 reason: 'comment_save_error',
                 error: commentError,
                 timestamp: new Date().toISOString(),
-              });
+              }, getUserId());
               return;
             }
 
@@ -1271,14 +1276,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         logUserAction('dialogue_completed', {
           responseCount: responseData.dialogue_responses.length,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
       } else {
         console.error('[handleDialogue] Invalid response format:', responseData);
         setErrorMessage(t('Error.invalid-response-format'));
         logUserAction('dialogue_failed', {
           reason: 'invalid_response_format',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
       }
     } catch (error) {
       console.error('[handleDialogue] Error:', error);
@@ -1289,18 +1294,18 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           reason: 'api_error',
           error: error.message,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
       } else {
         setErrorMessage(error instanceof Error ? t('Error.dialogue-failed') : t('Error.dialogue-failed'));
         logUserAction('dialogue_failed', {
           reason: error instanceof Error ? error.message : 'unknown',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
       }
     } finally {
       dispatch(stopLoading());
     }
-  }, [selectedRootCommentIds, comments, highlights, pdfTextContent, completionStage, dispatch, t]);
+  }, [selectedRootCommentIds, comments, highlights, pdfTextContent, completionStage, dispatch, t, getUserId]);
 
   return (
     <>

@@ -13,19 +13,25 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { t } = useTranslation();
   const router = useRouter();
-  const { status } = useSession({
+  const { status, data: session } = useSession({
     required: false,
   });
+
+  // ユーザーIDを取得するヘルパー関数
+  const getUserId = useCallback(() => {
+    return session?.user?.id || session?.user?.email || 'anonymous';
+  }, [session]);
 
   const handleLogin = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setIsLoading(true);
 
+    // ログイン試行時は匿名でログ記録（ユーザーIDがまだ確定していないため）
     logUserAction('login_attempt', {
       email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'), // メールアドレスをマスク
       timestamp: new Date().toISOString(),
-    });
+    }, 'anonymous'); // ログイン前は匿名
 
     const result = await signIn('credentials', {
       email,
@@ -39,8 +45,9 @@ const LoginPage: React.FC = () => {
       console.error("[Login] Sign-in error:", result.error);
       logUserAction('login_failed', {
         reason: result.error,
+        email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      });
+      }, 'anonymous'); // ログイン失敗時も匿名
       setAuthError(t('Login.error-message'));
       setIsLoading(false);
       return;
@@ -48,11 +55,17 @@ const LoginPage: React.FC = () => {
 
     if (result?.ok) {
       console.log("[Login] Sign-in successful, redirecting to /projects");
+      
+      // ログイン成功後、セッション情報を取得するまで少し待つ
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // ログイン成功時はユーザーIDを記録
+      // この時点ではまだsessionが更新されていない可能性があるため、emailを使用
       logUserAction('login_success', {
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      });
-      await new Promise(resolve => setTimeout(resolve, 500));
+      }, email); // ログイン成功時はemailをユーザーIDとして使用
+      
       router.push('/projects');
     }
   }, [email, password, router, t]);
@@ -62,6 +75,10 @@ const LoginPage: React.FC = () => {
   }
 
   if (status === "authenticated") {
+    // 既にログイン済みの場合
+    logUserAction('login_page_accessed_while_authenticated', {
+      timestamp: new Date().toISOString(),
+    }, getUserId());
     router.push('/projects');
     return null;
   }

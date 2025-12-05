@@ -75,6 +75,11 @@ const EditorPageContent: React.FC = () => {
   const [currentFileId, setCurrentFileId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // ユーザーIDを取得するヘルパー関数を追加
+  const getUserId = useCallback(() => {
+    return session?.user?.id || session?.user?.email || 'anonymous';
+  }, [session]);
+
   const getUserName = useCallback(() => {
     return session?.user?.name || t("CommentPanel.comment-author-user");
   }, [session, t]);
@@ -99,6 +104,10 @@ const EditorPageContent: React.FC = () => {
         console.info('[fetchHighlightsAndComments] No highlights yet for fileId:', fileId);
         dispatch(setHighlights([]));
         dispatch(setComments([]));
+        logUserAction('highlights_fetch_empty', {
+          fileId,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         return;
       }
 
@@ -107,6 +116,11 @@ const EditorPageContent: React.FC = () => {
         setErrorMessage(t('Error.highlights-fetch-failed'));
         dispatch(setHighlights([]));
         dispatch(setComments([]));
+        logUserAction('highlights_fetch_failed', {
+          fileId,
+          reason: error,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         return;
       }
 
@@ -114,6 +128,10 @@ const EditorPageContent: React.FC = () => {
         console.warn('[fetchHighlightsAndComments] No response data for fileId:', fileId);
         dispatch(setHighlights([]));
         dispatch(setComments([]));
+        logUserAction('highlights_fetch_no_data', {
+          fileId,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         return;
       }
 
@@ -176,11 +194,11 @@ const EditorPageContent: React.FC = () => {
         highlightCount: highlights.length,
         commentCount: comments.length,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, getUserName, session?.accessToken, t]);
+  }, [dispatch, getUserName, session?.accessToken, t, getUserId]);
 
   const fetchProjectFile = useCallback(async (projectId: number) => {
     dispatch(startLoading('Loading project file...'));
@@ -195,9 +213,9 @@ const EditorPageContent: React.FC = () => {
         setErrorMessage(t('Error.file-fetch-failed'));
         logUserAction('file_fetch_failed', {
           projectId,
-          error,
+          reason: error,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         setIsFileUploaded(false);
         return;
       }
@@ -205,6 +223,10 @@ const EditorPageContent: React.FC = () => {
       if (!response || response.length === 0) {
         console.info('[fetchProjectFile] No files found for this project yet.');
         setIsFileUploaded(false);
+        logUserAction('file_fetch_empty', {
+          projectId,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         return;
       }
 
@@ -222,9 +244,9 @@ const EditorPageContent: React.FC = () => {
         logUserAction('s3_file_fetch_failed', {
           projectId,
           fileKey: latestFile.file_key,
-          error: blobError,
+          reason: blobError,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         setIsFileUploaded(false);
         return;
       }
@@ -244,13 +266,13 @@ const EditorPageContent: React.FC = () => {
         fileName: latestFile.file_name,
         mimeType: latestFile.mime_type,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
 
       fetchHighlightsAndComments(latestFile.id);
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t]);
+  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t, getUserId]);
 
   const fetchProjectInfo = useCallback(async (projectId: number) => {
     try {
@@ -268,9 +290,9 @@ const EditorPageContent: React.FC = () => {
         setErrorMessage(t('Error.project-info-fetch-failed'));
         logUserAction('project_info_fetch_failed', {
           projectId,
-          error,
+          reason: error,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -282,14 +304,19 @@ const EditorPageContent: React.FC = () => {
           projectId,
           completionStage: stage,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
       } else {
         console.warn('Project info does not include a valid stage:', res);
+        logUserAction('project_info_invalid_stage', {
+          projectId,
+          stage,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
       }
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, session?.accessToken, t]);
+  }, [dispatch, session?.accessToken, t, getUserId]);
 
   useEffect(() => {
     const projectId = getProjectIdFromCookie();
@@ -300,7 +327,7 @@ const EditorPageContent: React.FC = () => {
         projectId,
         isNewProject: false,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       fetchProjectInfo(projectId);
       fetchProjectFile(projectId);
     } else if (projectId && isNewProject) {
@@ -308,7 +335,7 @@ const EditorPageContent: React.FC = () => {
         projectId,
         isNewProject: true,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       fetchProjectInfo(projectId);
       console.log('New project created.');
     } else {
@@ -316,10 +343,10 @@ const EditorPageContent: React.FC = () => {
       logUserAction('editor_load_failed', {
         reason: 'no_project_id',
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       router.push('/projects');
     }
-  }, [fetchProjectInfo, fetchProjectFile, router]);
+  }, [fetchProjectInfo, fetchProjectFile, router, getUserId]);
 
   // ---------------------------
   // S3アップロード + バックエンド保存
@@ -329,6 +356,10 @@ const EditorPageContent: React.FC = () => {
 
     if (isFileUploaded) {
       setErrorMessage(t('Alert.file-already-uploaded'));
+      logUserAction('file_upload_prevented', {
+        reason: 'already_uploaded',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       return;
     }
 
@@ -338,7 +369,7 @@ const EditorPageContent: React.FC = () => {
       fileSize: filesize,
       mimeType: filetype,
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId());
 
     try {
       const formData = new FormData();
@@ -357,7 +388,7 @@ const EditorPageContent: React.FC = () => {
           reason: 's3_upload_error',
           error: s3Error,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
       if (s3Status >= 400) {
@@ -368,7 +399,7 @@ const EditorPageContent: React.FC = () => {
           reason: 's3_status_error',
           status: s3Status,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -380,7 +411,7 @@ const EditorPageContent: React.FC = () => {
           fileName: file.name,
           reason: 'project_id_missing',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -407,7 +438,7 @@ const EditorPageContent: React.FC = () => {
           reason: 'metadata_save_error',
           error: dbError,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId());
         return;
       }
 
@@ -424,11 +455,11 @@ const EditorPageContent: React.FC = () => {
         fileId: dbResponse.id,
         projectId: project_id,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, t, isFileUploaded, session?.accessToken]);
+  }, [dispatch, t, isFileUploaded, session?.accessToken, getUserId]);
 
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
@@ -470,8 +501,8 @@ const EditorPageContent: React.FC = () => {
     document.body.style.cursor = 'col-resize';
     logUserAction('panel_resize_started', {
       timestamp: new Date().toISOString(),
-    });
-  }, []);
+    }, getUserId());
+  }, [getUserId]);
 
   // マウス移動時の処理 (ドラッグ中)
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -495,9 +526,9 @@ const EditorPageContent: React.FC = () => {
       logUserAction('panel_resize_finished', {
         pdfViewerWidth,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
     }
-  }, [measureHeight, pdfViewerWidth]);
+  }, [measureHeight, pdfViewerWidth, getUserId]);
 
   // グローバルなMouseMoveとMouseUpイベントを登録/解除
   useEffect(() => {
@@ -532,6 +563,10 @@ const EditorPageContent: React.FC = () => {
       if (isFileUploaded) {
         setErrorMessage(t('Alert.file-already-uploaded') || 'ファイルは既にアップロード済みです');
         event.target.value = '';
+        logUserAction('file_upload_prevented', {
+          reason: 'already_uploaded',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         return;
       }
 
@@ -556,16 +591,21 @@ const EditorPageContent: React.FC = () => {
             fileName: uploadedFile.name,
             fileType: uploadedFile.type,
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
         };
         reader.readAsText(uploadedFile);
         event.target.value = '';
       } else {
         setErrorMessage(t("Alert.file-support"));
         event.target.value = '';
+        logUserAction('file_upload_invalid_type', {
+          fileName: uploadedFile.name,
+          fileType: uploadedFile.type,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
       }
     },
-    [dispatch, t, isFileUploaded, uploadPdfToS3AndSave]
+    [dispatch, t, isFileUploaded, uploadPdfToS3AndSave, getUserId]
   );
 
   // === Request highlight (open memo modal) ===
@@ -573,17 +613,21 @@ const EditorPageContent: React.FC = () => {
     if (!fileId) {
       console.error('[handleRequestAddHighlight] File ID missing');
       setErrorMessage(t('Error.file-id-missing'));
+      logUserAction('highlight_creation_failed', {
+        reason: 'file_id_missing',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       return;
     }
     logUserAction('highlight_creation_started', {
       highlightId: h.id,
       highlightText: h.text.substring(0, 50),
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId());
     setPendingHighlight(h);
     dispatch(setActiveHighlightId(h.id));
     setShowMemoModal(true);
-  }, [dispatch, t, fileId]);
+  }, [dispatch, t, fileId, getUserId]);
 
   // === Save memo + add highlight + add root comment ===
   const handleSaveMemo = useCallback(
@@ -596,12 +640,22 @@ const EditorPageContent: React.FC = () => {
           if (!projectId) {
             console.error('[handleSaveMemo] Project ID not found');
             setErrorMessage(t('Error.project-id-missing'));
+            logUserAction('highlight_save_failed', {
+              highlightId: id,
+              reason: 'project_id_missing',
+              timestamp: new Date().toISOString(),
+            }, getUserId());
             return;
           }
 
           if (!fileId) {
             console.error('[handleSaveMemo] File ID missing');
             setErrorMessage(t('Error.file-id-missing'));
+            logUserAction('highlight_save_failed', {
+              highlightId: id,
+              reason: 'file_id_missing',
+              timestamp: new Date().toISOString(),
+            }, getUserId());
             return;
           }
 
@@ -633,7 +687,7 @@ const EditorPageContent: React.FC = () => {
               highlightId: id,
               reason: error,
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId());
             return;
           }
 
@@ -646,7 +700,7 @@ const EditorPageContent: React.FC = () => {
               highlightId: id,
               reason: 'highlight_id_missing',
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId());
             return;
           }
 
@@ -676,7 +730,7 @@ const EditorPageContent: React.FC = () => {
             commentId: response.comment_id,
             memoLength: memo.length,
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId());
 
           setPendingHighlight(null);
           setShowMemoModal(false);
@@ -692,11 +746,11 @@ const EditorPageContent: React.FC = () => {
         highlightId: id,
         memoLength: memo.length,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId());
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, fileId]
+    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId]
   );
 
   // === Highlight Click ===
@@ -705,8 +759,8 @@ const EditorPageContent: React.FC = () => {
     logUserAction('highlight_clicked', {
       highlightId,
       timestamp: new Date().toISOString(),
-    });
-  }, [dispatch]);
+    }, getUserId());
+  }, [dispatch, getUserId]);
 
   // === Viewer ===
   const renderViewer = () => {
@@ -768,6 +822,10 @@ const EditorPageContent: React.FC = () => {
               setShowMemoModal(false);
               setPendingHighlight(null);
               dispatch(setActiveHighlightId(null));
+              logUserAction('memo_modal_closed', {
+                highlightId: pendingHighlight?.id || activeHighlightId,
+                timestamp: new Date().toISOString(),
+              }, getUserId());
             }}
             onSave={handleSaveMemo}
           />

@@ -5,6 +5,7 @@ interface LogEntry {
   details?: Record<string, any>;
   userAgent: string;
   url: string;
+  userId?: string; // ユーザーIDを追加
 }
 
 interface BatchLog {
@@ -95,7 +96,8 @@ function addLogToBuffer(log: LogEntry): void {
 
 export function logUserAction(
   action: string,
-  details?: Record<string, any>
+  details?: Record<string, any>,
+  userId?: string
 ): void {
   if (!isClient) return;
 
@@ -106,6 +108,7 @@ export function logUserAction(
     details,
     userAgent: navigator.userAgent,
     url: window.location.href,
+    userId,
   };
   console.log('[User Action]', log);
   addLogToBuffer(log);

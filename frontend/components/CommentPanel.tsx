@@ -198,6 +198,9 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const { data: session } = useSession();
   const [errorMessage, setErrorMessage] = useState<string>("");
 
+  // ユーザーIDを取得するヘルパー関数を追加
+  const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
+
   const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: any) => s.editor);
   const completionStage = useSelector(selectCompletionStage);
   const isExportStage = completionStage === STAGE.EXPORT;
@@ -285,7 +288,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       rootId,
       isCollapsed: !collapsedMap[rootId],
       timestamp: new Date().toISOString(),
-    });
+    }, getUserId()); // ← userId を追加
   };
 
   const startEditing = (id: string, text: string) => {
@@ -313,7 +316,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: id,
           reason: error,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId()); // ← userId を追加
         return;
       }
 
@@ -324,11 +327,10 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: id,
           reason: 'no_data_received',
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId()); // ← userId を追加
         return;
       }
 
-      // Reduxストアを更新
       dispatch(updateComment({ id, text: editText }));
       setEditingId(null);
       setEditText("");
@@ -336,7 +338,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         textLength: editText.length,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
     } catch (error: any) {
       console.error('[saveEdit] Unexpected error:', error);
       setErrorMessage(t('Error.update-comment-failed'));
@@ -344,7 +346,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         reason: error.message,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
     }
   };
 
@@ -353,7 +355,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       logUserAction('comment_delete_cancelled', {
         commentId: id,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
       return;
     }
 
@@ -380,7 +382,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               reason: 'highlight_delete_error',
               error,
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId()); // ← userId を追加
             return;
           }
 
@@ -401,7 +403,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               reason: 'comment_delete_error',
               error,
               timestamp: new Date().toISOString(),
-            });
+            }, getUserId()); // ← userId を追加
             return;
           }
 
@@ -422,7 +424,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             reason: 'reply_delete_error',
             error,
             timestamp: new Date().toISOString(),
-          });
+          }, getUserId()); // ← userId を追加
           return;
         }
 
@@ -434,7 +436,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         isRoot: comment.parentId === null,
         hadHighlight: !!comment.highlightId,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
       closeMenu(id);
     } catch (error: any) {
       console.error('[removeCommentFn] Unexpected error:', error);
@@ -443,7 +445,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         reason: error.message,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
     }
   };
 
@@ -484,7 +486,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           reason: error,
           textLength: replyText.length,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId()); // ← userId を追加
         return;
       }
 
@@ -496,7 +498,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           reason: 'no_data_received',
           textLength: replyText.length,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId()); // ← userId を追加
         return;
       }
 
@@ -523,7 +525,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         parentId,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
       
       console.log('[sendReply] Reply saved successfully:', savedComment.id);
     } catch (error: any) {
@@ -534,7 +536,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         reason: error.message,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
-      });
+      }, getUserId()); // ← userId を追加
     }
   };
 
@@ -635,7 +637,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: activeCommentId,
           rootId,
           timestamp: new Date().toISOString(),
-        });
+        }, getUserId()); // ← userId を追加
       }
     }
   }, [activeCommentId]);
@@ -735,7 +737,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                     rootCommentId: root.id,
                     highlightId: root.highlightId,
                     timestamp: new Date().toISOString(),
-                  });
+                  }, getUserId()); // ← userId を追加
                 }}
               >
                 <CommentHeader
@@ -774,7 +776,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                         parentId: reply.parentId,
                         rootCommentId: root.id,
                         timestamp: new Date().toISOString(),
-                      });
+                      }, getUserId()); // ← userId を追加
                     }}
                   >
                     <CommentHeader

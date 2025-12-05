@@ -30,13 +30,21 @@ const SignupPage: React.FC = () => {
 
   const { t } = useTranslation();
   const router = useRouter();
-  const { status } = useSession();
+  const { status, data: session } = useSession();
+
+  // ユーザーIDを取得するヘルパー関数
+  const getUserId = useCallback(() => {
+    return session?.user?.id || session?.user?.email || 'anonymous';
+  }, [session]);
 
   useEffect(() => {
     if (status === 'authenticated') {
+      logUserAction('signup_page_accessed_while_authenticated', {
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       router.replace('/projects');
     }
-  }, [status, router]);
+  }, [status, router, getUserId]);
 
   const handleSignup = useCallback(async (e: FormEvent) => {
     e.preventDefault();
@@ -62,7 +70,7 @@ const SignupPage: React.FC = () => {
           confirmPassword: !!cError,
         },
         timestamp: new Date().toISOString(),
-      });
+      }, 'anonymous'); // バリデーション失敗時は匿名
       setFormError(t('Signup.validation.fix-errors'));
       return;
     }
@@ -73,7 +81,7 @@ const SignupPage: React.FC = () => {
       username,
       email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'), // メールアドレスをマスク
       timestamp: new Date().toISOString(),
-    });
+    }, 'anonymous'); // サインアップ試行時は匿名
 
     const { data, error } = await apiClient<any>('/signup', {
       method: 'POST',
@@ -89,8 +97,10 @@ const SignupPage: React.FC = () => {
       console.error('[Signup] Signup error:', error);
       logUserAction('signup_failed', {
         reason: error,
+        username,
+        email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      });
+      }, 'anonymous'); // サインアップ失敗時は匿名
       setFormError(error);
       setIsSubmitting(false);
       return;
@@ -100,8 +110,10 @@ const SignupPage: React.FC = () => {
       console.warn('[Signup] No data received');
       logUserAction('signup_failed', {
         reason: 'no_data_received',
+        username,
+        email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      });
+      }, 'anonymous'); // サインアップ失敗時は匿名
       setFormError(t('Signup.error'));
       setIsSubmitting(false);
       return;
@@ -111,9 +123,10 @@ const SignupPage: React.FC = () => {
       username,
       email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
       timestamp: new Date().toISOString(),
-    });
+    }, email); // サインアップ成功時はemailをユーザーIDとして使用
     setSuccessMessage(t('Signup.success'));
 
+    // 自動ログイン処理
     const loginResult = await signIn('credentials', {
       redirect: false,
       email,
@@ -123,15 +136,18 @@ const SignupPage: React.FC = () => {
     if (loginResult?.ok) {
       logUserAction('auto_login_after_signup', {
         username,
+        email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      });
+      }, email); // 自動ログイン成功時はemailをユーザーIDとして使用
       router.replace('/projects');
     } else {
       console.error('[Signup] Auto-login failed');
       logUserAction('auto_login_after_signup_failed', {
         reason: loginResult?.error,
+        username,
+        email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      });
+      }, email); // 自動ログイン失敗時もemailをユーザーIDとして使用
       setFormError(t('Signup.login-failed'));
       setIsSubmitting(false);
     }

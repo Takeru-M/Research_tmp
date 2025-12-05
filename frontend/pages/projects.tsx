@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
@@ -29,10 +29,18 @@ const Projects: React.FC = () => {
   const dispatch = useDispatch();
   const { data: session, status } = useSession();
 
+  // ユーザーIDを取得するヘルパー関数
+  const getUserId = useCallback(() => {
+    return session?.user?.id || session?.user?.email || 'anonymous';
+  }, [session]);
+
   useEffect(() => {
     if (status === 'loading') return;
 
     if (status === 'unauthenticated') {
+      logUserAction('projects_page_unauthenticated', {
+        timestamp: new Date().toISOString(),
+      }, 'anonymous');
       signIn();
       return;
     }
@@ -41,6 +49,10 @@ const Projects: React.FC = () => {
       setLoading(true);
       setErrorMessage(null);
       dispatch(clearAllState());
+
+      logUserAction('projects_fetch_started', {
+        timestamp: new Date().toISOString(),
+      }, getUserId());
 
       const { data, error, status: httpStatus } = await apiClient<Project[]>('/projects', {
         method: 'GET',
@@ -55,12 +67,21 @@ const Projects: React.FC = () => {
         // 401など認証エラーの場合のみログインへ
         if (httpStatus === 401) {
           setHasAuthError(true);
+          logUserAction('projects_fetch_auth_error', {
+            status: httpStatus,
+            timestamp: new Date().toISOString(),
+          }, getUserId());
           await signIn(undefined, { callbackUrl: '/projects' });
           return;
         }
         
         // それ以外のエラーはエラーメッセージのみ表示
         setErrorMessage(t('Error.fetch-projects-failed'));
+        logUserAction('projects_fetch_failed', {
+          reason: error,
+          status: httpStatus,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         setLoading(false);
         return;
       }
@@ -68,6 +89,9 @@ const Projects: React.FC = () => {
       if (!data) {
         console.warn('[fetchProjects] No data received');
         setErrorMessage(t('Error.fetch-projects-failed'));
+        logUserAction('projects_fetch_no_data', {
+          timestamp: new Date().toISOString(),
+        }, getUserId());
         setLoading(false);
         return;
       }
@@ -75,14 +99,17 @@ const Projects: React.FC = () => {
       setProjects(data);
       setHasAuthError(false);
       setLoading(false);
-      logUserAction('projects_loaded', { count: data.length });
+      logUserAction('projects_loaded', {
+        count: data.length,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
     };
 
     // 認証エラー発生中は再実行しない
     if (!hasAuthError) {
       fetchProjects();
     }
-  }, [session, status, dispatch, t, hasAuthError]);
+  }, [session, status, dispatch, t, hasAuthError, getUserId]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -95,7 +122,11 @@ const Projects: React.FC = () => {
   const handleSelectProject = (projectId: number, projectName: string) => {
     Cookies.set('projectId', projectId.toString(), { expires: 7, sameSite: 'lax', secure: true });
     dispatch(setDocumentName(projectName));
-    logUserAction('project_selected', { projectId, projectName });
+    logUserAction('project_selected', {
+      projectId,
+      projectName,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
     router.push('/');
   };
 
@@ -104,6 +135,11 @@ const Projects: React.FC = () => {
     
     setCreating(true);
     setErrorMessage(null);
+
+    logUserAction('project_creation_started', {
+      projectName: newProjectName,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
 
     const { data, error } = await apiClient<Project>('/projects', {
       method: 'POST',
@@ -119,6 +155,11 @@ const Projects: React.FC = () => {
     if (error) {
       console.error('[handleCreateProject] Error:', error);
       setErrorMessage(t('Error.create-project-failed'));
+      logUserAction('project_creation_failed', {
+        projectName: newProjectName,
+        reason: error,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       setCreating(false);
       return;
     }
@@ -126,6 +167,10 @@ const Projects: React.FC = () => {
     if (!data) {
       console.warn('[handleCreateProject] No data received');
       setErrorMessage(t('Error.create-project-failed'));
+      logUserAction('project_creation_no_data', {
+        projectName: newProjectName,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       setCreating(false);
       return;
     }
@@ -138,13 +183,25 @@ const Projects: React.FC = () => {
     Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
     
     setCreating(false);
-    logUserAction('project_created', { projectId: newProject.id, projectName: newProject.project_name });
+    logUserAction('project_created', {
+      projectId: newProject.id,
+      projectName: newProject.project_name,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
     router.push('/?new=true');
   };
 
   const handleToggleMenu = (e: React.MouseEvent, projectId: number) => {
     e.stopPropagation();
-    setOpenMenuId(openMenuId === projectId ? null : projectId);
+    const isOpening = openMenuId !== projectId;
+    setOpenMenuId(isOpening ? projectId : null);
+    
+    if (isOpening) {
+      logUserAction('project_menu_opened', {
+        projectId,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+    }
   };
 
   const handleEditClick = (e: React.MouseEvent, project: Project) => {
@@ -152,13 +209,33 @@ const Projects: React.FC = () => {
     setEditingProject(project);
     setEditedName(project.project_name);
     setOpenMenuId(null);
+    logUserAction('project_edit_started', {
+      projectId: project.id,
+      projectName: project.project_name,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
   };
 
   const handleDeleteClick = async (e: React.MouseEvent, projectId: number) => {
     e.stopPropagation();
-    if (!confirm(t("Document.delete-confirm"))) return;
+    
+    const project = projects.find(p => p.id === projectId);
+    if (!confirm(t("Document.delete-confirm"))) {
+      logUserAction('project_deletion_cancelled', {
+        projectId,
+        projectName: project?.project_name,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+      return;
+    }
     
     setErrorMessage(null);
+
+    logUserAction('project_deletion_started', {
+      projectId,
+      projectName: project?.project_name,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
 
     const { error } = await apiClient<null>(`/projects/${projectId}`, {
       method: 'DELETE',
@@ -170,19 +247,36 @@ const Projects: React.FC = () => {
     if (error) {
       console.error('[handleDeleteClick] Error:', error);
       setErrorMessage(t('Error.delete-project-failed'));
+      logUserAction('project_deletion_failed', {
+        projectId,
+        projectName: project?.project_name,
+        reason: error,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       setOpenMenuId(null);
       return;
     }
 
     setProjects(projects.filter(p => p.id !== projectId));
     setOpenMenuId(null);
-    logUserAction('project_deleted', { projectId });
+    logUserAction('project_deleted', {
+      projectId,
+      projectName: project?.project_name,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
   };
 
   const handleSaveEdit = async () => {
     if (!editingProject || !editedName.trim()) return;
     
     setErrorMessage(null);
+
+    logUserAction('project_update_started', {
+      projectId: editingProject.id,
+      oldName: editingProject.project_name,
+      newName: editedName,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
 
     const { data, error } = await apiClient<Project>(`/projects/${editingProject.id}`, {
       method: 'PUT',
@@ -195,12 +289,25 @@ const Projects: React.FC = () => {
     if (error) {
       console.error('[handleSaveEdit] Error:', error);
       setErrorMessage(t('Error.update-project-failed'));
+      logUserAction('project_update_failed', {
+        projectId: editingProject.id,
+        oldName: editingProject.project_name,
+        newName: editedName,
+        reason: error,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       return;
     }
 
     if (!data) {
       console.warn('[handleSaveEdit] No data received');
       setErrorMessage(t('Error.update-project-failed'));
+      logUserAction('project_update_no_data', {
+        projectId: editingProject.id,
+        oldName: editingProject.project_name,
+        newName: editedName,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       return;
     }
 
@@ -208,10 +315,22 @@ const Projects: React.FC = () => {
     setProjects(projects.map(p => p.id === updated.id ? updated : p));
     setEditingProject(null);
     setEditedName('');
-    logUserAction('project_updated', { projectId: updated.id, projectName: updated.project_name });
+    logUserAction('project_updated', {
+      projectId: updated.id,
+      oldName: editingProject.project_name,
+      newName: updated.project_name,
+      timestamp: new Date().toISOString(),
+    }, getUserId());
   };
 
   const handleCancelEdit = () => {
+    if (editingProject) {
+      logUserAction('project_edit_cancelled', {
+        projectId: editingProject.id,
+        projectName: editingProject.project_name,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+    }
     setEditingProject(null);
     setEditedName('');
   };
