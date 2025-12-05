@@ -1,5 +1,3 @@
-import { logApiCall } from './logger';
-
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface ApiRequestOptions {
@@ -87,8 +85,8 @@ export async function apiClient<T>(
       body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
 
-    const duration = performance.now() - startTime;
-    logApiCall(method, path, res.status, duration);
+    // const duration = performance.now() - startTime;
+    // logApiCall(method, path, res.status, duration); // 削除
 
     if (!res.ok) {
       const errorMessage = await parseErrorMessage(res);
@@ -120,8 +118,8 @@ export async function apiClient<T>(
 
     return { data, error: null, status: res.status };
   } catch (err: any) {
-    const duration = performance.now() - startTime;
-    logApiCall(method, path, 0, duration);
+    // const duration = performance.now() - startTime;
+    // logApiCall(method, path, 0, duration); // 削除
     return {
       data: null,
       error: err?.message || 'ネットワークエラーが発生しました',

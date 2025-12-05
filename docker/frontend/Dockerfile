@@ -17,10 +17,7 @@ CMD ["npm", "run", "dev"]
 # 本番用ビルドステージ
 FROM base AS build
 # ソースコードをコンテナ内の /app にコピー
-# コピー元はビルドコンテキストの 'frontend/' ディレクトリ（docker-compose.ymlのcontext:.を想定）
-COPY frontend/. .
-# .gitignoreで無視されているファイルも確実にコピーするため、.dockerignoreファイルの設定も確認してください
-
+COPY frontend/ ./
 # Next.jsの本番ビルドを実行
 RUN npm run build
 
@@ -29,19 +26,15 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 # ビルドステージから必要なファイルのみコピー
-# .next (ビルド結果)
 COPY --from=build /app/.next ./.next
-# node_modules (依存パッケージ)
 COPY --from=build /app/node_modules ./node_modules
-# package.json (npm start実行に必要)
 COPY --from=build /app/package.json ./package.json
-# public (静的ファイル)
 COPY --from=build /app/public ./public
+COPY --from=build /app/next.config.ts ./next.config.ts
 
 # 実行ユーザーの追加（セキュリティ向上）
 RUN addgroup -g 1000 nodejs && adduser -u 1000 -G nodejs -S nodejs
 USER nodejs
 
 EXPOSE 3000
-# 本番環境でサーバーを起動
 CMD ["npm", "start"]

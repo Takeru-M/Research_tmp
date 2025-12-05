@@ -9,7 +9,7 @@ docker compose exec backend bash -c "php artisan migrate --env=testing && vendor
 
 // キャッシュ削除
 docker compose down --volumes --remove-orphans
-ocker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
+docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
 docker compose up -d
 
 // コンテナ削除

@@ -9,4 +9,10 @@
 | HTTPS / CDN                | CloudFront + ACM   
 | Secrets                    | SSM Parameter Store
 
+
+// ログについて
+フロント側の操作はbackend/logsに保存．apiアクセスはapi_accessに，ユーザアクションはuser_action.logに保存．
+フロント側のログの保存はバッチ処理で行っている．
+
+
 // 開発の流れ

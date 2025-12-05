@@ -1,10 +1,6 @@
 interface LogEntry {
   timestamp: string;
-  type: 'api' | 'user_action';
-  method?: string;
-  path?: string;
-  status?: number;
-  duration?: number;
+  type: 'user_action';
   action?: string;
   details?: Record<string, any>;
   userAgent: string;
@@ -16,7 +12,8 @@ interface BatchLog {
   batchTimestamp: string;
 }
 
-const LOG_ENDPOINT = `${process.env.NEXT_PUBLIC_API_URL_LOCAL}/logs`;
+// Next.jsのAPIルートを経由（ブラウザからは /api/logs にアクセス）
+const LOG_ENDPOINT = '/api/logs';
 
 // バッチ処理の設定
 const BATCH_SIZE = 30;
@@ -41,19 +38,23 @@ async function sendBatch(): Promise<void> {
       batchTimestamp: new Date().toISOString(),
     };
 
-    await fetch(LOG_ENDPOINT, {
+    const response = await fetch(LOG_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(batchData),
-    }).catch((error) => {
-      console.warn('[sendBatch] Network error:', error);
-      // 失敗時はバッファに戻す
-      logBuffer = [...logsToSend, ...logBuffer];
     });
 
-    console.log(`[Logger] Batch sent: ${logsToSend.length} logs`);
+    if (!response.ok) {
+      console.error(`[sendBatch] Server error: ${response.status}`, await response.text());
+      // 失敗時はバッファに戻す
+      logBuffer = [...logsToSend, ...logBuffer];
+      return;
+    }
+
+    const result = await response.json();
+    console.log(`[Logger] Batch sent successfully:`, result);
   } catch (error) {
-    console.error('[sendBatch] Error:', error);
+    console.error('[sendBatch] Network error:', error);
     // 失敗時はバッファに戻す
     logBuffer = [...logsToSend, ...logBuffer];
   }
@@ -107,33 +108,6 @@ export function logUserAction(
     url: window.location.href,
   };
   console.log('[User Action]', log);
-  addLogToBuffer(log);
-}
-
-export function logApiCall(
-  method: string,
-  path: string,
-  status: number,
-  duration: number
-): void {
-  if (!isClient) return;
-
-  // 認証関連はログを送信しない（無限ループ防止）
-  if (path.includes('/auth') || path.includes('/callback') || path.includes('/logs')) {
-    return;
-  }
-
-  const log: LogEntry = {
-    timestamp: new Date().toISOString(),
-    type: 'api',
-    method,
-    path,
-    status,
-    duration,
-    userAgent: navigator.userAgent,
-    url: window.location.href,
-  };
-  console.log('[API Call]', log);
   addLogToBuffer(log);
 }
 

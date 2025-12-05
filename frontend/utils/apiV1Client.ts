@@ -1,5 +1,3 @@
-import { logApiCall } from './logger';
-
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface ApiRequestOptions {
@@ -42,8 +40,8 @@ export async function apiV1Client<T>(
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const duration = performance.now() - startTime;
-    logApiCall(method, path, res.status, duration);
+    // const duration = performance.now() - startTime;
+    // logApiCall(method, path, res.status, duration);
 
     const contentType = res.headers.get('Content-Type') || '';
 
@@ -93,8 +91,8 @@ export async function apiV1Client<T>(
 
     return { data, error: null, status: res.status };
   } catch (err: any) {
-    const duration = performance.now() - startTime;
-    logApiCall(method, path, 0, duration);
+    // const duration = performance.now() - startTime;
+    // logApiCall(method, path, 0, duration);
     return {
       data: null,
       error: err.message || 'ネットワークエラーが発生しました',
