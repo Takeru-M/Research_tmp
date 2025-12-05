@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { logUserAction } from '../utils/logger';
 import styles from '../styles/Login.module.css';
 
 const LoginPage: React.FC = () => {
@@ -21,6 +22,11 @@ const LoginPage: React.FC = () => {
     setAuthError(null);
     setIsLoading(true);
 
+    logUserAction('login_attempt', {
+      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'), // メールアドレスをマスク
+      timestamp: new Date().toISOString(),
+    });
+
     const result = await signIn('credentials', {
       email,
       password,
@@ -31,6 +37,10 @@ const LoginPage: React.FC = () => {
 
     if (result?.error) {
       console.error("[Login] Sign-in error:", result.error);
+      logUserAction('login_failed', {
+        reason: result.error,
+        timestamp: new Date().toISOString(),
+      });
       setAuthError(t('Login.error-message'));
       setIsLoading(false);
       return;
@@ -38,6 +48,10 @@ const LoginPage: React.FC = () => {
 
     if (result?.ok) {
       console.log("[Login] Sign-in successful, redirecting to /projects");
+      logUserAction('login_success', {
+        email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
+        timestamp: new Date().toISOString(),
+      });
       await new Promise(resolve => setTimeout(resolve, 500));
       router.push('/projects');
     }
@@ -47,7 +61,6 @@ const LoginPage: React.FC = () => {
     return <div className={styles.loading}>{t('Loading...')}</div>;
   }
 
-  // ログイン済みならフォームを出さずに画面遷移
   if (status === "authenticated") {
     router.push('/projects');
     return null;

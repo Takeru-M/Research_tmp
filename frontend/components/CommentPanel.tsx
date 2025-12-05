@@ -19,6 +19,7 @@ import styles from "../styles/CommentPanel.module.css";
 import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE } from "@/utils/constants";
 import { apiClient } from "@/utils/apiClient";
 import { ErrorDisplay } from "./ErrorDisplay";
+import { logUserAction } from "@/utils/logger";
 
 // 動的なパディングを計算するヘルパー関数
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
@@ -114,6 +115,12 @@ const CommentHeader: React.FC<{
               e.stopPropagation();
               if (!isExportStage) {
                 toggleMenu(comment.id);
+                logUserAction('comment_menu_toggled', {
+                  commentId: comment.id,
+                  isOpen: !isMenuOpen,
+                  isRoot,
+                  timestamp: new Date().toISOString(),
+                });
               }
             }}
             disabled={isExportStage}
@@ -132,6 +139,11 @@ const CommentHeader: React.FC<{
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectRoot?.(comment.id);
+                    logUserAction('comment_selection_toggled', {
+                      commentId: comment.id,
+                      isSelected: !isSelected,
+                      timestamp: new Date().toISOString(),
+                    });
                   }}
                   title={isSelected ? t("CommentPanel.unselect") : t("CommentPanel.select")}
                 >
@@ -146,6 +158,12 @@ const CommentHeader: React.FC<{
                   onClick={(e) => {
                     e.stopPropagation();
                     startEditing(comment.id, comment.text);
+                    logUserAction('comment_edit_started', {
+                      commentId: comment.id,
+                      isRoot,
+                      textLength: comment.text.length,
+                      timestamp: new Date().toISOString(),
+                    });
                   }}
                 >
                   {t("Utils.edit")}
@@ -263,6 +281,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       ...prev,
       [rootId]: !prev[rootId],
     }));
+    logUserAction('comment_thread_collapsed', {
+      rootId,
+      isCollapsed: !collapsedMap[rootId],
+      timestamp: new Date().toISOString(),
+    });
   };
 
   const startEditing = (id: string, text: string) => {
@@ -282,64 +305,160 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           text: editText,
         },
       });
-      if (error || !data) {
-        throw new Error(error || t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
+      
+      if (error) {
+        console.error('[saveEdit] API error:', error);
+        setErrorMessage(t('Error.update-comment-failed'));
+        logUserAction('comment_edit_failed', {
+          commentId: id,
+          reason: error,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (!data) {
+        console.warn('[saveEdit] No data received from API');
+        setErrorMessage(t('Error.update-comment-failed'));
+        logUserAction('comment_edit_failed', {
+          commentId: id,
+          reason: 'no_data_received',
+          timestamp: new Date().toISOString(),
+        });
+        return;
       }
 
       // Reduxストアを更新
       dispatch(updateComment({ id, text: editText }));
       setEditingId(null);
       setEditText("");
+      logUserAction('comment_edited', {
+        commentId: id,
+        textLength: editText.length,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error: any) {
-      console.error('Failed to update comment:', error);
-      setErrorMessage(error?.message || t('Error.update-comment-failed') || 'コメントの更新に失敗しました');
+      console.error('[saveEdit] Unexpected error:', error);
+      setErrorMessage(t('Error.update-comment-failed'));
+      logUserAction('comment_edit_failed', {
+        commentId: id,
+        reason: error.message,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const removeCommentFn = async (id: string) => {
-    if (!window.confirm(t("Alert.comment-delete"))) return;
+    if (!window.confirm(t("Alert.comment-delete"))) {
+      logUserAction('comment_delete_cancelled', {
+        commentId: id,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
 
     const comment = comments.find((c: Comment) => c.id === id);
-    if (!comment) return;
+    if (!comment) {
+      console.warn('[removeCommentFn] Comment not found:', id);
+      return;
+    }
 
     try {
       if (comment.parentId === null) {
+        // ルートコメント: ハイライトがあれば一緒に削除
         if (comment.highlightId) {
           const { error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
-          if (error) throw new Error(error);
+          
+          if (error) {
+            console.error('[removeCommentFn] Highlight delete error:', error);
+            setErrorMessage(t('Error.delete-comment-failed'));
+            logUserAction('comment_delete_failed', {
+              commentId: id,
+              reason: 'highlight_delete_error',
+              error,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
 
+          console.log('[removeCommentFn] Highlight deleted:', comment.highlightId);
           dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
         } else {
+          // ハイライトなしの場合、コメント単体削除
           const { error } = await apiClient<void>(`/comments/${comment.id}`, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
-          if (error) throw new Error(error);
+          
+          if (error) {
+            console.error('[removeCommentFn] Comment delete error:', error);
+            setErrorMessage(t('Error.delete-comment-failed'));
+            logUserAction('comment_delete_failed', {
+              commentId: id,
+              reason: 'comment_delete_error',
+              error,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          console.log('[removeCommentFn] Comment deleted:', comment.id);
         }
       } else {
+        // 返信コメント: コメント単体削除
         const { error } = await apiClient<void>(`/comments/${id}`, {
           method: 'DELETE',
           headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
-        if (error) throw new Error(error);
+        
+        if (error) {
+          console.error('[removeCommentFn] Reply delete error:', error);
+          setErrorMessage(t('Error.delete-comment-failed'));
+          logUserAction('comment_delete_failed', {
+            commentId: id,
+            reason: 'reply_delete_error',
+            error,
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        console.log('[removeCommentFn] Reply deleted:', id);
       }
 
+      logUserAction('comment_deleted', {
+        commentId: id,
+        isRoot: comment.parentId === null,
+        hadHighlight: !!comment.highlightId,
+        timestamp: new Date().toISOString(),
+      });
       closeMenu(id);
     } catch (error: any) {
-      console.error('Failed to delete comment:', error);
-      setErrorMessage(error?.message || t('Error.delete-comment-failed') || 'コメントの削除に失敗しました');
+      console.error('[removeCommentFn] Unexpected error:', error);
+      setErrorMessage(t('Error.delete-comment-failed'));
+      logUserAction('comment_delete_failed', {
+        commentId: id,
+        reason: error.message,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const sendReply = async (parentId: string) => {
     const replyText = replyTextMap[parentId] || "";
-    if (!replyText.trim()) return;
+    if (!replyText.trim()) {
+      console.warn('[sendReply] Empty reply text');
+      return;
+    }
 
     const parentComment = comments.find((c: Comment) => c.id === parentId);
-    if (!parentComment) return;
+    if (!parentComment) {
+      console.warn('[sendReply] Parent comment not found:', parentId);
+      return;
+    }
 
     try {
       const userName = session?.user?.name || t("CommentPanel.comment-author-user");
@@ -356,8 +475,29 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           text: replyText.trim(),
         },
       });
-      if (error || !data) {
-        throw new Error(error || t('Error.save-reply-failed') || '返信の保存に失敗しました');
+
+      if (error) {
+        console.error('[sendReply] API error:', error);
+        setErrorMessage(t('Error.save-reply-failed'));
+        logUserAction('reply_save_failed', {
+          parentId,
+          reason: error,
+          textLength: replyText.length,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      if (!data) {
+        console.warn('[sendReply] No data received from API');
+        setErrorMessage(t('Error.save-reply-failed'));
+        logUserAction('reply_save_failed', {
+          parentId,
+          reason: 'no_data_received',
+          textLength: replyText.length,
+          timestamp: new Date().toISOString(),
+        });
+        return;
       }
 
       const savedComment = data;
@@ -377,9 +517,24 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
       setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
       setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
+      
+      logUserAction('reply_created', {
+        replyId: savedComment.id,
+        parentId,
+        textLength: replyText.length,
+        timestamp: new Date().toISOString(),
+      });
+      
+      console.log('[sendReply] Reply saved successfully:', savedComment.id);
     } catch (error: any) {
-      console.error('Failed to save reply:', error);
-      setErrorMessage(error?.message || t('Error.save-reply-failed') || '返信の保存に失敗しました');
+      console.error('[sendReply] Unexpected error:', error);
+      setErrorMessage(t('Error.save-reply-failed'));
+      logUserAction('reply_save_failed', {
+        parentId,
+        reason: error.message,
+        textLength: replyText.length,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -405,7 +560,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           </button>
           <button
             className={styles.cancelButton}
-            onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              setEditingId(null);
+              logUserAction('comment_edit_cancelled', {
+                commentId: comment.id,
+                timestamp: new Date().toISOString(),
+              });
+            }}
           >
             {t("Utils.cancel")}
           </button>
@@ -467,7 +629,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   useEffect(() => {
     if (activeCommentId) {
       const rootId = findRootId(activeCommentId);
-      if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
+      if (rootId) {
+        setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
+        logUserAction('comment_activated', {
+          commentId: activeCommentId,
+          rootId,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   }, [activeCommentId]);
 
@@ -562,6 +731,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                   dispatch(setActiveCommentId(root.id));
                   dispatch(setActiveHighlightId(root.highlightId));
                   setCollapsedMap(prev => ({ ...prev, [root.id]: false }));
+                  logUserAction('root_comment_selected', {
+                    rootCommentId: root.id,
+                    highlightId: root.highlightId,
+                    timestamp: new Date().toISOString(),
+                  });
                 }}
               >
                 <CommentHeader
@@ -595,6 +769,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                       dispatch(setActiveHighlightId(reply.highlightId));
                       const rootId = findRootId(reply.id);
                       if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
+                      logUserAction('reply_selected', {
+                        replyId: reply.id,
+                        parentId: reply.parentId,
+                        rootCommentId: root.id,
+                        timestamp: new Date().toISOString(),
+                      });
                     }}
                   >
                     <CommentHeader

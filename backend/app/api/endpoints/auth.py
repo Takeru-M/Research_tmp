@@ -1,9 +1,9 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from sqlmodel import Session
 from app.crud.user import create_user, authenticate_user_by_email
-from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.core.security import create_access_token, get_password_hash
 from app.schemas.auth import Token, UserSignupSchema, LoginRequest
 from app.api.deps import get_db
@@ -60,7 +60,7 @@ def signup(
         )
 
     try:
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")))
         access_token = create_access_token(
             data={
                 "user_id": db_user.id,
@@ -119,7 +119,7 @@ def login_for_access_token(
 
         logger.info(f"User {user.name} (ID: {user.id}) successfully authenticated.")
 
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")))
         access_token = create_access_token(
             data={
                 "user_id": user.id,

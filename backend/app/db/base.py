@@ -1,22 +1,24 @@
 # app/db/base.py
 from typing import Generator
 from sqlmodel import create_engine, Session, SQLModel
+from sqlalchemy import event
 from dotenv import load_dotenv
 import os
-from sqlalchemy import create_engine, event
-from sqlalchemy.pool import StaticPool
-# from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 # .envファイルを読み込む
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in environment variables")
+
 # Engineの作成
-# echo=Trueにすると、実行されるSQL文がコンソールに出力されます
 engine = create_engine(
     DATABASE_URL,
     echo=True,
-    poolclass=StaticPool,
     connect_args={
         "charset": "utf8mb4",
         "use_unicode": True,
@@ -27,14 +29,17 @@ engine = create_engine(
 # 接続ごとに文字コードを強制設定
 @event.listens_for(engine, "connect")
 def set_charset(dbapi_conn, connection_record):
-    cursor = dbapi_conn.cursor()
-    cursor.execute("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci")
-    cursor.execute("SET CHARACTER SET utf8mb4")
-    cursor.close()
+    """MySQL接続時の文字コード設定"""
+    try:
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci")
+        cursor.execute("SET CHARACTER SET utf8mb4")
+        cursor.close()
+    except Exception as e:
+        logger.error(f"[set_charset] Error setting charset: {e}")
 
 def create_db_and_tables():
     """テーブルがまだ存在しない場合に作成します。Alembicを使用する場合は不要です。"""
-    # SQLModelの基底クラスに紐づくすべてのテーブルを作成
     SQLModel.metadata.create_all(engine)
 
 def get_session() -> Generator[Session, None, None]:
@@ -43,9 +48,14 @@ def get_session() -> Generator[Session, None, None]:
     FastAPIの `Depends` で使用します。
     """
     with Session(engine) as session:
-        yield session
+        try:
+            yield session
+        except Exception as e:
+            session.rollback()
+            logger.error(f"[get_session] Database session error: {e}", exc_info=True)
+            raise
+        finally:
+            session.close()
 
 # Alembic設定用のmetadata
-# Alembicの `env.py` から参照されます
-from sqlmodel import SQLModel as BaseModel
-metadata = BaseModel.metadata
+metadata = SQLModel.metadata

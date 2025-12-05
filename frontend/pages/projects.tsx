@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { clearAllState } from '../redux/features/editor/editorSlice';
 import { setDocumentName } from '../redux/features/editor/editorSlice';
 import { apiClient } from '../utils/apiClient';
+import { logUserAction } from '../utils/logger';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import styles from '../styles/Projects.module.css';
 
@@ -49,6 +50,8 @@ const Projects: React.FC = () => {
       });
 
       if (error) {
+        console.error('[fetchProjects] Error:', error, 'Status:', httpStatus);
+        
         // 401など認証エラーの場合のみログインへ
         if (httpStatus === 401) {
           setHasAuthError(true);
@@ -57,13 +60,14 @@ const Projects: React.FC = () => {
         }
         
         // それ以外のエラーはエラーメッセージのみ表示
-        setErrorMessage(error);
+        setErrorMessage(t('Error.fetch-projects-failed'));
         setLoading(false);
         return;
       }
 
       if (!data) {
-        setErrorMessage(t('Error.fetch-projects-failed') || 'プロジェクト取得に失敗しました');
+        console.warn('[fetchProjects] No data received');
+        setErrorMessage(t('Error.fetch-projects-failed'));
         setLoading(false);
         return;
       }
@@ -71,6 +75,7 @@ const Projects: React.FC = () => {
       setProjects(data);
       setHasAuthError(false);
       setLoading(false);
+      logUserAction('projects_loaded', { count: data.length });
     };
 
     // 認証エラー発生中は再実行しない
@@ -90,6 +95,7 @@ const Projects: React.FC = () => {
   const handleSelectProject = (projectId: number, projectName: string) => {
     Cookies.set('projectId', projectId.toString(), { expires: 7, sameSite: 'lax', secure: true });
     dispatch(setDocumentName(projectName));
+    logUserAction('project_selected', { projectId, projectName });
     router.push('/');
   };
 
@@ -111,13 +117,15 @@ const Projects: React.FC = () => {
     });
 
     if (error) {
-      setErrorMessage(error);
+      console.error('[handleCreateProject] Error:', error);
+      setErrorMessage(t('Error.create-project-failed'));
       setCreating(false);
       return;
     }
 
     if (!data) {
-      setErrorMessage(t('Error.create-project-failed') || 'ドキュメント作成に失敗しました');
+      console.warn('[handleCreateProject] No data received');
+      setErrorMessage(t('Error.create-project-failed'));
       setCreating(false);
       return;
     }
@@ -130,6 +138,7 @@ const Projects: React.FC = () => {
     Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
     
     setCreating(false);
+    logUserAction('project_created', { projectId: newProject.id, projectName: newProject.project_name });
     router.push('/?new=true');
   };
 
@@ -159,13 +168,15 @@ const Projects: React.FC = () => {
     });
 
     if (error) {
-      setErrorMessage(error);
+      console.error('[handleDeleteClick] Error:', error);
+      setErrorMessage(t('Error.delete-project-failed'));
       setOpenMenuId(null);
       return;
     }
 
     setProjects(projects.filter(p => p.id !== projectId));
     setOpenMenuId(null);
+    logUserAction('project_deleted', { projectId });
   };
 
   const handleSaveEdit = async () => {
@@ -182,12 +193,14 @@ const Projects: React.FC = () => {
     });
 
     if (error) {
-      setErrorMessage(error);
+      console.error('[handleSaveEdit] Error:', error);
+      setErrorMessage(t('Error.update-project-failed'));
       return;
     }
 
     if (!data) {
-      setErrorMessage(t('Error.update-project-failed') || '更新に失敗しました');
+      console.warn('[handleSaveEdit] No data received');
+      setErrorMessage(t('Error.update-project-failed'));
       return;
     }
 
@@ -195,6 +208,7 @@ const Projects: React.FC = () => {
     setProjects(projects.map(p => p.id === updated.id ? updated : p));
     setEditingProject(null);
     setEditedName('');
+    logUserAction('project_updated', { projectId: updated.id, projectName: updated.project_name });
   };
 
   const handleCancelEdit = () => {
@@ -218,7 +232,7 @@ const Projects: React.FC = () => {
 
           {loading ? (
             <div className={styles.loadingText}>
-              読み込み中...
+              {t("Document.loading-text")}
             </div>
           ) : projects.length === 0 ? (
             <div className={styles.emptyState}>

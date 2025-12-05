@@ -21,6 +21,7 @@ import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, OPTION_DIALOGUE_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, DELIBERATION_DIALOGUE_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
 import { apiClient } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
+import { logUserAction } from '@/utils/logger';
 import styles from '../styles/PdfViewer.module.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -110,6 +111,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       }
 
       setSelectionMenu(s => ({ ...s, visible: false, pendingHighlight: null }));
+      logUserAction('pdf_selection_menu_closed', {
+        reason: 'outside_click',
+        timestamp: new Date().toISOString(),
+      });
     };
     document.addEventListener('mousedown', handleMenuClickOutside);
     return () => {
@@ -121,6 +126,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     setNumPages(numPages);
     setPageData({});
     setPageScales({});
+    logUserAction('pdf_document_loaded', {
+      totalPages: numPages,
+      timestamp: new Date().toISOString(),
+    });
   }, []);
 
   useEffect(() => {
@@ -150,6 +159,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.error(`Error extracting text content for page ${n}:`, error);
       newPageData.textContent = '';
       setPageTextItems(p => ({ ...p, [n]: [] }));
+      logUserAction('pdf_text_extraction_failed', {
+        pageNumber: n,
+        reason: error instanceof Error ? error.message : 'unknown',
+        timestamp: new Date().toISOString(),
+      });
     }
 
     try {
@@ -158,6 +172,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     } catch (error) {
         console.error(`Error extracting shapes for page ${n}:`, error);
         setPageShapeData(p => ({ ...p, [n]: [] }));
+        logUserAction('pdf_shape_extraction_failed', {
+          pageNumber: n,
+          reason: error instanceof Error ? error.message : 'unknown',
+          timestamp: new Date().toISOString(),
+        });
     }
 
     setPageData(p=>({...p,[n]:newPageData}));
@@ -178,6 +197,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       if (fullText) {
           dispatch(setPdfTextContent(fullText));
+          logUserAction('pdf_text_content_extracted', {
+            totalPages: numPages,
+            textLength: fullText.length,
+            timestamp: new Date().toISOString(),
+          });
       }
     }
   }, [numPages, pageData, dispatch]);
@@ -221,6 +245,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
     if (allScalesCalculated && allPageDataLoaded && onRenderSuccess) {
       console.log("PDF Viewer: All pages rendered and scales calculated. Notifying parent.");
+      logUserAction('pdf_rendering_complete', {
+        totalPages: numPages,
+        timestamp: new Date().toISOString(),
+      });
       onRenderSuccess();
     }
   }, [numPages, pageScales, pageData, onRenderSuccess]);
@@ -327,6 +355,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             e.stopPropagation(); // イベント伝播を停止
             onHighlightClick?.(clickedHighlight.id);
             dispatch(setActiveHighlightId(clickedHighlight.id));
+            logUserAction('pdf_highlight_clicked', {
+              highlightId: clickedHighlight.id,
+              pageNumber: pageNum,
+              isLLMHighlight: clickedHighlight.createdBy === t("CommentPanel.comment-author-LLM"),
+              timestamp: new Date().toISOString(),
+            });
 
             // スクロールターゲット設定ロジック（画面上の絶対Yを渡す）
             const rect = clickedHighlight.rects.find(r => r.pageNum === pageNum);
@@ -346,7 +380,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
     }
     // ----------------------------------------------------
-
 
     // --- 既存のテキスト選択ロジック (ハイライトクリックでなかった場合のみ実行) ---
     const text=sel.toString().trim();
@@ -384,8 +417,15 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       }
     });
 
+    logUserAction('pdf_text_selected', {
+      pageNumber: pageNum,
+      selectedTextLength: text.length,
+      numberOfRects: allRects.length,
+      timestamp: new Date().toISOString(),
+    });
+
     sel.removeAllRanges();
-  },[pageScales, highlights, dispatch, onHighlightClick, viewerRef]);
+  },[pageScales, highlights, dispatch, onHighlightClick, viewerRef, t]);
 
   const handleRequestShapeHighlight = useCallback((rects: PdfRectWithPage[]) => {
     const firstRect = rects[0];
@@ -404,12 +444,22 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             createdBy: `${t("CommentPanel.comment-author-user")}`
         }
     });
+
+    logUserAction('pdf_shape_selected', {
+      pageNumber: firstRect.pageNum,
+      numberOfRects: rects.length,
+      timestamp: new Date().toISOString(),
+    });
   }, [t]);
 
   const addHighlight = () => {
       if (selectionMenu.pendingHighlight) {
           onRequestAddHighlight?.(selectionMenu.pendingHighlight);
           setSelectionMenu(s => ({ ...s, visible: false, pendingHighlight: null }));
+          logUserAction('pdf_selection_menu_add_highlight_clicked', {
+            highlightText: selectionMenu.pendingHighlight.text.substring(0, 50),
+            timestamp: new Date().toISOString(),
+          });
       }
   };
 
@@ -586,6 +636,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     // ローディング開始
     dispatch(startLoading(t('PdfViewer.analyzing')));
     dispatch(clearSelectedRootComments());
+    logUserAction('analysis_started', {
+      completionStage,
+      highlightCount: highlights.length,
+      commentCount: comments.length,
+      timestamp: new Date().toISOString(),
+    });
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
@@ -648,11 +704,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               });
               
               if (commentError) {
-                setErrorMessage(commentError);
+                console.error('[handleCompletion] Comment save error:', commentError);
+                setErrorMessage(t('Error.comment-save-failed'));
+                logUserAction('analysis_failed', {
+                  stage: 'save_highlight_comment',
+                  reason: commentError,
+                  timestamp: new Date().toISOString(),
+                });
                 return;
               }
               
-              console.log('LLM comment saved:');
+              console.log('LLM comment saved:', commentResponse);
               dispatch(
                 addComment({
                   id: commentResponse.id.toString(),
@@ -677,7 +739,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 const projectId = getProjectIdFromCookie();
 
                 if (!projectId) {
-                  setErrorMessage('Project ID not found');
+                  console.error('[handleCompletion] Project ID not found');
+                  setErrorMessage(t('Error.project-id-missing'));
+                  logUserAction('analysis_failed', {
+                    stage: 'create_llm_highlight',
+                    reason: 'project_id_missing',
+                    timestamp: new Date().toISOString(),
+                  });
                   return;
                 }
 
@@ -700,11 +768,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 });
                 
                 if (highlightError) {
-                  setErrorMessage(highlightError);
+                  console.error('[handleCompletion] Highlight save error:', highlightError);
+                  setErrorMessage(t('Error.highlight-save-failed'));
+                  logUserAction('analysis_failed', {
+                    stage: 'save_llm_highlight',
+                    reason: highlightError,
+                    timestamp: new Date().toISOString(),
+                  });
                   return;
                 }
 
-                console.log('LLM highlight saved:');
+                console.log('LLM highlight saved:', highlightResponse);
 
                   // バックエンドから返されたIDを使用してハイライトを作成
                   const llmHighlight: PdfHighlight = {
@@ -744,22 +818,42 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             });
             
             if (updateError) {
-              setErrorMessage(updateError);
+              console.error('[handleCompletion] Stage update error:', updateError);
+              setErrorMessage(t('Error.update-project-failed'));
+              logUserAction('analysis_failed', {
+                stage: 'update_completion_stage',
+                reason: updateError,
+                timestamp: new Date().toISOString(),
+              });
               return;
             }
 
             const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
             const stageVal = Number(stageValRaw);
             dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_DELIBERATION_TIPS : stageVal));
+            logUserAction('analysis_completed', {
+              newCompletionStage: stageVal,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       } catch (error) {
         if (axios.isAxiosError(error)) {
-            console.error('API Route Error:', error.response?.data || error.message);
-            setErrorMessage(error.response?.data?.error || error.message);
+          console.error('[handleCompletion] API error:', error.response?.data || error.message);
+          setErrorMessage(t('Error.analysis-failed'));
+          logUserAction('analysis_failed', {
+            stage: 'api_error',
+            reason: error.message,
+            timestamp: new Date().toISOString(),
+          });
         } else {
-            console.error('An unexpected error occurred:', error);
-            setErrorMessage(error instanceof Error ? error.message : String(error));
+          console.error('[handleCompletion] Unexpected error:', error);
+          setErrorMessage(error instanceof Error ? t('Error.analysis-failed') : t('Error.analysis-failed'));
+          logUserAction('analysis_failed', {
+            stage: 'unexpected_error',
+            reason: error instanceof Error ? error.message : 'unknown',
+            timestamp: new Date().toISOString(),
+          });
         }
       } finally {
         dispatch(stopLoading());
@@ -808,11 +902,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               const parentCommentExists = comments.some(c => c.id === hf.id);
               
               if (!parentCommentExists) {
-                console.warn(`Parent comment ID ${hf.id} not found in Redux store. Skipping...`);
+                console.warn('[handleCompletion] Parent comment ID not found:', hf.id);
                 continue;
               }
 
-              console.log(`Saving comment with parent_id: ${hf.id}, highlight_id: ${hf.highlight_id}`);
+              console.log('[handleCompletion] Saving comment with parent_id:', hf.id, 'highlight_id:', hf.highlight_id);
 
               const { data: commentResponse, error: commentError } = await apiClient<any>('/comments', {
                 method: 'POST',
@@ -825,11 +919,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               });
 
               if (commentError) {
-                setErrorMessage(commentError);
+                console.error('[handleCompletion] Comment save error:', commentError);
+                setErrorMessage(t('Error.comment-save-failed'));
+                logUserAction('analysis_failed', {
+                  stage: 'save_deliberation_comment',
+                  reason: commentError,
+                  timestamp: new Date().toISOString(),
+                });
                 return;
               }
 
-              console.log('LLM comment saved:');
+              console.log('LLM comment saved:', commentResponse);
 
               dispatch(
                 addComment({
@@ -856,49 +956,84 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             });
             
             if (updateError) {
-              setErrorMessage(updateError);
+              console.error('[handleCompletion] Stage update error:', updateError);
+              setErrorMessage(t('Error.update-project-failed'));
+              logUserAction('analysis_failed', {
+                stage: 'update_deliberation_stage',
+                reason: updateError,
+                timestamp: new Date().toISOString(),
+              });
               return;
             }
 
             const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_MORE_DELIBERATION_TIPS;
             const stageVal = Number(stageValRaw);
-            console.log('Completion stage updated to', stageVal);
+            console.log('[handleCompletion] Completion stage updated to', stageVal);
             dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
+            logUserAction('deliberation_analysis_completed', {
+              newCompletionStage: stageVal,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       } catch (error) {
         if (axios.isAxiosError(error)) {
-            console.error('API Route Error:', error.response?.data || error.message);
-            setErrorMessage(error.response?.data?.error || error.message);
+          console.error('[handleCompletion] API error:', error.response?.data || error.message);
+          setErrorMessage(t('Error.analysis-failed'));
+          logUserAction('analysis_failed', {
+            stage: 'deliberation_api_error',
+            reason: error.message,
+            timestamp: new Date().toISOString(),
+          });
         } else {
-            console.error('An unexpected error occurred:', error);
-            setErrorMessage(error instanceof Error ? error.message : String(error));
+          console.error('[handleCompletion] Unexpected error:', error);
+          setErrorMessage(error instanceof Error ? t('Error.analysis-failed') : t('Error.analysis-failed'));
+          logUserAction('analysis_failed', {
+            stage: 'deliberation_unexpected_error',
+            reason: error instanceof Error ? error.message : 'unknown',
+            timestamp: new Date().toISOString(),
+          });
         }
       } finally {
         dispatch(stopLoading());
       }
     } else if (completionStage == STAGE.GIVE_MORE_DELIBERATION_TIPS){
-      
+      logUserAction('give_more_deliberation_tips_stage', {
+        completionStage,
+        timestamp: new Date().toISOString(),
+      });
     }
   }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, completionStage, dividedMeetingTexts, fileId]);
 
   const handleCompletionforExport = useCallback(async () => {
     dispatch(startLoading(t('PdfViewer.exporting')));
+    logUserAction('export_started', {
+      timestamp: new Date().toISOString(),
+    });
     
     try {
       const projectId = getProjectIdFromCookie();
       if (!projectId) {
-        setErrorMessage('Project ID not found');
+        console.error('[handleCompletionforExport] Project ID not found');
+        setErrorMessage(t('Error.project-id-missing'));
+        logUserAction('export_failed', {
+          reason: 'project_id_missing',
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
       if (!fileId) {
-        setErrorMessage('File ID not found');
+        console.error('[handleCompletionforExport] File ID not found');
+        setErrorMessage(t('Error.file-id-missing'));
+        logUserAction('export_failed', {
+          reason: 'file_id_missing',
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
       console.log(`[Export][Frontend] Start. projectId=${projectId}, fileId=${fileId}, at=${new Date().toISOString()}`);
 
-        // エクスポート要求（Next.js API 経由）
         const url = `/api/export?projectId=${projectId}&fileId=${fileId}`;
         console.log(`[Export][Frontend] Requesting export: ${url} at ${new Date().toISOString()}`);
 
@@ -909,7 +1044,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       if (!exportRes.ok) {
         const txt = await exportRes.text().catch(() => '');
         console.error(`[Export][Frontend] Export request failed. status=${exportRes.status}, body=${txt}`);
-        setErrorMessage(txt || 'Export request failed');
+        setErrorMessage(t('Error.export-failed'));
+        logUserAction('export_failed', {
+          reason: 'export_api_error',
+          status: exportRes.status,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -945,7 +1085,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       });
 
       if (updateError) {
-        setErrorMessage(updateError);
+        console.error('[handleCompletionforExport] Stage update error:', updateError);
+        setErrorMessage(t('Error.update-project-failed'));
+        logUserAction('export_failed', {
+          reason: 'stage_update_error',
+          error: updateError,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -953,10 +1099,19 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.EXPORT;
       const stageVal = Number(stageValRaw);
       dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
+      logUserAction('export_completed', {
+        filename,
+        blobSize: blob.size,
+        timestamp: new Date().toISOString(),
+      });
       router.push('/projects');
     } catch (error) {
-      console.error('Export failed:', error);
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      console.error('[handleCompletionforExport] Error:', error);
+      setErrorMessage(t('Error.export-failed'));
+      logUserAction('export_failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       console.log(`[Export][Frontend] End at ${new Date().toISOString()}`);
       dispatch(stopLoading());
@@ -965,11 +1120,20 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const handleDialogue = useCallback(async () => {
     if (selectedRootCommentIds.length === 0) {
+      console.warn('[handleDialogue] No comments selected');
       setErrorMessage(t('PdfViewer.no-comments-selected') || '対話するコメントが選択されていません');
+      logUserAction('dialogue_no_comments_selected', {
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
     dispatch(startLoading(t('PdfViewer.processing-dialogue') || '対話を処理中...'));
+    logUserAction('dialogue_started', {
+      selectedRootCommentCount: selectedRootCommentIds.length,
+      completionStage,
+      timestamp: new Date().toISOString(),
+    });
 
     try {
       // 選択されたルートコメントに関連するハイライトとコメントを取得
@@ -1034,7 +1198,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         systemPrompt = DELIBERATION_DIALOGUE_SYSTEM_PROMPT;
         apiEndpoint = '/api/openai/deliberation-dialogue';
       } else {
-        setErrorMessage(`Unsupported completion stage for dialogue: ${completionStage}`);
+        console.error('[handleDialogue] Unsupported completion stage:', completionStage);
+        setErrorMessage(t('Error.dialogue-failed'));
+        logUserAction('dialogue_failed', {
+          reason: 'unsupported_completion_stage',
+          completionStage,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -1044,7 +1214,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         selected_threads: selectedThreads,
       };
 
-      console.log(`Sending dialogue request to ${apiEndpoint} with stage ${completionStage}`);
+      console.log(`[handleDialogue] Sending request to ${apiEndpoint}`);
       const response = await axios.post(apiEndpoint, {
         systemPrompt,
         userInput,
@@ -1057,7 +1227,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           if (dr.root_comment_id && dr.response_text) {
             const rootComment = comments.find(c => c.id === dr.root_comment_id);
             if (!rootComment) {
-              console.warn(`Root comment ${dr.root_comment_id} not found`);
+              console.warn('[handleDialogue] Root comment not found:', dr.root_comment_id);
               continue;
             }
 
@@ -1072,7 +1242,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             });
 
             if (commentError) {
-              setErrorMessage(commentError);
+              console.error('[handleDialogue] Comment save error:', commentError);
+              setErrorMessage(t('Error.comment-save-failed'));
+              logUserAction('dialogue_failed', {
+                reason: 'comment_save_error',
+                error: commentError,
+                timestamp: new Date().toISOString(),
+              });
               return;
             }
 
@@ -1092,16 +1268,34 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         dispatch(clearSelectedRootComments());
+        logUserAction('dialogue_completed', {
+          responseCount: responseData.dialogue_responses.length,
+          timestamp: new Date().toISOString(),
+        });
       } else {
-        setErrorMessage('Invalid response format from dialogue API');
+        console.error('[handleDialogue] Invalid response format:', responseData);
+        setErrorMessage(t('Error.invalid-response-format'));
+        logUserAction('dialogue_failed', {
+          reason: 'invalid_response_format',
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
-      console.error('Dialogue failed:', error);
+      console.error('[handleDialogue] Error:', error);
       if (axios.isAxiosError(error)) {
-        console.error('API Route Error:', error.response?.data || error.message);
-        setErrorMessage(error.response?.data?.error || error.message);
+        console.error('[handleDialogue] API error:', error.response?.data || error.message);
+        setErrorMessage(t('Error.dialogue-failed'));
+        logUserAction('dialogue_failed', {
+          reason: 'api_error',
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
       } else {
-        setErrorMessage(error instanceof Error ? error.message : String(error));
+        setErrorMessage(error instanceof Error ? t('Error.dialogue-failed') : t('Error.dialogue-failed'));
+        logUserAction('dialogue_failed', {
+          reason: error instanceof Error ? error.message : 'unknown',
+          timestamp: new Date().toISOString(),
+        });
       }
     } finally {
       dispatch(stopLoading());

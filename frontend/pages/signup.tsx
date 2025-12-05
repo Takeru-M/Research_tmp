@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
 import Link from 'next/link';
+import { logUserAction } from '../utils/logger';
+import { apiClient } from '@/utils/apiClient';
 import styles from '../styles/Signup.module.css';
 import {
   validateEmail,
@@ -10,7 +12,6 @@ import {
   validateConfirmPassword,
   validateUsername,
 } from '../utils/validation';
-import { apiClient } from '@/utils/apiClient';
 
 const SignupPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -19,7 +20,6 @@ const SignupPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 各入力欄ごとのエラーを保持
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -54,11 +54,26 @@ const SignupPage: React.FC = () => {
     setConfirmPasswordError(cError);
 
     if (uError || eError || pError || cError) {
+      logUserAction('signup_validation_failed', {
+        errors: {
+          username: !!uError,
+          email: !!eError,
+          password: !!pError,
+          confirmPassword: !!cError,
+        },
+        timestamp: new Date().toISOString(),
+      });
       setFormError(t('Signup.validation.fix-errors'));
       return;
     }
 
     setIsSubmitting(true);
+
+    logUserAction('signup_attempt', {
+      username,
+      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'), // メールアドレスをマスク
+      timestamp: new Date().toISOString(),
+    });
 
     const { data, error } = await apiClient<any>('/signup', {
       method: 'POST',
@@ -71,17 +86,32 @@ const SignupPage: React.FC = () => {
     });
 
     if (error) {
+      console.error('[Signup] Signup error:', error);
+      logUserAction('signup_failed', {
+        reason: error,
+        timestamp: new Date().toISOString(),
+      });
       setFormError(error);
       setIsSubmitting(false);
       return;
     }
 
     if (!data) {
+      console.warn('[Signup] No data received');
+      logUserAction('signup_failed', {
+        reason: 'no_data_received',
+        timestamp: new Date().toISOString(),
+      });
       setFormError(t('Signup.error'));
       setIsSubmitting(false);
       return;
     }
 
+    logUserAction('signup_success', {
+      username,
+      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
+      timestamp: new Date().toISOString(),
+    });
     setSuccessMessage(t('Signup.success'));
 
     const loginResult = await signIn('credentials', {
@@ -91,8 +121,17 @@ const SignupPage: React.FC = () => {
     });
 
     if (loginResult?.ok) {
+      logUserAction('auto_login_after_signup', {
+        username,
+        timestamp: new Date().toISOString(),
+      });
       router.replace('/projects');
     } else {
+      console.error('[Signup] Auto-login failed');
+      logUserAction('auto_login_after_signup_failed', {
+        reason: loginResult?.error,
+        timestamp: new Date().toISOString(),
+      });
       setFormError(t('Signup.login-failed'));
       setIsSubmitting(false);
     }
@@ -108,7 +147,6 @@ const SignupPage: React.FC = () => {
         {formError && <p className={styles.formError}>{formError}</p>}
         {successMessage && <p className={styles.successMessage}>{successMessage}</p>}
 
-        {/* ユーザ名入力 */}
         <div className={styles.inputGroup}>
           <label htmlFor="username" className={styles.label}>
             {t('Signup.username')}
@@ -125,7 +163,6 @@ const SignupPage: React.FC = () => {
           {usernameError && <p className={styles.errorText}>{usernameError}</p>}
         </div>
 
-        {/* メールアドレス入力 */}
         <div className={styles.inputGroup}>
           <label htmlFor="email" className={styles.label}>
             {t('Signup.email')}
@@ -142,7 +179,6 @@ const SignupPage: React.FC = () => {
           {emailError && <p className={styles.errorText}>{emailError}</p>}
         </div>
 
-        {/* パスワード入力 */}
         <div className={styles.inputGroup}>
           <label htmlFor="password" className={styles.label}>
             {t('Signup.password')}
@@ -159,7 +195,6 @@ const SignupPage: React.FC = () => {
           {passwordError && <p className={styles.errorText}>{passwordError}</p>}
         </div>
 
-        {/* パスワード確認 */}
         <div className={styles.inputGroup}>
           <label htmlFor="confirm-password" className={styles.label}>
             {t('Signup.confirm-password')}
@@ -176,13 +211,11 @@ const SignupPage: React.FC = () => {
           {confirmPasswordError && <p className={styles.errorText}>{confirmPasswordError}</p>}
         </div>
 
-        {/* サインアップボタン */}
-        <button type="submit" className={styles.button}>
-          {t('Signup.button-text')}
+        <button type="submit" className={styles.button} disabled={isSubmitting}>
+          {isSubmitting ? t('Signup.submitting') : t('Signup.button-text')}
         </button>
       </form>
 
-      {/* ログインリンク */}
       <p className={styles.footer}>
         {t('Signup.has-account')}<br />
         <Link href="/login" className={styles.link}>

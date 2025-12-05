@@ -48,6 +48,7 @@ import LoadingOverlay from '../components/LoadingOverlay';
 import { apiClient } from '@/utils/apiClient';
 import { apiV1Client } from '@/utils/apiV1Client';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { logUserAction } from '@/utils/logger';
 
 const PdfViewer = dynamic(() => import('../components/PdfViewer'), { ssr: false });
 
@@ -102,7 +103,8 @@ const EditorPageContent: React.FC = () => {
       }
 
       if (error) {
-        setErrorMessage(error);
+        console.error('[fetchHighlightsAndComments] Error:', error);
+        setErrorMessage(t('Error.highlights-fetch-failed'));
         dispatch(setHighlights([]));
         dispatch(setComments([]));
         return;
@@ -169,10 +171,16 @@ const EditorPageContent: React.FC = () => {
 
       console.log('Converted ALL comments:');
       dispatch(setComments(comments));
+      logUserAction('highlights_and_comments_loaded', {
+        fileId,
+        highlightCount: highlights.length,
+        commentCount: comments.length,
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, getUserName, session?.accessToken]);
+  }, [dispatch, getUserName, session?.accessToken, t]);
 
   const fetchProjectFile = useCallback(async (projectId: number) => {
     dispatch(startLoading('Loading project file...'));
@@ -183,7 +191,13 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (error) {
-        setErrorMessage(error);
+        console.error('[fetchProjectFile] Error:', error);
+        setErrorMessage(t('Error.file-fetch-failed'));
+        logUserAction('file_fetch_failed', {
+          projectId,
+          error,
+          timestamp: new Date().toISOString(),
+        });
         setIsFileUploaded(false);
         return;
       }
@@ -197,14 +211,20 @@ const EditorPageContent: React.FC = () => {
       const latestFile = response[0];
       dispatch(setFileId(latestFile.id));
 
-      // S3からPDF本体取得もapiClientで（Blob）
       const { data: blobData, error: blobError } = await apiClient<Blob>(`/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`, {
         method: 'GET',
         responseType: 'blob',
       });
 
       if (blobError || !blobData) {
-        setErrorMessage(blobError || 'Failed to fetch file from S3');
+        console.error('[fetchProjectFile] S3 fetch error:', blobError);
+        setErrorMessage(t('Error.file-fetch-failed'));
+        logUserAction('s3_file_fetch_failed', {
+          projectId,
+          fileKey: latestFile.file_key,
+          error: blobError,
+          timestamp: new Date().toISOString(),
+        });
         setIsFileUploaded(false);
         return;
       }
@@ -218,12 +238,19 @@ const EditorPageContent: React.FC = () => {
         fileId: latestFile.id,
       }));
       setIsFileUploaded(true);
+      logUserAction('file_loaded', {
+        projectId,
+        fileId: latestFile.id,
+        fileName: latestFile.file_name,
+        mimeType: latestFile.mime_type,
+        timestamp: new Date().toISOString(),
+      });
 
       fetchHighlightsAndComments(latestFile.id);
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, fetchHighlightsAndComments, session?.accessToken]);
+  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t]);
 
   const fetchProjectInfo = useCallback(async (projectId: number) => {
     try {
@@ -237,7 +264,13 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (error) {
-        setErrorMessage(error);
+        console.error('[fetchProjectInfo] Error:', error);
+        setErrorMessage(t('Error.project-info-fetch-failed'));
+        logUserAction('project_info_fetch_failed', {
+          projectId,
+          error,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -245,26 +278,45 @@ const EditorPageContent: React.FC = () => {
 
       if (stage !== null && !Number.isNaN(stage)) {
         dispatch(setCompletionStage(stage));
+        logUserAction('project_info_loaded', {
+          projectId,
+          completionStage: stage,
+          timestamp: new Date().toISOString(),
+        });
       } else {
         console.warn('Project info does not include a valid stage:', res);
       }
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, session?.accessToken]);
+  }, [dispatch, session?.accessToken, t]);
 
   useEffect(() => {
     const projectId = getProjectIdFromCookie();
     const isNewProject = router.query.new === 'true';
     
     if (projectId && !isNewProject) {
+      logUserAction('editor_loaded', {
+        projectId,
+        isNewProject: false,
+        timestamp: new Date().toISOString(),
+      });
       fetchProjectInfo(projectId);
       fetchProjectFile(projectId);
     } else if (projectId && isNewProject) {
+      logUserAction('editor_loaded', {
+        projectId,
+        isNewProject: true,
+        timestamp: new Date().toISOString(),
+      });
       fetchProjectInfo(projectId);
       console.log('New project created.');
     } else {
       console.warn('No project ID found in cookies');
+      logUserAction('editor_load_failed', {
+        reason: 'no_project_id',
+        timestamp: new Date().toISOString(),
+      });
       router.push('/projects');
     }
   }, [fetchProjectInfo, fetchProjectFile, router]);
@@ -276,38 +328,62 @@ const EditorPageContent: React.FC = () => {
     if (!file) return;
 
     if (isFileUploaded) {
-      setErrorMessage(t('Alert.file-already-uploaded') || 'ファイルは既にアップロード済みです');
+      setErrorMessage(t('Alert.file-already-uploaded'));
       return;
     }
 
     dispatch(startLoading('Uploading PDF...'));
+    logUserAction('file_upload_started', {
+      fileName: file.name,
+      fileSize: filesize,
+      mimeType: filetype,
+      timestamp: new Date().toISOString(),
+    });
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      // S3アップロードをapiClientで
       const { data: s3Data, error: s3Error, status: s3Status } = await apiClient<any>('/s3/upload', {
         method: 'POST',
         body: formData,
       });
 
       if (s3Error || !s3Data) {
-        setErrorMessage(s3Error || 'Failed to upload PDF');
+        console.error('[uploadPdfToS3AndSave] S3 upload error:', s3Error);
+        setErrorMessage(t('Error.s3-upload-failed'));
+        logUserAction('file_upload_failed', {
+          fileName: file.name,
+          reason: 's3_upload_error',
+          error: s3Error,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
       if (s3Status >= 400) {
-        setErrorMessage(s3Data?.detail || 'Failed to upload PDF');
+        console.error('[uploadPdfToS3AndSave] S3 upload status error:', s3Status, s3Data?.detail);
+        setErrorMessage(t('Error.s3-upload-failed'));
+        logUserAction('file_upload_failed', {
+          fileName: file.name,
+          reason: 's3_status_error',
+          status: s3Status,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
       const project_id = getProjectIdFromCookie();
       if (!project_id) {
-        setErrorMessage('Project ID not found in cookies');
+        console.error('[uploadPdfToS3AndSave] Project ID not found');
+        setErrorMessage(t('Error.project-id-missing'));
+        logUserAction('file_upload_failed', {
+          fileName: file.name,
+          reason: 'project_id_missing',
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
-      // DB保存
       const { data: dbResponse, error: dbError } = await apiClient<any>('/project-files/save', {
         method: 'POST',
         headers: {
@@ -324,7 +400,14 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (dbError || !dbResponse) {
-        setErrorMessage(dbError || 'Failed to save file metadata');
+        console.error('[uploadPdfToS3AndSave] DB save error:', dbError);
+        setErrorMessage(t('Error.metadata-save-failed'));
+        logUserAction('file_upload_failed', {
+          fileName: file.name,
+          reason: 'metadata_save_error',
+          error: dbError,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -336,6 +419,12 @@ const EditorPageContent: React.FC = () => {
         fileId: dbResponse.savedFile?.id ?? dbResponse.id,
       }));
       setIsFileUploaded(true);
+      logUserAction('file_upload_success', {
+        fileName: file.name,
+        fileId: dbResponse.id,
+        projectId: project_id,
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       dispatch(stopLoading());
     }
@@ -379,6 +468,9 @@ const EditorPageContent: React.FC = () => {
     isResizing.current = true;
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'col-resize';
+    logUserAction('panel_resize_started', {
+      timestamp: new Date().toISOString(),
+    });
   }, []);
 
   // マウス移動時の処理 (ドラッグ中)
@@ -400,8 +492,12 @@ const EditorPageContent: React.FC = () => {
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
       measureHeight();
+      logUserAction('panel_resize_finished', {
+        pdfViewerWidth,
+        timestamp: new Date().toISOString(),
+      });
     }
-  }, [measureHeight]);
+  }, [measureHeight, pdfViewerWidth]);
 
   // グローバルなMouseMoveとMouseUpイベントを登録/解除
   useEffect(() => {
@@ -444,6 +540,8 @@ const EditorPageContent: React.FC = () => {
 
       if (uploadedFile.type === 'application/pdf') {
         uploadPdfToS3AndSave(uploadedFile, uploadedFile.type, uploadedFile.size);
+        // input をリセット
+        event.target.value = '';
       } else if (uploadedFile.type.startsWith('text/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -454,10 +552,17 @@ const EditorPageContent: React.FC = () => {
             fileId: null,
           }));
           setIsFileUploaded(true);
+          logUserAction('text_file_loaded', {
+            fileName: uploadedFile.name,
+            fileType: uploadedFile.type,
+            timestamp: new Date().toISOString(),
+          });
         };
         reader.readAsText(uploadedFile);
+        event.target.value = '';
       } else {
         setErrorMessage(t("Alert.file-support"));
+        event.target.value = '';
       }
     },
     [dispatch, t, isFileUploaded, uploadPdfToS3AndSave]
@@ -466,9 +571,15 @@ const EditorPageContent: React.FC = () => {
   // === Request highlight (open memo modal) ===
   const handleRequestAddHighlight = useCallback((h: PdfHighlight) => {
     if (!fileId) {
-      setErrorMessage(t('Error.file-id-missing') || 'ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。');
+      console.error('[handleRequestAddHighlight] File ID missing');
+      setErrorMessage(t('Error.file-id-missing'));
       return;
     }
+    logUserAction('highlight_creation_started', {
+      highlightId: h.id,
+      highlightText: h.text.substring(0, 50),
+      timestamp: new Date().toISOString(),
+    });
     setPendingHighlight(h);
     dispatch(setActiveHighlightId(h.id));
     setShowMemoModal(true);
@@ -483,12 +594,14 @@ const EditorPageContent: React.FC = () => {
 
           const projectId = getProjectIdFromCookie();
           if (!projectId) {
-            setErrorMessage('Project ID not found');
+            console.error('[handleSaveMemo] Project ID not found');
+            setErrorMessage(t('Error.project-id-missing'));
             return;
           }
 
           if (!fileId) {
-            setErrorMessage(t('Error.file-id-missing') || 'ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。');
+            console.error('[handleSaveMemo] File ID missing');
+            setErrorMessage(t('Error.file-id-missing'));
             return;
           }
 
@@ -514,14 +627,26 @@ const EditorPageContent: React.FC = () => {
           });
 
           if (error) {
-            setErrorMessage(error);
+            console.error('[handleSaveMemo] Error:', error);
+            setErrorMessage(t('Error.highlight-save-failed'));
+            logUserAction('highlight_save_failed', {
+              highlightId: id,
+              reason: error,
+              timestamp: new Date().toISOString(),
+            });
             return;
           }
 
           console.log('Highlight saved:', response);
           
           if (!response.id) {
-            setErrorMessage('Highlight ID is missing in response');
+            console.error('[handleSaveMemo] Highlight ID missing in response');
+            setErrorMessage(t('Error.highlight-save-failed'));
+            logUserAction('highlight_save_failed', {
+              highlightId: id,
+              reason: 'highlight_id_missing',
+              timestamp: new Date().toISOString(),
+            });
             return;
           }
 
@@ -546,6 +671,13 @@ const EditorPageContent: React.FC = () => {
 
           dispatch(addHighlightWithComment({ highlight: finalHighlight, initialComment: rootComment }));
 
+          logUserAction('highlight_created', {
+            highlightId: response.id,
+            commentId: response.comment_id,
+            memoLength: memo.length,
+            timestamp: new Date().toISOString(),
+          });
+
           setPendingHighlight(null);
           setShowMemoModal(false);
           dispatch(setActiveHighlightId(null));
@@ -556,6 +688,11 @@ const EditorPageContent: React.FC = () => {
       }
 
       dispatch(updateHighlightMemo({ id, memo }));
+      logUserAction('highlight_memo_updated', {
+        highlightId: id,
+        memoLength: memo.length,
+        timestamp: new Date().toISOString(),
+      });
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
@@ -565,6 +702,10 @@ const EditorPageContent: React.FC = () => {
   // === Highlight Click ===
   const handleHighlightClick = useCallback((highlightId: string) => {
     dispatch(setActiveHighlightId(highlightId));
+    logUserAction('highlight_clicked', {
+      highlightId,
+      timestamp: new Date().toISOString(),
+    });
   }, [dispatch]);
 
   // === Viewer ===
