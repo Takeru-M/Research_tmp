@@ -316,18 +316,19 @@
   cursor: pointer;
   text-align: left;
   width: 100%;
-  transition: color 0.2s;
+  transition: color 0.2s, background-color 0.2s;
+  border-radius: 6px;
 }
 
 .collapseButton:hover {
-  color: #1565c0;
-  text-decoration: underline;
+  color: #0f4ab5;
+  background-color: #e8f0fe;
+  text-decoration: none;
 }
 
-.collapseButton:disabled {
-  color: #ccc;
-  cursor: not-allowed;
-  opacity: 0.5;
+.collapseButton:focus-visible {
+  outline: 2px solid #90caf9;
+  outline-offset: 2px;
 }
 
 /* レスポンシブ対応 */

@@ -7,6 +7,8 @@ from datetime import datetime
 from app.api.deps import get_db, get_current_user
 from app.models import User
 import logging
+from fastapi.responses import StreamingResponse
+from typing import Optional
 
 router = APIRouter()
 
@@ -193,4 +195,70 @@ async def upload_pdf(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ファイルアップロード中にエラーが発生しました"
+        )
+
+
+@router.get("/get-file")
+async def get_file(
+    key: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    S3 からファイルを取得してストリーミング返却
+    """
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File key is required"
+        )
+
+    # クライアント初期化チェック
+    if s3_client is None:
+        logger.error("[GET /s3/get-file] S3 client is not initialized")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="S3サービスが利用できません"
+        )
+
+    # バケット名チェック
+    if not BUCKET_NAME:
+        logger.error("[GET /s3/get-file] S3 bucket name is not configured")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="S3バケット名が設定されていません"
+        )
+
+    try:
+        logger.info(f"[GET /s3/get-file] User {current_user.id} fetching key={key}")
+        obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
+        body = obj["Body"]
+        content_type: str = obj.get("ContentType") or "application/octet-stream"
+        content_length: Optional[int] = obj.get("ContentLength")
+
+        headers = {
+            "Cache-Control": "public, max-age=31536000",
+        }
+        if content_length is not None:
+            headers["Content-Length"] = str(content_length)
+
+        return StreamingResponse(body, media_type=content_type, headers=headers)
+
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        logger.error(f"[GET /s3/get-file] ClientError code={error_code}: {e}")
+        if error_code == "NoSuchKey":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ファイル取得に失敗しました"
+        )
+    except Exception as e:
+        logger.error(f"[GET /s3/get-file] Unexpected error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ファイル取得中にエラーが発生しました"
         )

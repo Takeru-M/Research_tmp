@@ -29,7 +29,7 @@ const LoginPage: React.FC = () => {
 
     // ログイン試行時は匿名でログ記録（ユーザーIDがまだ確定していないため）
     logUserAction('login_attempt', {
-      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'), // メールアドレスをマスク
+      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
       timestamp: new Date().toISOString(),
     }, 'anonymous'); // ログイン前は匿名
 
@@ -90,7 +90,13 @@ const LoginPage: React.FC = () => {
           {t('Login.title')}
         </h2>
 
-        {(authError || router.query.error) && (
+        {router.query.error === 'session-expired' && (
+          <p className={styles.error}>
+            {t('Alert.session-expired')}
+          </p>
+        )}
+
+        {(authError || (router.query.error && router.query.error !== 'session-expired')) && (
           <p className={styles.error}>
             {authError || t('Login.error-message')}
           </p>

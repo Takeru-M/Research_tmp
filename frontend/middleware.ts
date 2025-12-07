@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 
 export default withAuth(
   function middleware(req) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set("X-Frame-Options", "DENY");
+    res.headers.set("X-Content-Type-Options", "nosniff");
+    return res;
   },
   {
     callbacks: {
@@ -11,6 +14,7 @@ export default withAuth(
     },
     pages: {
       signIn: "/login",
+      error: "/login",
     },
   }
 );
@@ -28,11 +32,3 @@ export const config = {
     "/((?!login|signup|api|_next/static|_next/image|favicon.ico|robots.txt).*)",
   ],
 };
-
-
-export function middleware(req: Request) {
-  const res = NextResponse.next()
-  res.headers.set("X-Frame-Options", "DENY")
-  res.headers.set("X-Content-Type-Options", "nosniff")
-  return res
-}

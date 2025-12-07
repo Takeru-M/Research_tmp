@@ -1,3 +1,5 @@
+import { apiClient } from '@/utils/apiClient';
+
 interface LogEntry {
   timestamp: string;
   type: 'user_action';
@@ -5,16 +7,13 @@ interface LogEntry {
   details?: Record<string, any>;
   userAgent: string;
   url: string;
-  userId?: string; // ユーザーIDを追加
+  userId?: string;
 }
 
 interface BatchLog {
   logs: LogEntry[];
   batchTimestamp: string;
 }
-
-// Next.jsのAPIルートを経由（ブラウザからは /api/logs にアクセス）
-const LOG_ENDPOINT = '/api/logs';
 
 // バッチ処理の設定
 const BATCH_SIZE = 30;
@@ -39,23 +38,25 @@ async function sendBatch(): Promise<void> {
       batchTimestamp: new Date().toISOString(),
     };
 
-    const response = await fetch(LOG_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(batchData),
-    });
+    // apiClient を使用（Next.js API を経由）
+    const { data, error } = await apiClient<{ success: boolean; message: string }>(
+      '/api/logs',
+      {
+        method: 'POST',
+        body: batchData,
+      }
+    );
 
-    if (!response.ok) {
-      console.error(`[sendBatch] Server error: ${response.status}`, await response.text());
+    if (error) {
+      console.error(`[sendBatch] Server error:`, error);
       // 失敗時はバッファに戻す
       logBuffer = [...logsToSend, ...logBuffer];
       return;
     }
 
-    const result = await response.json();
-    console.log(`[Logger] Batch sent successfully:`, result);
-  } catch (error) {
-    console.error('[sendBatch] Network error:', error);
+    console.log(`[Logger] Batch sent successfully:`, data);
+  } catch (err) {
+    console.error('[sendBatch] Network error:', err);
     // 失敗時はバッファに戻す
     logBuffer = [...logsToSend, ...logBuffer];
   }

@@ -52,7 +52,7 @@ export interface TextHighlight extends BaseHighlight {
 // 全てのハイライトのユニオン型
 export type Highlight = TextHighlight | PdfHighlight;
 
-// 💡 追加: コメントパネルのスクロールに必要な情報
+// コメントパネルのスクロールに必要な情報
 export interface ScrollTarget {
     pdfY1: number;         // 選択されたハイライトの y1 (PDF座標)
     pageNum: number;       // ページ番号
@@ -90,8 +90,8 @@ export type Comment = {
   parentId: string | null; // null = root comment in thread
   author: string;
   text: string;
-  createdAt: string;
-  editedAt?: string | null;
+  created_at: string;
+  edited_at?: string | null;
   deleted?: boolean;
 };
 

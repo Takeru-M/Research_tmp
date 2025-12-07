@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
-import { signIn } from 'next-auth/react';
+import { signIn, signOut } from 'next-auth/react';
 import { STAGE } from '../utils/constants';
 import type { Project } from '../redux/features/editor/editorTypes';
 import Cookies from 'js-cookie';
@@ -24,7 +24,6 @@ const Projects: React.FC = () => {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editedName, setEditedName] = useState('');
-  const [hasAuthError, setHasAuthError] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch();
   const { data: session, status } = useSession();
@@ -34,16 +33,9 @@ const Projects: React.FC = () => {
     return session?.user?.id || session?.user?.email || 'anonymous';
   }, [session]);
 
+  // プロジェクト一覧の取得
   useEffect(() => {
-    if (status === 'loading') return;
-
-    if (status === 'unauthenticated') {
-      logUserAction('projects_page_unauthenticated', {
-        timestamp: new Date().toISOString(),
-      }, 'anonymous');
-      signIn();
-      return;
-    }
+    if (status !== 'authenticated') return;
 
     const fetchProjects = async () => {
       setLoading(true);
@@ -56,26 +48,27 @@ const Projects: React.FC = () => {
 
       const { data, error, status: httpStatus } = await apiClient<Project[]>('/projects', {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
 
       if (error) {
         console.error('[fetchProjects] Error:', error, 'Status:', httpStatus);
-        
-        // 401など認証エラーの場合のみログインへ
-        if (httpStatus === 401) {
-          setHasAuthError(true);
+        if (httpStatus === 401 || httpStatus === 403) {
           logUserAction('projects_fetch_auth_error', {
             status: httpStatus,
             timestamp: new Date().toISOString(),
           }, getUserId());
-          await signIn(undefined, { callbackUrl: '/projects' });
+
+          setErrorMessage(t('Error.session-expired'));
+          setLoading(false);
+
+          setTimeout(async () => {
+            await signOut({ redirect: false });
+            router.push('/login?error=session_expired');
+          }, 2000);
           return;
         }
-        
-        // それ以外のエラーはエラーメッセージのみ表示
+
         setErrorMessage(t('Error.fetch-projects-failed'));
         logUserAction('projects_fetch_failed', {
           reason: error,
@@ -97,7 +90,6 @@ const Projects: React.FC = () => {
       }
 
       setProjects(data);
-      setHasAuthError(false);
       setLoading(false);
       logUserAction('projects_loaded', {
         count: data.length,
@@ -105,11 +97,8 @@ const Projects: React.FC = () => {
       }, getUserId());
     };
 
-    // 認証エラー発生中は再実行しない
-    if (!hasAuthError) {
-      fetchProjects();
-    }
-  }, [session, status, dispatch, t, hasAuthError, getUserId]);
+    fetchProjects();
+  }, [session, status, dispatch, t, getUserId, router]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -143,9 +132,7 @@ const Projects: React.FC = () => {
 
     const { data, error } = await apiClient<Project>('/projects', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session?.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session?.accessToken}`},
       body: {
         project_name: newProjectName,
         stage: STAGE.GIVE_OPTION_TIPS,
@@ -239,9 +226,7 @@ const Projects: React.FC = () => {
 
     const { error } = await apiClient<null>(`/projects/${projectId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${session?.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session?.accessToken}` },
     });
 
     if (error) {
@@ -280,9 +265,7 @@ const Projects: React.FC = () => {
 
     const { data, error } = await apiClient<Project>(`/projects/${editingProject.id}`, {
       method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${session?.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session?.accessToken}` },
       body: { project_name: editedName },
     });
 
@@ -335,7 +318,7 @@ const Projects: React.FC = () => {
     setEditedName('');
   };
 
-  if (status === 'loading' || hasAuthError) {
+  if (status === 'loading') {
     return <div className={styles.loadingText}>Loading...</div>;
   }
 

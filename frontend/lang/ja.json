@@ -84,14 +84,15 @@
     "selected": "選択済み"
   },
   "Alert": {
-    "session_expired": "セッションの有効期限が切れました。再度ログインしてください。",
-    "loading_pdf": "PDFを読み込み中です...",
-    "not_input_pdf": "PDFを読み込んでいません",
+    "session-expired": "セッションの有効期限が切れました。再度ログインしてください。",
+    "loading-pdf": "PDFを読み込み中です...",
+    "not-input-pdf": "PDFを読み込んでいません",
     "file-support": "現在，PDFとテキストファイルのみサポートしています",
     "comment-delete": "このコメントを削除してもよろしいですか？",
     "file-already-uploaded": "ファイルは既にアップロード済みです。新しいファイルをアップロードする場合は、プロジェクトを新規作成してください。"
   },
   "Error": {
+    "session-expired": "セッションの有効期限が切れました。ログインページへ遷移します。",
     "enter-memo": "メモを入力してください",
     "file-format-error": "このファイル形式はプレビューできません",
     "upload-failed": "アップロードに失敗しました",

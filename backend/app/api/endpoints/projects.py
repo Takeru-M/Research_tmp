@@ -8,6 +8,7 @@ from app.db.base import get_session
 from app.crud import project as crud_project
 from app.crud import project_file as crud_project_file
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, CompletionStageUpdate
+from app.schemas.project_file import ProjectFileRead
 from app.core.security import get_current_user
 from app.models import User, ProjectFile, Highlight, HighlightRect, Comment
 from app.services.pdf_export_service import PDFExportService
@@ -524,4 +525,50 @@ def delete_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="プロジェクト削除中にエラーが発生しました"
+        )
+
+@router.get("/{project_id}/project-files", response_model=List[ProjectFileRead])
+def list_project_files_for_project(
+    project_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    プロジェクトIDに紐づくファイル一覧を取得（作成日時の降順）
+    """
+    try:
+        if project_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無効なプロジェクトIDです"
+            )
+
+        logger.info(f"[GET /projects/{project_id}/project-files] User {current_user.id} requesting files")
+
+        project = crud_project.get_project(session, project_id)
+        if not project:
+            logger.warning(f"[GET /projects/{project_id}/project-files] Project not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="プロジェクトが見つかりません"
+            )
+
+        if project.user_id != current_user.id:
+            logger.warning(f"[GET /projects/{project_id}/project-files] User {current_user.id} not authorized")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="このプロジェクトへのアクセス権限がありません"
+            )
+
+        files = crud_project_file.get_project_files(session, project_id)
+        logger.info(f"[GET /projects/{project_id}/project-files] Found {len(files)} files")
+        return files
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[GET /projects/{project_id}/project-files] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ファイル取得中にエラーが発生しました"
         )

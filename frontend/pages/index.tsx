@@ -93,11 +93,9 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      const { data: response, error, status } = await apiClient<any>(`/highlights/get-by-fileId/${fileId}`, {
+      const { data: response, error, status } = await apiClient<any>(`/highlights/file/${fileId}`, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers: {Authorization: `Bearer ${session?.accessToken}` },
       });
 
       if (status === 404) {
@@ -203,7 +201,7 @@ const EditorPageContent: React.FC = () => {
   const fetchProjectFile = useCallback(async (projectId: number) => {
     dispatch(startLoading('Loading project file...'));
     try {
-      const { data: response, error } = await apiClient<any>(`/project-files/${projectId}`, {
+      const { data: response, error } = await apiClient<any>(`/projects/${projectId}/project-files`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -231,10 +229,12 @@ const EditorPageContent: React.FC = () => {
       }
 
       const latestFile = response[0];
+      console.log(latestFile);
       dispatch(setFileId(latestFile.id));
 
       const { data: blobData, error: blobError } = await apiClient<Blob>(`/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`, {
         method: 'GET',
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
         responseType: 'blob',
       });
 
@@ -280,9 +280,7 @@ const EditorPageContent: React.FC = () => {
 
       const { data: res, error } = await apiClient<any>(`/projects/${projectId}`, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
 
       if (error) {
@@ -377,6 +375,7 @@ const EditorPageContent: React.FC = () => {
 
       const { data: s3Data, error: s3Error, status: s3Status } = await apiClient<any>('/s3/upload', {
         method: 'POST',
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: formData,
       });
 
@@ -415,11 +414,9 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      const { data: dbResponse, error: dbError } = await apiClient<any>('/project-files/save', {
+      const { data: dbResponse, error: dbError } = await apiClient<any>('/project-files', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
           project_id: parseInt(project_id.toString(), 10),
           file_name: file.name,
@@ -663,7 +660,7 @@ const EditorPageContent: React.FC = () => {
 
           const { data: response, error } = await apiClient<any>('/highlights', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { Authorization: `Bearer ${session?.accessToken}` },
             body: {
               project_file_id: fileId,
               created_by: userName,

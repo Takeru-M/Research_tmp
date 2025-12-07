@@ -138,7 +138,7 @@ const FabricShapeLayer: React.FC<FabricShapeLayerProps> = ({
           createdBy: 'User'
         };
         // onRequestAddHighlightを呼び出してハイライトを追加
-        onRequestAddHighlight?.(highlightData);
+        // onRequestAddHighlight?.(highlightData);
       });
 
       fCanvas.add(rect);

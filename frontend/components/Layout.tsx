@@ -7,7 +7,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useSession, signOut, signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
-import { setPdfScale } from '../redux/features/editor/editorSlice';
+import { setPdfScale, clearAllState } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
@@ -18,7 +18,6 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const documentName = useSelector((state: RootState) => state.editor.documentName);
-
 
   const isAuthPage = ['/login', '/signup'].includes(router.pathname);
   const isProjectsPage = router.pathname === '/projects';
@@ -33,8 +32,9 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   }, []);
 
   const handleBackToProjects = useCallback(() => {
+    dispatch(clearAllState());
     router.push('/projects');
-  }, [router]);
+  }, [router, dispatch]);
 
   if (status === 'loading') {
     return null;

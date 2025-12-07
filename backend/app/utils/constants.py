@@ -1,45 +1,15 @@
-// LLMに要求する出力形式
-export const JSON_SAMPLE = {
-  "responses": [
-    {
-      "id": "入力データのidと対応づける",
-      "response": "レスポンス内容",
-    },
-  ]
+# LLMに要求する出力形式
+JSON_SAMPLE = {
+    "responses": [
+        {
+            "id": "入力データのidと対応づける",
+            "response": "レスポンス内容",
+        },
+    ]
 }
 
-// 個別のスレッド内の返信の折りたたみ閾値
-export const COLLAPSE_THRESHOLD =  1;
-// コメントパネルに表示されるルートコメントのスレッド数の制限
-export const ROOTS_COLLAPSE_THRESHOLD = 4;
-
-// pdf表示エリアの変更可能倍率一覧
-export const SCALE_OPTIONS = [
-  { value: 0.5, label: '50%' },
-  { value: 0.75, label: '75%' },
-  { value: 1.0, label: '100%' },
-  { value: 1.25, label: '125%' },
-  { value: 1.5, label: '150%' },
-  { value: 2.0, label: '200%' },
-];
-
-// PDFビューアの最小幅 (px)
-export const MIN_PDF_WIDTH = 600;
-// コメントパネルの最小幅 (px)
-export const MIN_COMMENT_PANEL_WIDTH = 300;
-// リサイズハンドルの幅 (px)
-export const HANDLE_WIDTH = 8;
-
-// ステージの種類
-export const STAGE = {
-  GIVE_OPTION_TIPS: 1,
-  GIVE_DELIBERATION_TIPS: 2,
-  GIVE_MORE_DELIBERATION_TIPS: 3,
-  EXPORT: 4,
-}
-
-// pdfテキスト情報を整形するプロンプト
-export const FORMAT_DATA_SYSTEM_PROMPT = `
+# pdfテキスト情報を整形するプロンプト
+FORMAT_DATA_SYSTEM_PROMPT = """
 あなたは文章を意味が通る最小単位に分割し、JSON形式で出力する専門家です。
 
 以下の情報を受け取ります：
@@ -56,10 +26,10 @@ export const FORMAT_DATA_SYSTEM_PROMPT = `
   }
 5. 連番は1から順番に付与してください。
 6. 出力には余計な説明や文章を含めないでください。
-`;
+"""
 
-// 選択肢に関する示唆を出すプロンプト
-export const OPTION_SYSTEM_PROMPT = `
+# 選択肢に関する示唆を出すプロンプト
+OPTION_SYSTEM_PROMPT = """
 あなたは吟味できていない箇所を学習者に考えさせることを支援する「吟味促進AI」です。
 
 以下の情報を受け取ります：
@@ -103,10 +73,10 @@ export const OPTION_SYSTEM_PROMPT = `
 - 必ずJSONオブジェクトで返す
 - フィールド名は小文字・スネークケースで統一
 - 不要な文章説明は含めない
-`;
+"""
 
-// 選択肢について対話するためのプロンプト
-export const OPTION_DIALOGUE_SYSTEM_PROMPT = `
+# 選択肢について対話するためのプロンプト
+OPTION_DIALOGUE_SYSTEM_PROMPT = """
 あなたは学習者が既存の考えに固着せず、他の選択肢・視点・仮説を自ら再検討できるよう対話的示唆を生成する「吟味促進AI」です。
 
 以下の情報を受け取ります:
@@ -158,10 +128,10 @@ export const OPTION_DIALOGUE_SYSTEM_PROMPT = `
 - JSON以外のテキスト・説明・マークダウン・コードブロック禁止
 - フィールド名は指定どおり (追加フィールド禁止)
 - 空配列は禁止 (必ず1件以上)
-`;
+"""
 
-// 吟味に関する示唆を出すプロンプト
-export const DELIBERATION_SYSTEM_PROMPT = `
+# 吟味に関する示唆を出すプロンプト
+DELIBERATION_SYSTEM_PROMPT = """
 いくつかの選択肢がある中でそれらを吟味することを支援する「吟味促進AI」です。
 
 以下の情報を受け取ります：
@@ -190,10 +160,10 @@ JSONの各要素は以下の形式にしてください：
 - 出力のidはhighlightsのidと対応づける
 - フィールド名は小文字・スネークケースで統一
 - 不要な文章説明は含めない
-`;
+"""
 
-// 吟味について対話するためのプロンプト
-export const DELIBERATION_DIALOGUE_SYSTEM_PROMPT = `
+# 吟味について対話するためのプロンプト
+DELIBERATION_DIALOGUE_SYSTEM_PROMPT = """
 あなたはいくつかの選択肢の比較検討や吟味の方向性を学習者が見出せるよう対話的示唆を生成する「吟味促進AI」です。
 
 以下の情報を受け取ります:
@@ -245,4 +215,4 @@ export const DELIBERATION_DIALOGUE_SYSTEM_PROMPT = `
 - JSON以外のテキスト・説明・マークダウン・コードブロック禁止
 - フィールド名は指定どおり (追加フィールド禁止)
 - 空配列は禁止 (必ず1件以上)
-`;
+"""

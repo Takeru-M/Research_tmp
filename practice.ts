@@ -88,3 +88,47 @@ function error(message: string): never {
 function fail() {
   return error('Something failed');
 }
+
+// クラス
+// 復習
+// static, abstract
+class Person {
+  protected name: string;
+  protected age: number;
+  constructor(name: string, age: number) {
+    this.name = name;
+    this.age = age;
+  }
+  greet(this: Person) {
+    console.log(`Hello, I'm ${this.name}. I'm ${this.age} years old.`);
+  }
+  incrementAge(this: Person) {
+    this.age ++;
+  }
+}
+
+const testPerson = new Person('test', 1);
+
+class Animal {
+  constructor(private name: string, private age: number){}
+  greet(this: Animal) {
+    console.log(`Woof! I'm ${this.name}. I'm ${this.age} years old.`);
+  }
+}
+
+class Teacher extends Person {
+  constructor(name: string, age: number, private _subject: string) {
+    super(name, age);
+    super.greet();
+    super.incrementAge();
+  }
+  get subject(): string {
+    return this._subject;
+  }
+  set subject(value: string) {
+    this._subject = value;
+  }
+  greet(this: Person) {
+    console.log(`Hello, I'm teacher ${this.name}.`);
+  }
+}

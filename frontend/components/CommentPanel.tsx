@@ -37,7 +37,7 @@ const CommentHeader: React.FC<{
   removeCommentFn: (id: string) => void;
   menuRef: (element: HTMLDivElement | null) => void;
   currentUserName?: string | null;
-  completionStage?: string;
+  completionStage?: number;
   isRoot?: boolean;
   isSelected?: boolean;
   onSelectRoot?: (id: string) => void;
@@ -61,15 +61,20 @@ const CommentHeader: React.FC<{
   const [isMenuAreaHovered, setIsMenuAreaHovered] = useState(false);
   const isMenuOpen = !!menuOpenMap[comment.id];
   const isExportStage = completionStage === STAGE.EXPORT;
+
+  const showSelectButton = isRoot && (
+    completionStage === STAGE.GIVE_DELIBERATION_TIPS ||
+    completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS
+  );
   
   // セッション情報から取得したユーザー名を優先的に使用
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
 
   const time = useMemo(() => {
-    const date = new Date(comment.createdAt);
+    const date = new Date(comment.created_at);
     return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + ' ' + date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-  }, [comment.createdAt]);
+  }, [comment.created_at]);
 
   const showMenu = !isExportStage;
 
@@ -77,7 +82,7 @@ const CommentHeader: React.FC<{
     <div className={styles.commentHeader}>
       <div className={styles.commentHeaderLeft}>
         {/* 選択状態バッジ（ルートで選択されている場合のみ表示） */}
-        {isRoot && isSelected && (
+        {showSelectButton && isSelected &&  (
           <span className={styles.selectedBadge}>✓ {t("CommentPanel.selected")}</span>
         )}
         
@@ -131,7 +136,7 @@ const CommentHeader: React.FC<{
           {isMenuOpen && !isExportStage && (
             <div className={styles.dropdownMenu}>
               {/* ルートのみ「選択」または「選択解除」ボタン表示 */}
-              {isRoot && (
+              {showSelectButton && (
                 <button
                   className={`${styles.menuItem} ${isSelected ? styles.unselectItem : ''}`}
                   onMouseEnter={() => setHoveredMenuItem('select')}
@@ -203,7 +208,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: any) => s.editor);
   const completionStage = useSelector(selectCompletionStage);
-  const isExportStage = completionStage === STAGE.EXPORT;
+  const isExportStage = completionStage === Number(STAGE.EXPORT);
 
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -288,7 +293,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       rootId,
       isCollapsed: !collapsedMap[rootId],
       timestamp: new Date().toISOString(),
-    }, getUserId()); // ← userId を追加
+    }, getUserId()); 
   };
 
   const startEditing = (id: string, text: string) => {
@@ -301,9 +306,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     try {
       const { data, error, status } = await apiClient<Comment>(`/comments/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
           text: editText,
         },
@@ -316,7 +319,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: id,
           reason: error,
           timestamp: new Date().toISOString(),
-        }, getUserId()); // ← userId を追加
+        }, getUserId());
         return;
       }
 
@@ -327,7 +330,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: id,
           reason: 'no_data_received',
           timestamp: new Date().toISOString(),
-        }, getUserId()); // ← userId を追加
+        }, getUserId());
         return;
       }
 
@@ -338,7 +341,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         textLength: editText.length,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId());
     } catch (error: any) {
       console.error('[saveEdit] Unexpected error:', error);
       setErrorMessage(t('Error.update-comment-failed'));
@@ -346,7 +349,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         reason: error.message,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId()); 
     }
   };
 
@@ -355,7 +358,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       logUserAction('comment_delete_cancelled', {
         commentId: id,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId()); 
       return;
     }
 
@@ -382,14 +385,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               reason: 'highlight_delete_error',
               error,
               timestamp: new Date().toISOString(),
-            }, getUserId()); // ← userId を追加
+            }, getUserId()); 
             return;
           }
 
           console.log('[removeCommentFn] Highlight deleted:', comment.highlightId);
           dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
+          dispatch(deleteComment({ id }));
         } else {
-          // ハイライトなしの場合、コメント単体削除
           const { error } = await apiClient<void>(`/comments/${comment.id}`, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
@@ -403,11 +406,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               reason: 'comment_delete_error',
               error,
               timestamp: new Date().toISOString(),
-            }, getUserId()); // ← userId を追加
+            }, getUserId()); 
             return;
           }
 
           console.log('[removeCommentFn] Comment deleted:', comment.id);
+          dispatch(deleteComment({ id }));
         }
       } else {
         // 返信コメント: コメント単体削除
@@ -424,11 +428,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             reason: 'reply_delete_error',
             error,
             timestamp: new Date().toISOString(),
-          }, getUserId()); // ← userId を追加
+          }, getUserId()); 
           return;
         }
 
         console.log('[removeCommentFn] Reply deleted:', id);
+        dispatch(deleteComment({ id }));
       }
 
       logUserAction('comment_deleted', {
@@ -436,7 +441,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         isRoot: comment.parentId === null,
         hadHighlight: !!comment.highlightId,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId()); 
       closeMenu(id);
     } catch (error: any) {
       console.error('[removeCommentFn] Unexpected error:', error);
@@ -445,7 +450,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         reason: error.message,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId()); 
     }
   };
 
@@ -467,9 +472,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
       const { data, error } = await apiClient<Comment>('/comments', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
           highlight_id: parentComment.highlightId ? parseInt(parentComment.highlightId, 10) : null,
           parent_id: parseInt(parentId, 10),
@@ -486,7 +489,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           reason: error,
           textLength: replyText.length,
           timestamp: new Date().toISOString(),
-        }, getUserId()); // ← userId を追加
+        }, getUserId()); 
         return;
       }
 
@@ -498,7 +501,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           reason: 'no_data_received',
           textLength: replyText.length,
           timestamp: new Date().toISOString(),
-        }, getUserId()); // ← userId を追加
+        }, getUserId()); 
         return;
       }
 
@@ -511,8 +514,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           highlightId: parentComment.highlightId,
           author: userName,
           text: replyText.trim(),
-          createdAt: savedComment.created_at,
-          editedAt: null,
+          created_at: savedComment.created_at,
+          edited_at: null,
           deleted: false,
         })
       );
@@ -525,7 +528,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         parentId,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId()); 
       
       console.log('[sendReply] Reply saved successfully:', savedComment.id);
     } catch (error: any) {
@@ -536,7 +539,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         reason: error.message,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
-      }, getUserId()); // ← userId を追加
+      }, getUserId()); 
     }
   };
 
@@ -637,7 +640,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: activeCommentId,
           rootId,
           timestamp: new Date().toISOString(),
-        }, getUserId()); // ← userId を追加
+        }, getUserId()); 
       }
     }
   }, [activeCommentId]);
@@ -737,7 +740,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                     rootCommentId: root.id,
                     highlightId: root.highlightId,
                     timestamp: new Date().toISOString(),
-                  }, getUserId()); // ← userId を追加
+                  }, getUserId()); 
                 }}
               >
                 <CommentHeader
@@ -776,7 +779,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                         parentId: reply.parentId,
                         rootCommentId: root.id,
                         timestamp: new Date().toISOString(),
-                      }, getUserId()); // ← userId を追加
+                      }, getUserId()); 
                     }}
                   >
                     <CommentHeader
@@ -789,7 +792,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                       menuRef={(el) => (menuRefs.current[reply.id] = el)}
                       currentUserName={session?.user?.name || null}
                       completionStage={completionStage}
-                      // 返信には選択ボタンは表示しない（isRoot=false）
                       isRoot={false}
                     />
                     {renderCommentBody(reply)}
