@@ -40,7 +40,7 @@ async function sendBatch(): Promise<void> {
 
     // apiClient を使用（Next.js API を経由）
     const { data, error } = await apiClient<{ success: boolean; message: string }>(
-      '/api/logs',
+      '/logs',
       {
         method: 'POST',
         body: batchData,
