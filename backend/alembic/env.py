@@ -74,10 +74,10 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args={
-            "charset": "utf8mb4",
-            "use_unicode": True,
-        }
+        # connect_args={
+        #     "charset": "utf8mb4",
+        #     "use_unicode": True,
+        # }
     )
 
     with connectable.connect() as connection:
