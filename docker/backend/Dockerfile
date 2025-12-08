@@ -7,30 +7,20 @@ ENV LC_ALL=C.UTF-8
 ENV PYTHONIOENCODING=utf-8
 ENV PYTHONUNBUFFERED=1
 
-# 作業ディレクトリの設定
+# ホストの backend/ をコンテナの /app にコピー
 WORKDIR /app
 
 # 必要なら tzdata 等も
 RUN apt-get update && apt-get install -y --no-install-recommends \
   fonts-noto-cjk \
-  # fonts-noto-cjk curl ca-certificates default-libmysqlclient-dev gcc \
   && rm -rf /var/lib/apt/lists/*
 
-# 依存関係ファイルのコピーとインストール
-# ホスト側のbackendディレクトリにrequirements.txtを作成します
+# docker-compose.yml のコンテキストから backend/requirements.txt をコピー
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# アプリケーションコードをコピー
-COPY . .
-
-# エントリポイントで migration → 起動
-# COPY docker/backend/entrypoint.sh /entrypoint.sh
-# RUN chmod +x /entrypoint.sh
-
-# ヘルスチェック用エンドポイント
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-#   CMD curl -f http://localhost:8000/ || exit 1
+# backend/ の全内容を /app にコピー
+COPY backend/ .
 
 RUN adduser --disabled-password --gecos '' fastapiuser
 USER fastapiuser
