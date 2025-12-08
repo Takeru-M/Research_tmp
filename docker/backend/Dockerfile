@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # backend/ の全内容を /app にコピー
 COPY backend/ .
 
+# ログディレクトリを作成して権限付与
+RUN mkdir -p /app/logs && chown -R fastapiuser:fastapiuser /app/logs
+
 RUN adduser --disabled-password --gecos '' fastapiuser
 USER fastapiuser
 
