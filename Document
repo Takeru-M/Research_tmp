@@ -1,4 +1,4 @@
-// 本番環境構成図
+// 本番環境構成例
 
 | functions                  | AWS Service        
 | -------------------------- | -------------------
@@ -9,6 +9,10 @@
 | HTTPS / CDN                | CloudFront + ACM   
 | Secrets                    | SSM Parameter Store
 
+// 本番環境構成例2
+front:vercel
+back:render
+db:render
 
 // ログについて
 ログはbackend/logsに保存．
@@ -21,11 +25,12 @@ apiアクセスはバック側のミドルウェアでバッチ処理し，ユ�
 フロント
 ・ページや機能の追加(共通機能はutilsに切り分け)
 ・スキーマの定義（ページごと，リクエストとレスポンスで分けている）
-・バックと通信する場合はapiClientとapiV1Clientを利用（外部サービスとの通信は別途定義）
+・バックと通信する場合はapiClientを利用
+・基本的なエラーハンドリングはapiClientが担当しているが，必要な場合は別途ページ内で記述
+・基本的な通信の流れとしてはページ内→apiClient→バック
 ・CSSは基本的にstylesに切り出し，ページ内でインポート
 ・メッセージなどはlangファイル内のja.jsonやen.jsonに書き，ページ内で利用
-・基本的な通信の流れとしてはページ内→apiClient→バック
-・基本的なエラーハンドリングはapiClientが担当しているが，必要な場合は別途ページ内で記述
+・userActionログは一定時間キャッシュし，バックに送信して保存
 
 バック
 ・エンドポイントの作成はapi/endpoints内で操作に対応したエンドポイントを作成し，api.pyに追加
@@ -34,6 +39,7 @@ apiアクセスはバック側のミドルウェアでバッチ処理し，ユ�
 ・スキーマの追加はschemas内でschemasを追加→__init__.pyに追加
 ・エラー発生時にはエラーに応じたステータスコードとメッセージを返す
 ・エラーメッセージはi18n/locales/ja/messages.poやen/messages.poに記述→バックのコンテナ内でbabelのコンパイルコマンド
+・apiAccessログは通信があったときに処理
 
 その他
 ・何かエラーが起きたらdocker compose logsコマンドでエラーを確認，または検証ツールでエラー内容を確認

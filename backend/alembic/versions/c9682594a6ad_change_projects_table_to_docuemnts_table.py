@@ -6,6 +6,7 @@ Create Date: 2025-12-08 09:09:17.612029
 
 """
 from typing import Sequence, Union
+import datetime
 
 from alembic import op
 import sqlalchemy as sa
@@ -57,6 +58,50 @@ def upgrade() -> None:
     op.drop_table('project_files')
     op.drop_table('projects')
 
+    # --- seed users (PostgreSQL) ---
+    from app.core.security import get_password_hash
+
+    now = datetime.datetime.utcnow()
+    seed_users = [
+        {
+            "name": "Sample",
+            "email": "test.test@test.com",
+            "hashed_password": get_password_hash("Password1"),
+            "deleted_at": None,
+        },
+        {
+            "name": "Sample2",
+            "email": "test2.test@test.com",
+            "hashed_password": get_password_hash("Password2"),
+            "deleted_at": None,
+        },
+        {
+            "name": "Sample3",
+            "email": "test3.test@test.com",
+            "hashed_password": get_password_hash("Password3"),
+            "deleted_at": None,  # 論理削除例が必要なら適宜値を設定
+        },
+    ]
+
+    for u in seed_users:
+        op.execute(
+            sa.text(
+                """
+                INSERT INTO users (name, email, hashed_password, created_at, updated_at, deleted_at)
+                VALUES (:name, :email, :hashed_password, :created_at, :updated_at, :deleted_at)
+                ON CONFLICT (email) DO NOTHING
+                """
+            ),
+            {
+                "name": u["name"],
+                "email": u["email"],
+                "hashed_password": u["hashed_password"],
+                "created_at": now,
+                "updated_at": now,
+                "deleted_at": u["deleted_at"],
+            },
+        )
+
     # ### end Alembic commands ###
 
 
@@ -102,6 +147,20 @@ def downgrade() -> None:
         batch_op.drop_constraint('highlights_ibfk_1', type_='foreignkey')
         batch_op.create_foreign_key('highlights_ibfk_1', 'project_files', ['project_file_id'], ['id'])
         batch_op.drop_column('document_file_id')
+
+    # --- delete seeded users ---
+    op.execute(
+        sa.text(
+            """
+            DELETE FROM users
+            WHERE email IN (
+                'test.test@test.com',
+                'test2.test@test.com',
+                'test3.test@test.com'
+            )
+            """
+        )
+    )
 
     # documentsテーブルを削除
     op.drop_table('document_files')

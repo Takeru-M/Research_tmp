@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # backend/ の全内容を /app にコピー
 COPY backend/ .
 
+# エントリポイントスクリプトをコピーして実行権限付与
+RUN chmod +x /app/entrypoint.sh
+
 RUN adduser --disabled-password --gecos '' fastapiuser
 
 # ログディレクトリを作成して権限付与
@@ -32,7 +35,5 @@ USER fastapiuser
 # FastAPIのデフォルトポートを公開
 EXPOSE 8000
 
-# コンテナ起動時にUvicornを起動
-# 0.0.0.0でリッスンすることで、外部からのアクセスを許可
-# main:app は、main.pyファイルのappインスタンスを指します
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# コンテナ起動時にエントリポイントを使って自動でマイグレーション＆起動
+ENTRYPOINT ["/app/entrypoint.sh"]
