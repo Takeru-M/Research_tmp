@@ -28,6 +28,7 @@ app.include_router(api_router)
 # CORS設定
 origins = [
     "http://localhost:3000",
+    "research-tmp.vercel.app"
 ]
 app.add_middleware(
     CORSMiddleware,
