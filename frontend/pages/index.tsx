@@ -39,6 +39,12 @@ import LoadingOverlay from '../components/LoadingOverlay';
 import { apiClient } from '@/utils/apiClient';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { logUserAction } from '@/utils/logger';
+import { HighlightWithCommentsResponse, CreateHighlightResponse } from '@/types/Responses/Highlight';
+import { DocumentFileResponse, CreateDocumentFileResponse } from '@/types/Responses/DocumentFile';
+import { S3UploadResponse } from '@/types/Responses/S3';
+import { DocumentResponse } from '@/types/Responses/Document';
+import { CreateHighlightRequest } from '@/types/Requests/Highlight';
+import { CreateDocumentFileRequest } from '@/types/Requests/DocumentFile';
 
 const PdfViewer = dynamic(() => import('../components/PdfViewer'), { ssr: false });
 
@@ -81,7 +87,7 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      const { data: response, error, status } = await apiClient<any>(`/highlights/file/${fileId}`, {
+      const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[]>(`/highlights/file/${fileId}`, {
         method: 'GET',
         headers: {Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -123,9 +129,9 @@ const EditorPageContent: React.FC = () => {
 
       console.log('Fetched highlights and ALL comments:');
 
-      const highlights: PdfHighlight[] = response.map((item: any) => {
+      const highlights: PdfHighlight[] = response.map((item: HighlightWithCommentsResponse) => {
         const h = item.highlight;
-        const highlightId = h.id || h.highlight_id;
+        const highlightId = h.id || h.id;
         if (!highlightId) {
           console.error('Missing highlight ID:', h);
           return null;
@@ -137,7 +143,7 @@ const EditorPageContent: React.FC = () => {
           memo: h.memo || '',
           createdAt: h.created_at,
           createdBy: h.created_by || getUserName(),
-          rects: h.rects.map((rect: any) => ({
+          rects: h.rects.map((rect: { page_num: number; x1: number; y1: number; x2: number; y2: number; element_type?: string }) => ({
             pageNumber: rect.page_num,
             x: rect.x1,
             y: rect.y1,
@@ -156,19 +162,19 @@ const EditorPageContent: React.FC = () => {
       console.log('Converted highlights:');
       dispatch(setHighlights(highlights));
 
-      const comments: CommentType[] = response.flatMap((item: any) => {
+      const comments: CommentType[] = response.flatMap((item: HighlightWithCommentsResponse) => {
         const h = item.highlight;
-        const hId = (h.id || h.highlight_id)?.toString();
+        const hId = (h.id || h.id)?.toString();
         if (!hId) return [];
         const list = Array.isArray(item.comments) ? item.comments : [];
-        return list.map((c: any) => ({
+        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null }) => ({
           id: c.id.toString(),
           highlightId: hId,
           parentId: c.parent_id !== null && c.parent_id !== undefined ? c.parent_id.toString() : null,
           author: c.author || getUserName(),
           text: c.text,
-          createdAt: c.created_at,
-          editedAt: c.updated_at || null,
+          created_at: c.created_at,
+          edited_at: c.updated_at || null,
           deleted: false,
         }));
       });
@@ -189,7 +195,7 @@ const EditorPageContent: React.FC = () => {
   const fetchDocumentFile = useCallback(async (documentId: number) => {
     dispatch(startLoading('Loading document file...'));
     try {
-      const { data: response, error } = await apiClient<any>(`/documents/${documentId}/document-files`, {
+      const { data: response, error } = await apiClient<DocumentFileResponse[]>(`/documents/${documentId}/document-files`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -266,7 +272,7 @@ const EditorPageContent: React.FC = () => {
     try {
       dispatch(startLoading('Loading document info...'));
 
-      const { data: res, error } = await apiClient<any>(`/documents/${documentId}`, {
+      const { data: res, error } = await apiClient<DocumentResponse>(`/documents/${documentId}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -361,7 +367,7 @@ const EditorPageContent: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const { data: s3Data, error: s3Error, status: s3Status } = await apiClient<any>('/s3/upload', {
+      const { data: s3Data, error: s3Error, status: s3Status } = await apiClient<S3UploadResponse>('/s3/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: formData,
@@ -379,7 +385,7 @@ const EditorPageContent: React.FC = () => {
         return;
       }
       if (s3Status >= 400) {
-        console.error('[uploadPdfToS3AndSave] S3 upload status error:', s3Status, s3Data?.detail);
+        console.error('[uploadPdfToS3AndSave] S3 upload status error:', s3Status);
         setErrorMessage(t('Error.s3-upload-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -402,7 +408,7 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      const { data: dbResponse, error: dbError } = await apiClient<any>('/document-files', {
+      const { data: dbResponse, error: dbError } = await apiClient<CreateDocumentFileResponse>('/document-files', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
@@ -412,7 +418,7 @@ const EditorPageContent: React.FC = () => {
           file_url: s3Data.s3_url,
           mime_type: filetype,
           file_size: filesize,
-        },
+        } as CreateDocumentFileRequest,
       });
 
       if (dbError || !dbResponse) {
@@ -646,7 +652,7 @@ const EditorPageContent: React.FC = () => {
 
           const userName = getUserName();
 
-          const { data: response, error } = await apiClient<any>('/highlights', {
+          const { data: response, error } = await apiClient<CreateHighlightResponse>('/highlights', {
             method: 'POST',
             headers: { Authorization: `Bearer ${session?.accessToken}` },
             body: {
@@ -662,7 +668,7 @@ const EditorPageContent: React.FC = () => {
                 y2: rect.y2,
               })),
               element_type: pendingHighlight.type || 'pdf',
-            },
+            } as CreateHighlightRequest,
           });
 
           if (error) {
@@ -671,6 +677,17 @@ const EditorPageContent: React.FC = () => {
             logUserAction('highlight_save_failed', {
               highlightId: id,
               reason: error,
+              timestamp: new Date().toISOString(),
+            }, getUserId());
+            return;
+          }
+
+          if (!response) {
+            console.error('[handleSaveMemo] No response data received');
+            setErrorMessage(t('Error.highlight-save-failed'));
+            logUserAction('highlight_save_failed', {
+              highlightId: id,
+              reason: 'no_response_data',
               timestamp: new Date().toISOString(),
             }, getUserId());
             return;
@@ -735,7 +752,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId]
+    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken]
   );
 
   // === Highlight Click ===

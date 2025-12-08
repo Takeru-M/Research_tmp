@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import type { RootState } from "@/redux/store";
 import {
   addComment,
   updateComment,
@@ -204,7 +205,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   // ユーザーIDを取得するヘルパー関数を追加
   const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
 
-  const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: any) => s.editor);
+  const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: RootState) => s.editor);
   const completionStage = useSelector(selectCompletionStage);
   const isExportStage = completionStage === Number(STAGE.EXPORT);
 
@@ -340,12 +341,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         textLength: editText.length,
         timestamp: new Date().toISOString(),
       }, getUserId());
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[saveEdit] Unexpected error:', error);
       setErrorMessage(t('Error.update-comment-failed'));
       logUserAction('comment_edit_failed', {
         commentId: id,
-        reason: error.message,
+        reason: errorMessage,
         timestamp: new Date().toISOString(),
       }, getUserId());
     }
@@ -441,12 +443,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         timestamp: new Date().toISOString(),
       }, getUserId());
       closeMenu(id);
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[removeCommentFn] Unexpected error:', error);
       setErrorMessage(t('Error.delete-comment-failed'));
       logUserAction('comment_delete_failed', {
         commentId: id,
-        reason: error.message,
+        reason: errorMessage,
         timestamp: new Date().toISOString(),
       }, getUserId());
     }
@@ -529,12 +532,13 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       }, getUserId());
 
       console.log('[sendReply] Reply saved successfully:', savedComment.id);
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[sendReply] Unexpected error:', error);
       setErrorMessage(t('Error.save-reply-failed'));
       logUserAction('reply_save_failed', {
         parentId,
-        reason: error.message,
+        reason: errorMessage,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
       }, getUserId());
@@ -595,10 +599,10 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     return cur.id;
   };
 
-  const getHighlightInfo = (highlightId: string | null) => {
+  const getHighlightInfo = (highlightId: string | null): HighlightInfo | null => {
     if (!highlightId) return null;
     const map = new Map<string, HighlightInfo>();
-    highlights.forEach(h => map.set(h.id, h));
+    (highlights as PdfHighlight[]).forEach((h: PdfHighlight) => map.set(h.id, h));
     const highlightInfo = map.get(highlightId);
     if (!highlightInfo) return null;
     return highlightInfo;
@@ -606,21 +610,50 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   // ハイライトテキストを取得するヘルパー関数
   const getHighlightText = (highlightId: string | null) => {
-    if (!highlightId) return null;
+    if (!highlightId) return undefined;
     const highlight = highlights.find((h: PdfHighlight) => h.id === highlightId);
-    return highlight?.text || null;
+    return highlight?.text || undefined;
   };
 
   useEffect(() => {
+    let targetRootId: string | null = null;
+    if (activeCommentId) {
+      targetRootId = findRootId(activeCommentId);
+    } else if (activeHighlightId) {
+      const matched = comments.find((c: Comment) => c.highlightId === activeHighlightId);
+      if (matched) {
+        targetRootId = findRootId(matched.id);
+      }
+    }
+
+    const header = document.querySelector("header");
+    const headerHeight = header ? header.offsetHeight : 0;
+
+    const targetElement = targetRootId && threadRefs.current[targetRootId];
+    const commentPanel = commentPanelRef.current;
+    const targetHighlight = getHighlightInfo(activeHighlightId);
+    if (targetElement instanceof HTMLDivElement) {
+      const targetElement_y = targetElement.getBoundingClientRect().y;
+      if (targetElement && commentPanel && targetHighlight) {
+        commentPanel.scrollBy({
+          top: targetElement_y - targetHighlight.rects[0].y1,
+          behavior: "smooth",
+        })
+      }
+    }
+  }, [activeCommentId, activeHighlightId]);
+
+  // ルートコメントの初期状態を設定
+  useEffect(() => {
     const newCollapsed: Record<string, boolean> = { ...collapsedMap };
-    rootComments.forEach((root) => {
+    rootComments.forEach((root: Comment) => {
       const replies = getReplies(root.id);
       if (replies.length > COLLAPSE_THRESHOLD && newCollapsed[root.id] === undefined) {
         newCollapsed[root.id] = true;
       }
     });
     if (rootComments.length > ROOTS_COLLAPSE_THRESHOLD) {
-      rootComments.forEach((root, idx) => {
+      rootComments.forEach((root: Comment, idx: number) => {
         if (idx >= ROOTS_COLLAPSE_THRESHOLD && newCollapsed[root.id] === undefined) {
           newCollapsed[root.id] = true;
         }
@@ -653,37 +686,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
   }, [activeHighlightId]);
 
-  const DYNAMIC_PADDING = getDynamicPadding(viewerHeight);
-  const DYNAMIC_PADDING_PX = `${DYNAMIC_PADDING}px`;
-
-  useEffect(() => {
-    let targetRootId: string | null = null;
-    if (activeCommentId) {
-      targetRootId = findRootId(activeCommentId);
-    } else if (activeHighlightId) {
-      const matched = comments.find((c: Comment) => c.highlightId === activeHighlightId);
-      if (matched) {
-        targetRootId = findRootId(matched.id);
-      }
-    }
-
-    const header = document.querySelector("header");
-    const headerHeight = header ? header.offsetHeight : 0;
-
-    const targetElement = targetRootId && threadRefs.current[targetRootId];
-    const commentPanel = commentPanelRef.current;
-    const targetHighlight = getHighlightInfo(activeHighlightId);
-    if (targetElement instanceof HTMLDivElement) {
-      const targetElement_y = targetElement.getBoundingClientRect().y;
-      if (targetElement && commentPanel && targetHighlight) {
-        commentPanel.scrollBy({
-          top: targetElement_y - targetHighlight.rects[0].y1,
-          behavior: "smooth",
-        })
-      }
-    }
-  }, [activeCommentId, activeHighlightId]);
-
   // ルートコメント行レンダリング時に isRoot/isSelected/onSelectRoot を渡す
   return (
     <>
@@ -707,8 +709,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           ref={scrollContainerRef}
           className={styles.scrollContainer}
           style={{
-            paddingTop: DYNAMIC_PADDING_PX,
-            paddingBottom: DYNAMIC_PADDING_PX,
+            paddingTop: `${getDynamicPadding(viewerHeight)}px`,
+            paddingBottom: `${getDynamicPadding(viewerHeight)}px`,
           }}
         >
           {sortedRootComments.map((root, rootIdx) => {

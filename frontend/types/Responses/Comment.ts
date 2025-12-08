@@ -15,3 +15,13 @@ export interface CommentEntity {
 export interface CommentDeleteResponse {
   message: string;
 }
+
+export interface CommentResponse {
+  id: number;
+  highlight_id: number;
+  parent_id: number | null;
+  author: string;
+  text: string;
+  created_at: string;
+  updated_at: string | null;
+}

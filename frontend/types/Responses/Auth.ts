@@ -1,15 +1,21 @@
 export interface FastApiAuthResponse {
   access_token: string;
   token_type?: string;
-  user_id: number;
+  user_id: string;
   email: string;
-  name?: string;
+  name: string;
 }
 
 export interface SignupResponse {
-  id?: number;
-  username?: string;
-  email?: string;
-  message?: string;
-  detail?: string;
+  access_token: string;
+  user_id: string;
+  name: string;
+  email: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  user_id: string;
+  name: string;
+  email: string;
 }

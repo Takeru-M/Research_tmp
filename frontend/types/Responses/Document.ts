@@ -1,18 +1,20 @@
 export interface DocumentResponse {
   id: number;
+  user_id: number;
   document_name: string;
-  owner_email: string;
+  stage: number;
+  completion_stage?: number;
   created_at: string;
-  stage?: number | null;
-  completion_stage?: number | null;
+  updated_at: string | null;
+  deleted_at: string | null;
 }
 
 export interface DocumentEntity {
   id: number;
   document_name: string;
   owner_email?: string;
-  stage?: number | null;
-  completion_stage?: number | null;
+  stage?: number;
+  completion_stage?: number;
   created_at?: string;
 }
 

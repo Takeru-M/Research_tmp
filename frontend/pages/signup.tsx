@@ -12,6 +12,8 @@ import {
   validateConfirmPassword,
   validateUsername,
 } from '../utils/validation';
+import { SignupRequest } from '@/types/Requests/Auth';
+import { SignupResponse } from '@/types/Responses/Auth';
 
 const SignupPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -83,14 +85,14 @@ const SignupPage: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, 'anonymous');
 
-    const { data, error } = await apiClient<any>('/signup', {
+    const { data, error } = await apiClient<SignupResponse>('/auth/signup', {
       method: 'POST',
       body: {
         username,
         email,
         password,
         confirm_password: confirmPassword
-      },
+      } as SignupRequest,
     });
 
     if (error) {
@@ -106,7 +108,7 @@ const SignupPage: React.FC = () => {
       return;
     }
 
-    if (!data) {
+    if (!data || !data.access_token) {
       console.warn('[Signup] No data received');
       logUserAction('signup_failed', {
         reason: 'no_data_received',
@@ -122,8 +124,9 @@ const SignupPage: React.FC = () => {
     logUserAction('signup_success', {
       username,
       email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
+      user_id: data.user_id,
       timestamp: new Date().toISOString(),
-    }, email);
+    }, data.user_id);
     setSuccessMessage(t('Signup.success'));
 
     // 自動ログイン処理

@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { RootState } from '@/redux/store';
 import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
@@ -21,6 +22,15 @@ import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
 import { logUserAction } from '@/utils/logger';
 import styles from '../styles/PdfViewer.module.css';
+import {
+  FormatDataResponse,
+  OptionAnalyzeResponse,
+  DeliberationAnalyzeResponse,
+  DialogueResponse,
+  CommentCreateResponse,
+  HighlightCreateResponse,
+  UpdateCompletionStageResponse,
+} from '@/types/Responses/Openai';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -37,7 +47,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageData, setPageData] = useState<{ [n:number]:PageLoadData }>({});
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
-  const [pageTextItems, setPageTextItems] = useState<{ [n:number]:any[] }>({});
+  const [pageTextItems, setPageTextItems] = useState<{ [n:number]:TextItem[] }>({});
   const [dividedMeetingTexts, setDividedMeetingTexts] = useState<DividedMeetingTexts | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -154,7 +164,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           .join('');
       newPageData.textContent = text;
 
-      setPageTextItems(p => ({ ...p, [n]: textContentResult.items }));
+      setPageTextItems(p => ({ ...p, [n]: textContentResult.items as TextItem[] }));
     } catch (error) {
       console.error(`Error extracting text content for page ${n}:`, error);
       newPageData.textContent = '';
@@ -210,7 +220,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   useEffect(()=>{
     if(!viewerRef.current || !numPages) return;
     setPageScales(prevScales => {
-      const nScales:any = {};
+      const nScales: { [n: number]: number } = {};
       let changed = false;
       for(let i = 1; i <= numPages; i++){
         const dim = pageData[i];
@@ -653,7 +663,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         }
 
-        const { data: formatDataResponse, error: formatDataError } = await apiClient<any>(
+        const { data: formatDataResponse, error: formatDataError } = await apiClient<FormatDataResponse>(
           '/openai/format-data',
           {
             method: 'POST',
@@ -663,12 +673,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         );
 
-        if (formatDataError) {
+        if (formatDataError || !formatDataResponse) {
           console.error('[handleCompletion] Format data error:', formatDataError);
           setErrorMessage(t('Error.analysis-failed'));
           logUserAction('analysis_failed', {
             stage: 'format_data_error',
-            reason: formatDataError,
+            reason: formatDataError || 'no_response',
             timestamp: new Date().toISOString(),
           }, getUserId());
           return;
@@ -682,7 +692,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           "highlights": highlightCommentList,
         }
 
-        const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<any>(
+        const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<OptionAnalyzeResponse>(
           '/openai/option-analyze',
           {
             method: 'POST',
@@ -692,12 +702,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         );
 
-        if (optionAnalyzeError) {
+        if (optionAnalyzeError || !optionAnalyzeResponse) {
           console.error('[handleCompletion] Option analyze error:', optionAnalyzeError);
           setErrorMessage(t('Error.analysis-failed'));
           logUserAction('analysis_failed', {
             stage: 'option_analyze_error',
-            reason: optionAnalyzeError,
+            reason: optionAnalyzeError || 'no_response',
             timestamp: new Date().toISOString(),
           }, getUserId());
           return;
@@ -712,7 +722,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           // ハイライト有箇所に対するLLMコメント保存
           for (const hf of highlight_feedback) {
             if (hf.intervention_needed) {
-              const { data: commentResponse, error: commentError } = await apiClient<any>(
+              const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
                 '/comments',
                 {
                   method: 'POST',
@@ -726,12 +736,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }
               );
 
-              if (commentError) {
+              if (commentError || !commentResponse) {
                 console.error('[handleCompletion] Comment save error:', commentError);
                 setErrorMessage(t('Error.comment-save-failed'));
                 logUserAction('analysis_failed', {
                   stage: 'save_highlight_comment',
-                  reason: commentError,
+                  reason: commentError || 'no_response',
                   timestamp: new Date().toISOString(),
                 }, getUserId());
                 return;
@@ -772,7 +782,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   return;
                 }
 
-                const { data: highlightResponse, error: highlightError } = await apiClient<any>(
+                const { data: highlightResponse, error: highlightError } = await apiClient<HighlightCreateResponse>(
                   '/highlights',
                   {
                     method: 'POST',
@@ -794,12 +804,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   }
                 );
 
-                if (highlightError) {
+                if (highlightError || !highlightResponse) {
                   console.error('[handleCompletion] Highlight save error:', highlightError);
                   setErrorMessage(t('Error.highlight-save-failed'));
                   logUserAction('analysis_failed', {
                     stage: 'save_llm_highlight',
-                    reason: highlightError,
+                    reason: highlightError || 'no_response',
                     timestamp: new Date().toISOString(),
                   }, getUserId());
                   return;
@@ -835,7 +845,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
           const documentId = getDocumentIdFromCookie();
           if (documentId) {
-            const { data: updateResponse, error: updateError } = await apiClient<any>(
+            const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
               `/documents/${documentId}/update-completion-stage`,
               {
                 method: 'PATCH',
@@ -905,7 +915,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           "highlights": highlightCommentsList,
         }
 
-        const { data: deliberationResponse, error: deliberationError } = await apiClient<any>(
+        const { data: deliberationResponse, error: deliberationError } = await apiClient<DeliberationAnalyzeResponse>(
           '/openai/deliberation-analyze',
           {
             method: 'POST',
@@ -915,12 +925,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         );
 
-        if (deliberationError) {
+        if (deliberationError || !deliberationResponse) {
           console.error('[handleCompletion] Deliberation analyze error:', deliberationError);
           setErrorMessage(t('Error.analysis-failed'));
           logUserAction('analysis_failed', {
             stage: 'deliberation_api_error',
-            reason: deliberationError,
+            reason: deliberationError || 'no_response',
             timestamp: new Date().toISOString(),
           }, getUserId());
           return;
@@ -940,7 +950,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
               console.log('[handleCompletion] Saving comment with parent_id:', hf.id, 'highlight_id:', hf.highlight_id);
 
-              const { data: commentResponse, error: commentError } = await apiClient<any>(
+              const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
                 '/comments',
                 {
                   method: 'POST',
@@ -954,12 +964,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }
               );
 
-              if (commentError) {
+              if (commentError || !commentResponse) {
                 console.error('[handleCompletion] Comment save error:', commentError);
                 setErrorMessage(t('Error.comment-save-failed'));
                 logUserAction('analysis_failed', {
                   stage: 'save_deliberation_comment',
-                  reason: commentError,
+                  reason: commentError || 'no_response',
                   timestamp: new Date().toISOString(),
                 }, getUserId());
                 return;
@@ -984,7 +994,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
           const documentId = getDocumentIdFromCookie();
           if (documentId) {
-            const { data: updateResponse, error: updateError } = await apiClient<any>(
+            const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
               `/documents/${documentId}/update-completion-stage`,
               {
                 method: 'PATCH',
@@ -1109,7 +1119,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.log('[Export][Frontend] Download triggered & URL revoked');
 
       // ステージを EXPORT に更新
-      const { data: updateResponse, error: updateError } = await apiClient<any>(
+      const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
         `/documents/${documentId}/update-completion-stage`,
         {
           method: 'PATCH',
@@ -1180,7 +1190,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           id: string;
           author: string;
           text: string;
-          createdAt: string;
+          created_at: string;
         }>;
       }> = [];
 
@@ -1188,7 +1198,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const rootComment = comments.find(c => c.id === rootCommentId && c.parentId === null);
         if (!rootComment) continue;
 
-        const highlight = rootComment.highlightId 
+        const highlight = rootComment.highlightId
           ? highlights.find(h => h.id === rootComment.highlightId)
           : null;
 
@@ -1239,7 +1249,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       };
 
       console.log(`[handleDialogue] Sending request to ${apiEndpoint}`);
-      const { data: dialogueResponse, error: dialogueError } = await apiClient<any>(
+      const { data: dialogueResponse, error: dialogueError } = await apiClient<DialogueResponse>(
         apiEndpoint,
         {
           method: 'POST',
@@ -1249,12 +1259,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
       );
 
-      if (dialogueError) {
+      if (dialogueError || !dialogueResponse) {
         console.error('[handleDialogue] API error:', dialogueError);
         setErrorMessage(t('Error.dialogue-failed'));
         logUserAction('dialogue_failed', {
           reason: 'api_error',
-          error: dialogueError,
+          error: dialogueError || 'no_response',
           timestamp: new Date().toISOString(),
         }, getUserId());
         return;
@@ -1271,7 +1281,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               continue;
             }
 
-            const { data: commentResponse, error: commentError } = await apiClient<any>(
+            const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
               '/comments',
               {
                 method: 'POST',
@@ -1285,12 +1295,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               }
             );
 
-            if (commentError) {
+            if (commentError || !commentResponse) {
               console.error('[handleDialogue] Comment save error:', commentError);
               setErrorMessage(t('Error.comment-save-failed'));
               logUserAction('dialogue_failed', {
                 reason: 'comment_save_error',
-                error: commentError,
+                error: commentError || 'no_response',
                 timestamp: new Date().toISOString(),
               }, getUserId());
               return;

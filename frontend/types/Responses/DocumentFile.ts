@@ -6,13 +6,31 @@ export interface DocumentFile {
   uploaded_at: string;
 }
 
-export interface SaveFileRequest {
+export interface DocumentFileResponse {
+  id: number;
   document_id: number;
   file_name: string;
   file_key: string;
-  file_url?: string | null;
-  mime_type?: string;
-  file_size?: number | null;
+  file_url: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDocumentFileResponse {
+  id: number;
+  document_id: number;
+  file_name: string;
+  file_key: string;
+  file_url: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+  savedFile?: {
+    id: number;
+  };
 }
 
 export interface SavedFileResponse {
