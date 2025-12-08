@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "@/redux/store";
 import {
@@ -585,7 +585,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     );
   };
 
-  const findRootId = (commentId: string | null) => {
+  const findRootId = useCallback((commentId: string | null) => {
     if (!commentId) return null;
     const map = new Map<string, Comment>();
     comments.forEach(c => map.set(c.id, c));
@@ -597,7 +597,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       cur = parent;
     }
     return cur.id;
-  };
+  }, [comments]);
 
   const getHighlightInfo = (highlightId: string | null): HighlightInfo | null => {
     if (!highlightId) return null;
@@ -614,6 +614,16 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     const highlight = highlights.find((h: PdfHighlight) => h.id === highlightId);
     return highlight?.text || undefined;
   };
+
+  // アクティブなコメント/ハイライトに対応するルートIDをメモ化
+  const activeRootId = useMemo(() => {
+    if (activeCommentId) return findRootId(activeCommentId);
+    if (activeHighlightId) {
+      const matched = comments.find((c: Comment) => c.highlightId === activeHighlightId);
+      if (matched) return findRootId(matched.id);
+    }
+    return null;
+  }, [activeCommentId, activeHighlightId, comments, findRootId]);
 
   useEffect(() => {
     let targetRootId: string | null = null;
@@ -642,49 +652,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       }
     }
   }, [activeCommentId, activeHighlightId]);
-
-  // ルートコメントの初期状態を設定
-  useEffect(() => {
-    const newCollapsed: Record<string, boolean> = { ...collapsedMap };
-    rootComments.forEach((root: Comment) => {
-      const replies = getReplies(root.id);
-      if (replies.length > COLLAPSE_THRESHOLD && newCollapsed[root.id] === undefined) {
-        newCollapsed[root.id] = true;
-      }
-    });
-    if (rootComments.length > ROOTS_COLLAPSE_THRESHOLD) {
-      rootComments.forEach((root: Comment, idx: number) => {
-        if (idx >= ROOTS_COLLAPSE_THRESHOLD && newCollapsed[root.id] === undefined) {
-          newCollapsed[root.id] = true;
-        }
-      });
-    }
-    setCollapsedMap(newCollapsed);
-  }, [comments.length]);
-
-  useEffect(() => {
-    if (activeCommentId) {
-      const rootId = findRootId(activeCommentId);
-      if (rootId) {
-        setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
-        logUserAction('comment_activated', {
-          commentId: activeCommentId,
-          rootId,
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-      }
-    }
-  }, [activeCommentId]);
-
-  useEffect(() => {
-    if (activeHighlightId) {
-      const matched = comments.find((c: Comment) => c.highlightId === activeHighlightId);
-      if (matched) {
-        const rootId = findRootId(matched.id);
-        if (rootId) setCollapsedMap(prev => ({ ...prev, [rootId]: false }));
-      }
-    }
-  }, [activeHighlightId]);
 
   // ルートコメント行レンダリング時に isRoot/isSelected/onSelectRoot を渡す
   return (
@@ -716,8 +683,17 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           {sortedRootComments.map((root, rootIdx) => {
             const replies = getReplies(root.id);
             const totalReplies = replies.length;
-            const isInitiallyCollapsed = totalReplies > COLLAPSE_THRESHOLD;
-            const isCollapsed = collapsedMap[root.id] === undefined ? isInitiallyCollapsed : collapsedMap[root.id];
+
+            // 初期折りたたみ条件を計算（状態には保存しない）
+            const baseInitiallyCollapsed =
+              totalReplies > COLLAPSE_THRESHOLD ||
+              (sortedRootComments.length > ROOTS_COLLAPSE_THRESHOLD && rootIdx >= ROOTS_COLLAPSE_THRESHOLD);
+
+            // アクティブなルートは常に展開する。それ以外は状態またはデフォルトに従う
+            const isCollapsed =
+              root.id === activeRootId
+                ? false
+                : (collapsedMap[root.id] ?? baseInitiallyCollapsed);
 
             const visibleReplies = isCollapsed && totalReplies > COLLAPSE_THRESHOLD
               ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
