@@ -28,7 +28,7 @@ class RectData(BaseModel):
 
 class HighlightWithMemoCreate(BaseModel):
     """ハイライトとメモを同時に作成するためのスキーマ"""
-    project_file_id: int
+    document_file_id: int
     created_by: str
     memo: str
     text: str | None = None
@@ -44,7 +44,7 @@ def create_highlight_with_memo(
     """ハイライトとメモ(ルートコメント)を同時に作成"""
     try:
         # === 入力バリデーション ===
-        if highlight_data.project_file_id <= 0:
+        if highlight_data.document_file_id <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="無効なファイルIDです"
@@ -77,7 +77,7 @@ def create_highlight_with_memo(
         logger.info(f"Full request data:\n{json.dumps(highlight_data.model_dump(), indent=2, ensure_ascii=False)}")
         
         # 各フィールドを個別に確認
-        logger.info(f"project_file_id: {highlight_data.project_file_id} (type: {type(highlight_data.project_file_id)})")
+        logger.info(f"document_file_id: {highlight_data.document_file_id} (type: {type(highlight_data.document_file_id)})")
         logger.info(f"created_by: {highlight_data.created_by} (type: {type(highlight_data.created_by)})")
         logger.info(f"memo: {highlight_data.memo} (type: {type(highlight_data.memo)})")
         logger.info(f"memo length: {len(highlight_data.memo)} characters")
@@ -100,7 +100,7 @@ def create_highlight_with_memo(
         # 1. ハイライトを作成
         logger.info("Creating highlight in database...")
         highlight_in = HighlightCreate(
-            project_file_id=highlight_data.project_file_id,
+            document_file_id=highlight_data.document_file_id,
             created_by=highlight_data.created_by,
             memo=highlight_data.memo,
             text=highlight_data.text
@@ -180,7 +180,7 @@ def create_highlight_with_memo(
         result = HighlightRead(
             id=db_highlight.id,
             comment_id=comment.id if comment else None,
-            project_file_id=db_highlight.project_file_id,
+            document_file_id=db_highlight.document_file_id,
             created_by=db_highlight.created_by,
             memo=db_highlight.memo,
             text=db_highlight.text,
@@ -240,7 +240,7 @@ def get_highlights_by_file_endpoint(
                 highlight_read = HighlightRead(
                     id=hl.id,
                     comment_id=comments[0].id if comments else None,
-                    project_file_id=hl.project_file_id,
+                    document_file_id=hl.document_file_id,
                     created_by=hl.created_by,
                     memo=hl.memo,
                     text=hl.text,

@@ -54,7 +54,7 @@ const LoginPage: React.FC = () => {
     }
 
     if (result?.ok) {
-      console.log("[Login] Sign-in successful, redirecting to /projects");
+      console.log("[Login] Sign-in successful, redirecting to /documents");
       
       // ログイン成功後、セッション情報を取得するまで少し待つ
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -66,7 +66,7 @@ const LoginPage: React.FC = () => {
         timestamp: new Date().toISOString(),
       }, email); // ログイン成功時はemailをユーザーIDとして使用
       
-      router.push('/projects');
+      router.push('/documents');
     }
   }, [email, password, router, t]);
 
@@ -79,7 +79,7 @@ const LoginPage: React.FC = () => {
     logUserAction('login_page_accessed_while_authenticated', {
       timestamp: new Date().toISOString(),
     }, getUserId());
-    router.push('/projects');
+    router.push('/documents');
     return null;
   }
 

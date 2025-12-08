@@ -1,15 +1,15 @@
-export interface ProjectResponse {
+export interface DocumentResponse {
   id: number;
-  project_name: string;
+  document_name: string;
   owner_email: string;
   created_at: string;
   stage?: number | null;
   completion_stage?: number | null;
 }
 
-export interface ProjectEntity {
+export interface DocumentEntity {
   id: number;
-  project_name: string;
+  document_name: string;
   owner_email?: string;
   stage?: number | null;
   completion_stage?: number | null;

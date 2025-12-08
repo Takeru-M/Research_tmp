@@ -19,7 +19,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const documentName = useSelector((state: RootState) => state.editor.documentName);
 
   const isAuthPage = ['/login', '/signup'].includes(router.pathname);
-  const isProjectsPage = router.pathname === '/projects';
+  const isDocumentsPage = router.pathname === '/documents';
 
   const handleScaleChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const newScale = parseFloat(event.target.value);
@@ -30,9 +30,9 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     signOut({ callbackUrl: '/login' });
   }, []);
 
-  const handleBackToProjects = useCallback(() => {
+  const handleBackToDocuments = useCallback(() => {
     dispatch(clearAllState());
-    router.push('/projects');
+    router.push('/documents');
   }, [router, dispatch]);
 
   if (status === 'loading') {
@@ -53,7 +53,7 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
           <div className={styles.headerContainer}>
             <h1 className={styles.headerTitle}>{t("main-title")}</h1>
             
-            {/* プロジェクト名を表示 */}
+            {/* ドキュメント名を表示 */}
             {router.pathname === '/' && documentName && (
               <h2 className={styles.documentName}>
                 {documentName}
@@ -61,10 +61,10 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
             )}
             
             <div className={styles.headerActions}>
-              {/* プロジェクト一覧に戻るボタン (projectsページ以外で表示) */}
-              {!isProjectsPage && (
+              {/* ドキュメント一覧に戻るボタン (documentsページ以外で表示) */}
+              {!isDocumentsPage && (
                 <button
-                  onClick={handleBackToProjects}
+                  onClick={handleBackToDocuments}
                   className={styles.backButton}
                 >
                   <span>←</span>
@@ -72,8 +72,8 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
                 </button>
               )}
 
-              {/* PDF倍率変更UI (projectsページ以外で表示) */}
-              {!isProjectsPage && (
+              {/* PDF倍率変更UI (documentsページ以外で表示) */}
+              {!isDocumentsPage && (
                 <div className={styles.scaleSelector}>
                   <label htmlFor="pdf-scale-select" className={styles.scaleLabel}>
                     {t("Scale")}:

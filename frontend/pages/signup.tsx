@@ -42,7 +42,7 @@ const SignupPage: React.FC = () => {
       logUserAction('signup_page_accessed_while_authenticated', {
         timestamp: new Date().toISOString(),
       }, getUserId());
-      router.replace('/projects');
+      router.replace('/documents');
     }
   }, [status, router, getUserId]);
 
@@ -139,7 +139,7 @@ const SignupPage: React.FC = () => {
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
       }, email);
-      router.replace('/projects');
+      router.replace('/documents');
     } else {
       console.error('[Signup] Auto-login failed');
       logUserAction('auto_login_after_signup_failed', {

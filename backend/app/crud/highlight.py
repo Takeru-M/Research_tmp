@@ -17,7 +17,7 @@ def get_highlight_by_id(session: Session, highlight_id: int) -> Optional[Highlig
     return session.exec(statement).first()
 
 def get_highlights_by_file(session: Session, file_id: int) -> List[Highlight]:
-    statement = select(Highlight).where(Highlight.project_file_id == file_id)
+    statement = select(Highlight).where(Highlight.document_file_id == file_id)
     return session.exec(statement).all()
 
 def update_highlight(session: Session, highlight: Highlight, highlight_in: HighlightUpdate) -> Highlight:

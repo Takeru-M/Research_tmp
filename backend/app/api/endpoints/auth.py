@@ -8,9 +8,9 @@ from app.core.security import create_access_token, get_password_hash
 from app.schemas.auth import Token, UserSignupSchema, LoginRequest
 from app.api.deps import get_db
 from app.utils.validators import (
-    validate_email, 
-    validate_username, 
-    validate_password, 
+    validate_email,
+    validate_username,
+    validate_password,
     validate_confirm_password,
     ValidationError
 )

@@ -11,7 +11,7 @@ class Highlight(SQLModel, table=True):
     }
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    project_file_id: int = Field(foreign_key="project_files.id")
+    document_file_id: int = Field(foreign_key="document_files.id")
     created_by: str = Field(
         sa_column=Column(
             String(255, collation='utf8mb4_unicode_ci'),
@@ -35,6 +35,6 @@ class Highlight(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationship
-    project_file: Optional["ProjectFile"] = Relationship(back_populates="highlights")
+    document_file: Optional["DocumentFile"] = Relationship(back_populates="highlights")
     rects: List["HighlightRect"] = Relationship(back_populates="highlight")
     comments: List["Comment"] = Relationship(back_populates="highlight")

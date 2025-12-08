@@ -1,13 +1,13 @@
-# project_files.py
+# document_files.py
 from typing import List, Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
 
-class ProjectFile(SQLModel, table=True):
-    __tablename__ = "project_files"
+class DocumentFile(SQLModel, table=True):
+    __tablename__ = "document_files"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    project_id: int = Field(foreign_key="projects.id", nullable=False)
+    document_id: int = Field(foreign_key="documents.id", nullable=False)
     file_name: str = Field(max_length=255, nullable=False)
     file_key: str = Field(max_length=500, nullable=False)  # S3 object key
     file_url: Optional[str] = Field(default=None, max_length=500)  # optional (public files only)
@@ -23,5 +23,5 @@ class ProjectFile(SQLModel, table=True):
     )
 
     # Relationship
-    project: Optional["Project"] = Relationship(back_populates="project_file")
-    highlights: List["Highlight"] = Relationship(back_populates="project_file")
+    document: Optional["Document"] = Relationship(back_populates="document_file")
+    highlights: List["Highlight"] = Relationship(back_populates="document_file")

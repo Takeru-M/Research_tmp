@@ -94,52 +94,52 @@ msgid "Limit must be between 1 and 1000"
 msgstr "リミットは1から1000の範囲で指定してください"
 
 # ========================================
-# プロジェクト関連 (projects.py)
+# ドキュメント関連 (documents.py)
 # ========================================
-msgid "Project not found"
-msgstr "プロジェクトが見つかりません"
+msgid "Document not found"
+msgstr "ドキュメントが見つかりません"
 
-msgid "Invalid project ID"
-msgstr "無効なプロジェクトIDです"
+msgid "Invalid document ID"
+msgstr "無効なドキュメントIDです"
 
-msgid "Project name is required"
-msgstr "プロジェクト名を入力してください"
+msgid "Document name is required"
+msgstr "ドキュメント名を入力してください"
 
-msgid "Project creation failed"
-msgstr "プロジェクトの作成に失敗しました"
+msgid "Document creation failed"
+msgstr "ドキュメントの作成に失敗しました"
 
-msgid "Project name already exists"
-msgstr "プロジェクト名が既に存在します"
+msgid "Document name already exists"
+msgstr "ドキュメント名が既に存在します"
 
-msgid "Unauthorized project access"
-msgstr "このプロジェクトへのアクセス権限がありません"
+msgid "Unauthorized document access"
+msgstr "このドキュメントへのアクセス権限がありません"
 
-msgid "Unauthorized project update"
-msgstr "このプロジェクトの更新権限がありません"
+msgid "Unauthorized document update"
+msgstr "このドキュメントの更新権限がありません"
 
-msgid "Project update failed"
-msgstr "プロジェクトの更新に失敗しました"
+msgid "Document update failed"
+msgstr "ドキュメントの更新に失敗しました"
 
 msgid "Completion stage update failed"
 msgstr "完了ステージの更新に失敗しました"
 
-msgid "Unauthorized project deletion"
-msgstr "このプロジェクトの削除権限がありません"
+msgid "Unauthorized document deletion"
+msgstr "このドキュメントの削除権限がありません"
 
-msgid "Project deletion failed"
-msgstr "プロジェクト削除中にエラーが発生しました"
+msgid "Document deletion failed"
+msgstr "ドキュメント削除中にエラーが発生しました"
 
-msgid "Project list retrieval failed"
-msgstr "プロジェクト一覧の取得中にエラーが発生しました"
+msgid "Document list retrieval failed"
+msgstr "ドキュメント一覧の取得中にエラーが発生しました"
 
-msgid "Project retrieval failed"
-msgstr "プロジェクト取得中にエラーが発生しました"
+msgid "Document retrieval failed"
+msgstr "ドキュメント取得中にエラーが発生しました"
 
 msgid "Database integrity error"
 msgstr "データベース整合性エラーが発生しました"
 
-msgid "Project files retrieval failed"
-msgstr "プロジェクトファイルの取得に失敗しました"
+msgid "Document files retrieval failed"
+msgstr "ドキュメントファイルの取得に失敗しました"
 
 msgid "Related data deletion failed"
 msgstr "関連データの削除に失敗しました"
@@ -148,7 +148,7 @@ msgid "File deletion failed"
 msgstr "ファイル削除中にエラーが発生しました"
 
 # ========================================
-# ファイル関連 (project_files.py)
+# ファイル関連 (document_files.py)
 # ========================================
 msgid "File not found"
 msgstr "ファイルが見つかりません"
@@ -286,10 +286,10 @@ msgid "PDF uploaded successfully"
 msgstr "PDFが正常にアップロードされました"
 
 # ========================================
-# PDF Export関連 (projects.py - export endpoint)
+# PDF Export関連 (documents.py - export endpoint)
 # ========================================
-msgid "Invalid project or file ID"
-msgstr "無効なプロジェクトIDまたはファイルIDです"
+msgid "Invalid document or file ID"
+msgstr "無効なドキュメントIDまたはファイルIDです"
 
 msgid "S3 PDF fetch failed"
 msgstr "S3からPDFの取得に失敗しました"

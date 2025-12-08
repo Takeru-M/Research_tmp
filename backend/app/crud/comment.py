@@ -28,7 +28,7 @@ def get_comments_by_highlight_id(session: Session, highlight_id: int) -> Optiona
     return session.exec(statement).all()
 
 def get_comments_by_file(session: Session, file_id: int) -> List[Comment]:
-    statement = select(Comment).where(Comment.project_file_id == file_id)
+    statement = select(Comment).where(Comment.document_file_id == file_id)
     return session.exec(statement).all()
 
 def get_comments_by_highlight(session: Session, highlight_id: int) -> List[Comment]:

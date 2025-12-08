@@ -1,10 +1,10 @@
-export interface ProjectCreateRequest {
-  project_name: string;
+export interface DocumentCreateRequest {
+  document_name: string;
   stage: number;
 }
 
-export interface ProjectUpdateRequest {
-  project_name?: string;
+export interface DocumentUpdateRequest {
+  document_name?: string;
   stage?: number;
   completion_stage?: number;
 }

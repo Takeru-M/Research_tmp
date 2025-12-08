@@ -10,19 +10,19 @@ erDiagram
         datetime deleted_at
     }
 
-    PROJECTS {
+    DOCUMENTS {
         int id PK
         int user_id FK
-        varchar project_name
+        varchar document_name
         int stage
         datetime created_at
         datetime updated_at
         datetime deleted_at
     }
 
-    PROJECT_FILES {
+    DOCUMENT_FILES {
         int id PK
-        int project_id FK
+        int document_id FK
         varchar file_name
         varchar file_key
         varchar file_url
@@ -34,7 +34,7 @@ erDiagram
 
     HIGHLIGHTS {
         int id PK
-        int project_file_id FK
+        int document_file_id FK
         varchar created_by
         text memo
         text text
@@ -64,14 +64,14 @@ erDiagram
 
     %% リレーションシップ定義 (Relationships)
     
-    %% User <-> Project (1対多)
-    USERS ||--o{ PROJECTS : creates
+    %% User <-> Document (1対多)
+    USERS ||--o{ DOCUMENTS : creates
     
-    %% Project <-> ProjectFile (1対多)
-    PROJECTS ||--o{ PROJECT_FILES : has
+    %% Document <-> DocumentFile (1対多)
+    DOCUMENTS ||--o{ DOCUMENT_FILES : has
     
-    %% ProjectFile <-> Highlight (1対多)
-    PROJECT_FILES ||--o{ HIGHLIGHTS : contains
+    %% DocumentFile <-> Highlight (1対多)
+    DOCUMENT_FILES ||--o{ HIGHLIGHTS : contains
     
     %% Highlight <-> HighlightRect (1対多)
     HIGHLIGHTS ||--o{ HIGHLIGHT_RECTS : defines_area

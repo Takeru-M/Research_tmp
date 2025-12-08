@@ -1,1 +1,1 @@
-from . import auth, user, project, project_file, highlight, highlight_rect, comment
+from . import auth, user, document, document_file, highlight, highlight_rect, comment

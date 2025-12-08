@@ -46,7 +46,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const { t } = useTranslation();
   const router = useRouter();
   const { data: session } = useSession();
-  
+
   const [selectionMenu, setSelectionMenu] = useState({
     x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
   });
@@ -67,8 +67,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
 
-  const getProjectIdFromCookie = (): number | null => {
-    const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
+  const getDocumentIdFromCookie = (): number | null => {
+    const match = document.cookie.match(/(?:^|; )documentId=(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   };
 
@@ -153,7 +153,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           .map(item => ('str' in item) ? item.str : '')
           .join('');
       newPageData.textContent = text;
-      
+
       setPageTextItems(p => ({ ...p, [n]: textContentResult.items }));
     } catch (error) {
       console.error(`Error extracting text content for page ${n}:`, error);
@@ -253,7 +253,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   }, [numPages, pageScales, pageData, onRenderSuccess, getUserId]);
 
-
   // ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
   const renderHighlightVisuals = useCallback((page:number)=>{
     if(!pageData[page] || !pageScales[page]) return null;
@@ -263,7 +262,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     return pageHighlights.map((h) => {
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
-      
+
       const isLLMHighlight = h.createdBy === t("CommentPanel.comment-author-LLM");
 
       let baseBg: string;
@@ -310,7 +309,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   },[highlights,pageData,pageScales,effectiveActiveHighlightId, onHighlightClick, dispatch, t]);
 
-
   // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {
     const el =
@@ -323,14 +321,17 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   // handleMouseUp (テキスト選択捕捉とハイライトクリック検出)
   const handleMouseUp = useCallback((e:React.MouseEvent)=>{
-    const sel=window.getSelection();
+    const sel = window.getSelection();
+
+    // selが null でないことを確認
+    if (!sel) return;
 
     const target = e.target as HTMLElement;
     const clickedPageEl = target.closest('.react-pdf__Page');
 
     // --- ハイライトクリック検出ロジック ---
     // テキスト選択が行われなかった場合（単純クリックの場合）
-    if(!sel || sel.isCollapsed) {
+    if(sel.isCollapsed) {
         if (!clickedPageEl) return;
 
         const pageNum = Number(clickedPageEl.getAttribute('data-page-number'));
@@ -368,14 +369,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 const pageRect = clickedPageEl.getBoundingClientRect();
                 const pageTopOffset = pageRect.top;
                 const viewerY = pageTopOffset + (rect.y1 * pageScale);
-                
+
                 const scrollTarget = {
                     viewerY,
                     highlightId: clickedHighlight.id,
                     pageNum,
                     pdfY1: rect.y1,
                     pageScale,
-                    pageTopOffsets: pageTopOffset,
+                    pageTopOffset: pageTopOffset,
                 };
                 dispatch(setActiveScrollTarget(scrollTarget));
             }
@@ -384,10 +385,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
 
     // --- 既存のテキスト選択ロジック (ハイライトクリックでなかった場合のみ実行) ---
-    const text=sel.toString().trim();
+    const text = sel.toString().trim();
     if(!text) return;
 
-    const range=sel.getRangeAt(0);
+    const range = sel.getRangeAt(0);
     const rects=Array.from(range.getClientRects()).filter(r=>r.width>0&&r.height>0);
     if(rects.length===0) return;
 
@@ -724,7 +725,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   }
                 }
               );
-              
+
               if (commentError) {
                 console.error('[handleCompletion] Comment save error:', commentError);
                 setErrorMessage(t('Error.comment-save-failed'));
@@ -735,7 +736,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }, getUserId());
                 return;
               }
-              
+
               console.log('LLM comment saved:', commentResponse);
               dispatch(
                 addComment({
@@ -758,14 +759,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
               if (foundRects.length > 0) {
                 const userName = t("CommentPanel.comment-author-LLM");
-                const projectId = getProjectIdFromCookie();
+                const documentId = getDocumentIdFromCookie();
 
-                if (!projectId) {
-                  console.error('[handleCompletion] Project ID not found');
-                  setErrorMessage(t('Error.project-id-missing'));
+                if (!documentId) {
+                  console.error('[handleCompletion] Document ID not found');
+                  setErrorMessage(t('Error.document-id-missing'));
                   logUserAction('analysis_failed', {
                     stage: 'create_llm_highlight',
-                    reason: 'project_id_missing',
+                    reason: 'document_id_missing',
                     timestamp: new Date().toISOString(),
                   }, getUserId());
                   return;
@@ -777,7 +778,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     method: 'POST',
                     headers: { Authorization: `Bearer ${session?.accessToken}` },
                     body: {
-                      project_file_id: fileId,
+                      document_file_id: fileId,
                       created_by: userName,
                       memo: uhf.suggestion,
                       text: uhf.unhighlighted_text,
@@ -792,7 +793,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     }
                   }
                 );
-                
+
                 if (highlightError) {
                   console.error('[handleCompletion] Highlight save error:', highlightError);
                   setErrorMessage(t('Error.highlight-save-failed'));
@@ -832,10 +833,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             }
           }
 
-          const projectId = getProjectIdFromCookie();
-          if (projectId) {
+          const documentId = getDocumentIdFromCookie();
+          if (documentId) {
             const { data: updateResponse, error: updateError } = await apiClient<any>(
-              `/projects/${projectId}/update-completion-stage`,
+              `/documents/${documentId}/update-completion-stage`,
               {
                 method: 'PATCH',
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -844,10 +845,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }
               }
             );
-            
+
             if (updateError) {
               console.error('[handleCompletion] Stage update error:', updateError);
-              setErrorMessage(t('Error.update-project-failed'));
+              setErrorMessage(t('Error.update-document-failed'));
               logUserAction('analysis_failed', {
                 stage: 'update_completion_stage',
                 reason: updateError,
@@ -882,10 +883,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const highlightCommentsList: HighlightCommentsList = [];
         for (const h of highlights) {
           const related = comments.filter(c => c.highlightId === h.id);
-          
+
           if (related.length > 0) {
             const lastComment = related[related.length - 1];
-            
+
             if (lastComment && lastComment.author === t("CommentPanel.comment-author-LLM")) {
               highlightCommentsList.push({
                 id: lastComment.id,
@@ -931,7 +932,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           for (const hf of responseData.suggestions) {
             if (hf.suggestion) {
               const parentCommentExists = comments.some(c => c.id === hf.id);
-              
+
               if (!parentCommentExists) {
                 console.warn('[handleCompletion] Parent comment ID not found:', hf.id);
                 continue;
@@ -981,10 +982,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             }
           }
 
-          const projectId = getProjectIdFromCookie();
-          if (projectId) {
+          const documentId = getDocumentIdFromCookie();
+          if (documentId) {
             const { data: updateResponse, error: updateError } = await apiClient<any>(
-              `/projects/${projectId}/update-completion-stage`,
+              `/documents/${documentId}/update-completion-stage`,
               {
                 method: 'PATCH',
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -993,10 +994,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }
               }
             );
-            
+
             if (updateError) {
               console.error('[handleCompletion] Stage update error:', updateError);
-              setErrorMessage(t('Error.update-project-failed'));
+              setErrorMessage(t('Error.update-document-failed'));
               logUserAction('analysis_failed', {
                 stage: 'update_deliberation_stage',
                 reason: updateError,
@@ -1034,14 +1035,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     logUserAction('export_started', {
       timestamp: new Date().toISOString(),
     }, getUserId());
-    
+
     try {
-      const projectId = getProjectIdFromCookie();
-      if (!projectId) {
-        console.error('[handleCompletionforExport] Project ID not found');
-        setErrorMessage(t('Error.project-id-missing'));
+      const documentId = getDocumentIdFromCookie();
+      if (!documentId) {
+        console.error('[handleCompletionforExport] Document ID not found');
+        setErrorMessage(t('Error.document-id-missing'));
         logUserAction('export_failed', {
-          reason: 'project_id_missing',
+          reason: 'document_id_missing',
           timestamp: new Date().toISOString(),
         }, getUserId());
         return;
@@ -1056,11 +1057,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         return;
       }
 
-      console.log(`[Export][Frontend] Start. projectId=${projectId}, fileId=${fileId}, at=${new Date().toISOString()}`);
+      console.log(`[Export][Frontend] Start. documentId=${documentId}, fileId=${fileId}, at=${new Date().toISOString()}`);
 
       // apiClient でblob形式で取得
       const { data: pdfBlob, error: exportError, status: exportStatus } = await apiClient<Blob>(
-        `/projects/${projectId}/files/${fileId}/export`,
+        `/documents/${documentId}/files/${fileId}/export`,
         {
           method: 'GET',
           headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -1109,7 +1110,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       // ステージを EXPORT に更新
       const { data: updateResponse, error: updateError } = await apiClient<any>(
-        `/projects/${projectId}/update-completion-stage`,
+        `/documents/${documentId}/update-completion-stage`,
         {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -1121,7 +1122,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       if (updateError) {
         console.error('[handleCompletionforExport] Stage update error:', updateError);
-        setErrorMessage(t('Error.update-project-failed'));
+        setErrorMessage(t('Error.update-document-failed'));
         logUserAction('export_failed', {
           reason: 'stage_update_error',
           error: updateError,
@@ -1139,7 +1140,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         blobSize: (pdfBlob as Blob).size,
         timestamp: new Date().toISOString(),
       }, getUserId());
-      router.push('/projects');
+      router.push('/documents');
     } catch (error) {
       console.error('[handleCompletionforExport] Error:', error);
       setErrorMessage(t('Error.export-failed'));

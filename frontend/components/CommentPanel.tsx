@@ -64,7 +64,7 @@ const CommentHeader: React.FC<{
     completionStage === STAGE.GIVE_DELIBERATION_TIPS ||
     completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS
   );
-  
+
   // セッション情報から取得したユーザー名を優先的に使用
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
@@ -83,7 +83,7 @@ const CommentHeader: React.FC<{
         {showSelectButton && isSelected &&  (
           <span className={styles.selectedBadge}>✓ {t("CommentPanel.selected")}</span>
         )}
-        
+
         {/* ユーザー情報と時刻 */}
         <div className={styles.commentUserInfo}>
           <strong className={styles.commentAuthor}>{displayAuthor}</strong>
@@ -291,7 +291,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       rootId,
       isCollapsed: !collapsedMap[rootId],
       timestamp: new Date().toISOString(),
-    }, getUserId()); 
+    }, getUserId());
   };
 
   const startEditing = (id: string, text: string) => {
@@ -309,7 +309,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           text: editText,
         },
       });
-      
+
       if (error) {
         console.error('[saveEdit] API error:', error);
         setErrorMessage(t('Error.update-comment-failed'));
@@ -347,7 +347,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         reason: error.message,
         timestamp: new Date().toISOString(),
-      }, getUserId()); 
+      }, getUserId());
     }
   };
 
@@ -356,7 +356,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       logUserAction('comment_delete_cancelled', {
         commentId: id,
         timestamp: new Date().toISOString(),
-      }, getUserId()); 
+      }, getUserId());
       return;
     }
 
@@ -374,7 +374,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
-          
+
           if (error) {
             console.error('[removeCommentFn] Highlight delete error:', error);
             setErrorMessage(t('Error.delete-comment-failed'));
@@ -383,7 +383,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               reason: 'highlight_delete_error',
               error,
               timestamp: new Date().toISOString(),
-            }, getUserId()); 
+            }, getUserId());
             return;
           }
 
@@ -395,7 +395,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
-          
+
           if (error) {
             console.error('[removeCommentFn] Comment delete error:', error);
             setErrorMessage(t('Error.delete-comment-failed'));
@@ -404,7 +404,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               reason: 'comment_delete_error',
               error,
               timestamp: new Date().toISOString(),
-            }, getUserId()); 
+            }, getUserId());
             return;
           }
 
@@ -417,7 +417,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           method: 'DELETE',
           headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
-        
+
         if (error) {
           console.error('[removeCommentFn] Reply delete error:', error);
           setErrorMessage(t('Error.delete-comment-failed'));
@@ -426,7 +426,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             reason: 'reply_delete_error',
             error,
             timestamp: new Date().toISOString(),
-          }, getUserId()); 
+          }, getUserId());
           return;
         }
 
@@ -439,7 +439,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         isRoot: comment.parentId === null,
         hadHighlight: !!comment.highlightId,
         timestamp: new Date().toISOString(),
-      }, getUserId()); 
+      }, getUserId());
       closeMenu(id);
     } catch (error: any) {
       console.error('[removeCommentFn] Unexpected error:', error);
@@ -448,7 +448,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         reason: error.message,
         timestamp: new Date().toISOString(),
-      }, getUserId()); 
+      }, getUserId());
     }
   };
 
@@ -487,7 +487,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           reason: error,
           textLength: replyText.length,
           timestamp: new Date().toISOString(),
-        }, getUserId()); 
+        }, getUserId());
         return;
       }
 
@@ -499,7 +499,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           reason: 'no_data_received',
           textLength: replyText.length,
           timestamp: new Date().toISOString(),
-        }, getUserId()); 
+        }, getUserId());
         return;
       }
 
@@ -520,14 +520,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
       setReplyTextMap((prev) => ({ ...prev, [parentId]: "" }));
       setCollapsedMap(prev => ({ ...prev, [parentId]: false }));
-      
+
       logUserAction('reply_created', {
         replyId: savedComment.id,
         parentId,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
-      }, getUserId()); 
-      
+      }, getUserId());
+
       console.log('[sendReply] Reply saved successfully:', savedComment.id);
     } catch (error: any) {
       console.error('[sendReply] Unexpected error:', error);
@@ -537,7 +537,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         reason: error.message,
         textLength: replyText.length,
         timestamp: new Date().toISOString(),
-      }, getUserId()); 
+      }, getUserId());
     }
   };
 
@@ -563,8 +563,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           </button>
           <button
             className={styles.cancelButton}
-            onClick={(e) => { 
-              e.stopPropagation(); 
+            onClick={(e) => {
+              e.stopPropagation();
               setEditingId(null);
               logUserAction('comment_edit_cancelled', {
                 commentId: comment.id,
@@ -638,7 +638,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           commentId: activeCommentId,
           rootId,
           timestamp: new Date().toISOString(),
-        }, getUserId()); 
+        }, getUserId());
       }
     }
   }, [activeCommentId]);
@@ -738,7 +738,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                     rootCommentId: root.id,
                     highlightId: root.highlightId,
                     timestamp: new Date().toISOString(),
-                  }, getUserId()); 
+                  }, getUserId());
                 }}
               >
                 <CommentHeader
@@ -777,7 +777,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                         parentId: reply.parentId,
                         rootCommentId: root.id,
                         timestamp: new Date().toISOString(),
-                      }, getUserId()); 
+                      }, getUserId());
                     }}
                   >
                     <CommentHeader

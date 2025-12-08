@@ -3,32 +3,32 @@ from sqlmodel import Session, select
 from typing import List
 from app.db.base import get_session
 from app.api.deps import get_current_user, get_db
-from app.models import User, ProjectFile
-from app.schemas.project_file import ProjectFileCreate, ProjectFileRead
-from app.crud import project_file as crud_project_file
-from app.crud import project as crud_project
+from app.models import User, DocumentFile
+from app.schemas.document_file import DocumentFileCreate, DocumentFileRead
+from app.crud import document_file as crud_document_file
+from app.crud import document as crud_document
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/", response_model=ProjectFileRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=DocumentFileRead, status_code=status.HTTP_201_CREATED)
 def create_file_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    file_in: ProjectFileCreate
-) -> ProjectFile:
+    file_in: DocumentFileCreate
+) -> DocumentFile:
     """
-    プロジェクトファイルを作成
+    ドキュメントファイルを作成
     """
     try:
         # 入力バリデーション
-        if file_in.project_id <= 0:
+        if file_in.document_id <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="無効なプロジェクトIDです"
+                detail="無効なドキュメントIDです"
             )
         
         if not file_in.file_name or not file_in.file_name.strip():
@@ -43,26 +43,26 @@ def create_file_endpoint(
                 detail="ファイルキーが必要です"
             )
         
-        logger.info(f"Creating file for project {file_in.project_id} by user {current_user.id}")
+        logger.info(f"Creating file for document {file_in.document_id} by user {current_user.id}")
         
-        # プロジェクトの存在確認とアクセス権限チェック
-        project = crud_project.get_project(session, file_in.project_id)
-        if not project:
-            logger.warning(f"Project {file_in.project_id} not found")
+        # ドキュメントの存在確認とアクセス権限チェック
+        document = crud_document.get_document(session, file_in.document_id)
+        if not document:
+            logger.warning(f"Document {file_in.document_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="プロジェクトが見つかりません"
+                detail="ドキュメントが見つかりません"
             )
         
-        if project.user_id != current_user.id:
-            logger.warning(f"User {current_user.id} attempted to access project {file_in.project_id} without permission")
+        if document.user_id != current_user.id:
+            logger.warning(f"User {current_user.id} attempted to access document {file_in.document_id} without permission")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="このプロジェクトへのアクセス権限がありません"
+                detail="このドキュメントへのアクセス権限がありません"
             )
         
         # ファイル作成
-        created_file = crud_project_file.create_project_file(session, file_in)
+        created_file = crud_document_file.create_document_file(session, file_in)
         
         if not created_file or not created_file.id:
             raise HTTPException(
@@ -89,63 +89,63 @@ def create_file_endpoint(
         )
 
 
-@router.get("/project/{project_id}", response_model=List[ProjectFileRead])
-def read_files_by_project_endpoint(
+@router.get("/document/{document_id}", response_model=List[DocumentFileRead])
+def read_files_by_document_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    project_id: int
-) -> List[ProjectFile]:
+    document_id: int
+) -> List[DocumentFile]:
     """
-    プロジェクトIDに紐づくファイル一覧を取得（作成日時の降順）
+    ドキュメントIDに紐づくファイル一覧を取得（作成日時の降順）
     """
     try:
-        if project_id <= 0:
+        if document_id <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="無効なプロジェクトIDです"
+                detail="無効なドキュメントIDです"
             )
         
-        logger.info(f"Fetching files for project {project_id} by user {current_user.id}")
+        logger.info(f"Fetching files for document {document_id} by user {current_user.id}")
         
-        # プロジェクトの存在確認とアクセス権限チェック
-        project = crud_project.get_project(session, project_id)
-        if not project:
-            logger.warning(f"Project {project_id} not found")
+        # ドキュメントの存在確認とアクセス権限チェック
+        document = crud_document.get_document(session, document_id)
+        if not document:
+            logger.warning(f"Document {document_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="プロジェクトが見つかりません"
+                detail="ドキュメントが見つかりません"
             )
         
-        if project.user_id != current_user.id:
-            logger.warning(f"User {current_user.id} attempted to access project {project_id} without permission")
+        if document.user_id != current_user.id:
+            logger.warning(f"User {current_user.id} attempted to access document {document_id} without permission")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="このプロジェクトへのアクセス権限がありません"
+                detail="このドキュメントへのアクセス権限がありません"
             )
         
         # ファイル一覧を取得（作成日時の降順でソート）
-        files = crud_project_file.get_project_files(session, project_id)
-        logger.info(f"Found {len(files)} files for project {project_id}")
+        files = crud_document_file.get_document_files(session, document_id)
+        logger.info(f"Found {len(files)} files for document {document_id}")
         return files
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching files for project {project_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error fetching files for document {document_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ファイル取得中にエラーが発生しました"
         )
 
 
-@router.get("/{file_id}", response_model=ProjectFileRead)
-def read_project_file_endpoint(
+@router.get("/{file_id}", response_model=DocumentFileRead)
+def read_document_file_endpoint(
     *,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
     file_id: int
-) -> ProjectFile:
+) -> DocumentFile:
     """
     ファイルIDで特定のファイルを取得
     """
@@ -158,7 +158,7 @@ def read_project_file_endpoint(
         
         logger.info(f"Fetching file {file_id} by user {current_user.id}")
         
-        file = crud_project_file.get_project_file(session, file_id)
+        file = crud_document_file.get_document_file(session, file_id)
         if not file:
             logger.warning(f"File {file_id} not found")
             raise HTTPException(
@@ -166,16 +166,16 @@ def read_project_file_endpoint(
                 detail="ファイルが見つかりません"
             )
         
-        # プロジェクトへのアクセス権限チェック
-        project = crud_project.get_project(session, file.project_id)
-        if not project:
-            logger.warning(f"Project {file.project_id} not found for file {file_id}")
+        # ドキュメントへのアクセス権限チェック
+        document = crud_document.get_document(session, file.document_id)
+        if not document:
+            logger.warning(f"Document {file.document_id} not found for file {file_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="プロジェクトが見つかりません"
+                detail="ドキュメントが見つかりません"
             )
         
-        if project.user_id != current_user.id:
+        if document.user_id != current_user.id:
             logger.warning(f"User {current_user.id} attempted to access file {file_id} without permission")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -214,7 +214,7 @@ def delete_file_endpoint(
         
         logger.info(f"Deleting file {file_id} by user {current_user.id}")
         
-        file = crud_project_file.get_project_file(session, file_id)
+        file = crud_document_file.get_document_file(session, file_id)
         if not file:
             logger.warning(f"File {file_id} not found for deletion")
             raise HTTPException(
@@ -222,16 +222,16 @@ def delete_file_endpoint(
                 detail="ファイルが見つかりません"
             )
         
-        # プロジェクトへのアクセス権限チェック
-        project = crud_project.get_project(session, file.project_id)
-        if not project:
-            logger.warning(f"Project {file.project_id} not found for file {file_id}")
+        # ドキュメントへのアクセス権限チェック
+        document = crud_document.get_document(session, file.document_id)
+        if not document:
+            logger.warning(f"Document {file.document_id} not found for file {file_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="プロジェクトが見つかりません"
+                detail="ドキュメントが見つかりません"
             )
         
-        if project.user_id != current_user.id:
+        if document.user_id != current_user.id:
             logger.warning(f"User {current_user.id} attempted to delete file {file_id} without permission")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -239,7 +239,7 @@ def delete_file_endpoint(
             )
         
         # ファイル削除（S3からの削除は別途実装が必要）
-        crud_project_file.delete_project_file(session, file_id)
+        crud_document_file.delete_document_file(session, file_id)
         logger.info(f"File {file_id} deleted successfully")
         return None
         

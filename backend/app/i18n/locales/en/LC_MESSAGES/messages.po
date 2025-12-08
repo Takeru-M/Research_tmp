@@ -94,52 +94,52 @@ msgid "Limit must be between 1 and 1000"
 msgstr "Limit must be between 1 and 1000"
 
 # ========================================
-# Projects (projects.py)
+# Documents (documents.py)
 # ========================================
-msgid "Project not found"
-msgstr "Project not found"
+msgid "Document not found"
+msgstr "Document not found"
 
-msgid "Invalid project ID"
-msgstr "Invalid project ID"
+msgid "Invalid document ID"
+msgstr "Invalid document ID"
 
-msgid "Project name is required"
-msgstr "Project name is required"
+msgid "Document name is required"
+msgstr "Document name is required"
 
-msgid "Project creation failed"
-msgstr "Project creation failed"
+msgid "Document creation failed"
+msgstr "Document creation failed"
 
-msgid "Project name already exists"
-msgstr "Project name already exists"
+msgid "Document name already exists"
+msgstr "Document name already exists"
 
-msgid "Unauthorized project access"
-msgstr "Unauthorized project access"
+msgid "Unauthorized document access"
+msgstr "Unauthorized document access"
 
-msgid "Unauthorized project update"
-msgstr "Unauthorized project update"
+msgid "Unauthorized document update"
+msgstr "Unauthorized document update"
 
-msgid "Project update failed"
-msgstr "Project update failed"
+msgid "Document update failed"
+msgstr "Document update failed"
 
 msgid "Completion stage update failed"
 msgstr "Completion stage update failed"
 
-msgid "Unauthorized project deletion"
-msgstr "Unauthorized project deletion"
+msgid "Unauthorized document deletion"
+msgstr "Unauthorized document deletion"
 
-msgid "Project deletion failed"
-msgstr "Project deletion failed"
+msgid "Document deletion failed"
+msgstr "Document deletion failed"
 
-msgid "Project list retrieval failed"
-msgstr "Project list retrieval failed"
+msgid "Document list retrieval failed"
+msgstr "Document list retrieval failed"
 
-msgid "Project retrieval failed"
-msgstr "Project retrieval failed"
+msgid "Document retrieval failed"
+msgstr "Document retrieval failed"
 
 msgid "Database integrity error"
 msgstr "Database integrity error"
 
-msgid "Project files retrieval failed"
-msgstr "Project files retrieval failed"
+msgid "Document files retrieval failed"
+msgstr "Document files retrieval failed"
 
 msgid "Related data deletion failed"
 msgstr "Related data deletion failed"
@@ -148,7 +148,7 @@ msgid "File deletion failed"
 msgstr "File deletion failed"
 
 # ========================================
-# Files (project_files.py)
+# Files (document_files.py)
 # ========================================
 msgid "File not found"
 msgstr "File not found"
@@ -286,10 +286,10 @@ msgid "PDF uploaded successfully"
 msgstr "PDF uploaded successfully"
 
 # ========================================
-# PDF Export (projects.py - export endpoint)
+# PDF Export (documents.py - export endpoint)
 # ========================================
-msgid "Invalid project or file ID"
-msgstr "Invalid project or file ID"
+msgid "Invalid document or file ID"
+msgstr "Invalid document or file ID"
 
 msgid "S3 PDF fetch failed"
 msgstr "S3 PDF fetch failed"

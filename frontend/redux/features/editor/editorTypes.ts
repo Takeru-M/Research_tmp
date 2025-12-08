@@ -40,7 +40,7 @@ interface BaseHighlight {
 // PDF （ページを跨げる）
 export interface PdfHighlight extends BaseHighlight {
   type: 'pdf';
-  rects: PdfRectWithPage[]; // ✅ pageNumを各rectと紐付け
+  rects: PdfRectWithPage[];
 }
 
 // テキストファイル用のハイライト型
@@ -54,6 +54,8 @@ export type Highlight = TextHighlight | PdfHighlight;
 
 // コメントパネルのスクロールに必要な情報
 export interface ScrollTarget {
+    viewerY: number;
+    highlightId: string;
     pdfY1: number;         // 選択されたハイライトの y1 (PDF座標)
     pageNum: number;       // ページ番号
     pageScale: number;     // そのページの現在のレンダリングスケール
@@ -128,9 +130,9 @@ export type DividedMeetingText = {
 
 export type DividedMeetingTexts = DividedMeetingText[];
 
-export type Project = {
+export type Document = {
   id: number;
-  project_name: string;
+  document_name: string;
   stage: number;
   created_at: string;
   updated_at: string | null;

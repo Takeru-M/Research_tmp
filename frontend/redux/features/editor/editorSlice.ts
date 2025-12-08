@@ -87,8 +87,8 @@ const editorSlice = createSlice({
           parentId: null,
           author: initialComment.author,
           text: initialComment.text,
-          createdAt: initialComment.createdAt ?? new Date().toISOString(),
-          editedAt: null,
+          created_at: initialComment.createdAt ?? new Date().toISOString(),
+          edited_at: null,
           deleted: false,
         };
         state.comments.push(c);
@@ -177,7 +177,7 @@ const editorSlice = createSlice({
       const c = state.comments.find((x) => x.id === action.payload.id);
       if (c) {
         c.text = action.payload.text;
-        c.editedAt = new Date().toISOString();
+        c.edited_at = new Date().toISOString();
       }
     },
 
@@ -292,7 +292,7 @@ const editorSlice = createSlice({
       state.documentName = action.payload;
     },
 
-    setCompletionStage(state, action: PayloadAction<number | undefined>) {
+    setCompletionStage(state, action: PayloadAction<number>) {
       state.completionStage = action.payload;
     }
   },

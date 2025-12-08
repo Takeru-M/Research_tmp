@@ -1,2 +1,19 @@
 # 環境設定ファイル
 .env
+
+# Python キャッシュファイル
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Alembic キャッシュ
+alembic/__pycache__/
+alembic/versions/__pycache__/
+
+# その他のキャッシュ
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json

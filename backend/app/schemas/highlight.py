@@ -5,7 +5,7 @@ from .highlight_rect import HighlightRectRead
 from .comment import CommentRead
 
 class HighlightBase(BaseModel):
-    project_file_id: int
+    document_file_id: int
     created_by: str  # 'user' | 'ai'
     memo: Optional[str] = None
     text: Optional[str] = None
@@ -20,7 +20,7 @@ class HighlightUpdate(BaseModel):
 class HighlightRead(HighlightBase):
     id: int
     comment_id: Optional[int] = None
-    project_file_id: int
+    document_file_id: int
     created_by: str
     memo: str
     text: Optional[str] = None

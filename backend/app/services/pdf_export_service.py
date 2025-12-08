@@ -83,9 +83,9 @@ class PDFExportService:
     def export_pdf_with_comments(
         self,
         original_pdf_bytes: bytes,
-        project_file_id: int
+        document_file_id: int
     ) -> BytesIO:
-        logger.info(f"[PDFExportService] Start export. project_file_id={project_file_id} bytes_len={len(original_pdf_bytes)}")
+        logger.info(f"[PDFExportService] Start export. document_file_id={document_file_id} bytes_len={len(original_pdf_bytes)}")
         base_stream = BytesIO(original_pdf_bytes)
         reader = PdfReader(base_stream)
         writer = PdfWriter()
@@ -94,7 +94,7 @@ class PDFExportService:
         for page in reader.pages:
             writer.add_page(page)
 
-        highlights = self._get_highlights_with_comments(project_file_id)
+        highlights = self._get_highlights_with_comments(document_file_id)
         logger.info(f"[PDFExportService] Highlights fetched: count={len(highlights)}")
 
         if highlights:
@@ -112,10 +112,10 @@ class PDFExportService:
         logger.info(f"[PDFExportService] Output size={output.getbuffer().nbytes}")
         return output
 
-    def _get_highlights_with_comments(self, project_file_id: int) -> List[Highlight]:
+    def _get_highlights_with_comments(self, document_file_id: int) -> List[Highlight]:
         statement = (
             select(Highlight)
-            .where(Highlight.project_file_id == project_file_id)
+            .where(Highlight.document_file_id == document_file_id)
             .order_by(Highlight.created_at)
         )
         highlights = self.db.exec(statement).all()

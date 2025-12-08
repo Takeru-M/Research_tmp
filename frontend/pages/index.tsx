@@ -72,8 +72,8 @@ const EditorPageContent: React.FC = () => {
     return session?.user?.name || t("CommentPanel.comment-author-user");
   }, [session, t]);
 
-  const getProjectIdFromCookie = (): number | null => {
-    const match = document.cookie.match(/(?:^|; )projectId=(\d+)/);
+  const getDocumentIdFromCookie = (): number | null => {
+    const match = document.cookie.match(/(?:^|; )documentId=(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   };
 
@@ -186,19 +186,19 @@ const EditorPageContent: React.FC = () => {
     }
   }, [dispatch, getUserName, session?.accessToken, t, getUserId]);
 
-  const fetchProjectFile = useCallback(async (projectId: number) => {
-    dispatch(startLoading('Loading project file...'));
+  const fetchDocumentFile = useCallback(async (documentId: number) => {
+    dispatch(startLoading('Loading document file...'));
     try {
-      const { data: response, error } = await apiClient<any>(`/projects/${projectId}/project-files`, {
+      const { data: response, error } = await apiClient<any>(`/documents/${documentId}/document-files`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
 
       if (error) {
-        console.error('[fetchProjectFile] Error:', error);
+        console.error('[fetchDocumentFile] Error:', error);
         setErrorMessage(t('Error.file-fetch-failed'));
         logUserAction('file_fetch_failed', {
-          projectId,
+          documentId,
           reason: error,
           timestamp: new Date().toISOString(),
         }, getUserId());
@@ -207,10 +207,10 @@ const EditorPageContent: React.FC = () => {
       }
 
       if (!response || response.length === 0) {
-        console.info('[fetchProjectFile] No files found for this project yet.');
+        console.info('[fetchDocumentFile] No files found for this document yet.');
         setIsFileUploaded(false);
         logUserAction('file_fetch_empty', {
-          projectId,
+          documentId,
           timestamp: new Date().toISOString(),
         }, getUserId());
         return;
@@ -227,10 +227,10 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (blobError || !blobData) {
-        console.error('[fetchProjectFile] S3 fetch error:', blobError);
+        console.error('[fetchDocumentFile] S3 fetch error:', blobError);
         setErrorMessage(t('Error.file-fetch-failed'));
         logUserAction('s3_file_fetch_failed', {
-          projectId,
+          documentId,
           fileKey: latestFile.file_key,
           reason: blobError,
           timestamp: new Date().toISOString(),
@@ -249,7 +249,7 @@ const EditorPageContent: React.FC = () => {
       }));
       setIsFileUploaded(true);
       logUserAction('file_loaded', {
-        projectId,
+        documentId,
         fileId: latestFile.id,
         fileName: latestFile.file_name,
         mimeType: latestFile.mime_type,
@@ -262,20 +262,20 @@ const EditorPageContent: React.FC = () => {
     }
   }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t, getUserId]);
 
-  const fetchProjectInfo = useCallback(async (projectId: number) => {
+  const fetchDocumentInfo = useCallback(async (documentId: number) => {
     try {
-      dispatch(startLoading('Loading project info...'));
+      dispatch(startLoading('Loading document info...'));
 
-      const { data: res, error } = await apiClient<any>(`/projects/${projectId}`, {
+      const { data: res, error } = await apiClient<any>(`/documents/${documentId}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
 
       if (error) {
-        console.error('[fetchProjectInfo] Error:', error);
-        setErrorMessage(t('Error.project-info-fetch-failed'));
-        logUserAction('project_info_fetch_failed', {
-          projectId,
+        console.error('[fetchDocumentInfo] Error:', error);
+        setErrorMessage(t('Error.document-info-fetch-failed'));
+        logUserAction('document_info_fetch_failed', {
+          documentId,
           reason: error,
           timestamp: new Date().toISOString(),
         }, getUserId());
@@ -286,15 +286,15 @@ const EditorPageContent: React.FC = () => {
 
       if (stage !== null && !Number.isNaN(stage)) {
         dispatch(setCompletionStage(stage));
-        logUserAction('project_info_loaded', {
-          projectId,
+        logUserAction('document_info_loaded', {
+          documentId,
           completionStage: stage,
           timestamp: new Date().toISOString(),
         }, getUserId());
       } else {
-        console.warn('Project info does not include a valid stage:', res);
-        logUserAction('project_info_invalid_stage', {
-          projectId,
+        console.warn('Document info does not include a valid stage:', res);
+        logUserAction('document_info_invalid_stage', {
+          documentId,
           stage,
           timestamp: new Date().toISOString(),
         }, getUserId());
@@ -305,34 +305,34 @@ const EditorPageContent: React.FC = () => {
   }, [dispatch, session?.accessToken, t, getUserId]);
 
   useEffect(() => {
-    const projectId = getProjectIdFromCookie();
-    const isNewProject = router.query.new === 'true';
-    
-    if (projectId && !isNewProject) {
+    const documentId = getDocumentIdFromCookie();
+    const isNewDocument = router.query.new === 'true';
+
+    if (documentId && !isNewDocument) {
       logUserAction('editor_loaded', {
-        projectId,
-        isNewProject: false,
+        documentId,
+        isNewDocument: false,
         timestamp: new Date().toISOString(),
       }, getUserId());
-      fetchProjectInfo(projectId);
-      fetchProjectFile(projectId);
-    } else if (projectId && isNewProject) {
+      fetchDocumentInfo(documentId);
+      fetchDocumentFile(documentId);
+    } else if (documentId && isNewDocument) {
       logUserAction('editor_loaded', {
-        projectId,
-        isNewProject: true,
+        documentId,
+        isNewDocument: true,
         timestamp: new Date().toISOString(),
       }, getUserId());
-      fetchProjectInfo(projectId);
-      console.log('New project created.');
+      fetchDocumentInfo(documentId);
+      console.log('New document created.');
     } else {
-      console.warn('No project ID found in cookies');
+      console.warn('No document ID found in cookies');
       logUserAction('editor_load_failed', {
-        reason: 'no_project_id',
+        reason: 'no_document_id',
         timestamp: new Date().toISOString(),
       }, getUserId());
-      router.push('/projects');
+      router.push('/documents');
     }
-  }, [fetchProjectInfo, fetchProjectFile, router, getUserId]);
+  }, [fetchDocumentInfo, fetchDocumentFile, router, getUserId]);
 
   // ---------------------------
   // S3アップロード + バックエンド保存
@@ -390,23 +390,23 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      const project_id = getProjectIdFromCookie();
-      if (!project_id) {
-        console.error('[uploadPdfToS3AndSave] Project ID not found');
-        setErrorMessage(t('Error.project-id-missing'));
+      const document_id = getDocumentIdFromCookie();
+      if (!document_id) {
+        console.error('[uploadPdfToS3AndSave] Document ID not found');
+        setErrorMessage(t('Error.document-id-missing'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
-          reason: 'project_id_missing',
+          reason: 'document_id_missing',
           timestamp: new Date().toISOString(),
         }, getUserId());
         return;
       }
 
-      const { data: dbResponse, error: dbError } = await apiClient<any>('/project-files', {
+      const { data: dbResponse, error: dbError } = await apiClient<any>('/document-files', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
-          project_id: parseInt(project_id.toString(), 10),
+          document_id: parseInt(document_id.toString(), 10),
           file_name: file.name,
           file_key: s3Data.s3_key,
           file_url: s3Data.s3_url,
@@ -438,7 +438,7 @@ const EditorPageContent: React.FC = () => {
       logUserAction('file_upload_success', {
         fileName: file.name,
         fileId: dbResponse.id,
-        projectId: project_id,
+        documentId: document_id,
         timestamp: new Date().toISOString(),
       }, getUserId());
     } finally {
@@ -621,13 +621,13 @@ const EditorPageContent: React.FC = () => {
         try {
           dispatch(startLoading('Saving highlight and memo...'));
 
-          const projectId = getProjectIdFromCookie();
-          if (!projectId) {
-            console.error('[handleSaveMemo] Project ID not found');
-            setErrorMessage(t('Error.project-id-missing'));
+          const documentId = getDocumentIdFromCookie();
+          if (!documentId) {
+            console.error('[handleSaveMemo] Document ID not found');
+            setErrorMessage(t('Error.document-id-missing'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
-              reason: 'project_id_missing',
+              reason: 'document_id_missing',
               timestamp: new Date().toISOString(),
             }, getUserId());
             return;
@@ -650,7 +650,7 @@ const EditorPageContent: React.FC = () => {
             method: 'POST',
             headers: { Authorization: `Bearer ${session?.accessToken}` },
             body: {
-              project_file_id: fileId,
+              document_file_id: fileId,
               created_by: userName,
               memo: memo.trim(),
               text: pendingHighlight.text || '',
@@ -661,7 +661,7 @@ const EditorPageContent: React.FC = () => {
                 x2: rect.x2,
                 y2: rect.y2,
               })),
-              element_type: pendingHighlight.elementType || 'pdf',
+              element_type: pendingHighlight.type || 'pdf',
             },
           });
 
@@ -677,7 +677,7 @@ const EditorPageContent: React.FC = () => {
           }
 
           console.log('Highlight saved:', response);
-          
+
           if (!response.id) {
             console.error('[handleSaveMemo] Highlight ID missing in response');
             setErrorMessage(t('Error.highlight-save-failed'));
@@ -703,8 +703,8 @@ const EditorPageContent: React.FC = () => {
             parentId: null,
             author: userName,
             text: memo.trim(),
-            createdAt: response.created_at,
-            editedAt: null,
+            created_at: response.created_at,
+            edited_at: null,
             deleted: false,
           };
 
@@ -752,9 +752,15 @@ const EditorPageContent: React.FC = () => {
     if (!fileContent) return <p className={styles.noFileMessage}>{t("file-upload-txt")}</p>;
 
     if (fileType && fileType.includes('pdf')) {
+      const pdfFile = typeof fileContent === 'string' ? fileContent : null;
+
+      if (!pdfFile) {
+        return <p className={styles.errorMessage}>{t("Error.file-format")}</p>;
+      }
+
       return (
         <PdfViewer
-          file={fileContent}
+          file={pdfFile}
           highlights={pdfHighlights}
           comments={allComments}
           onRequestAddHighlight={handleRequestAddHighlight}
