@@ -1,15 +1,13 @@
-// src/components/PdfViewer.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useDispatch, useSelector } from 'react-redux';
-import axios from 'axios';
 import { useSession } from 'next-auth/react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import { RootState } from '@/redux/store';
-import { PdfHighlight, Comment as CommentType, PdfRectWithPage, EditorState, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
@@ -17,9 +15,8 @@ import FabricShapeLayer from './FabricShapeLayer';
 import LoadingOverlay from './LoadingOverlay';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
-import { v4 as uuidv4 } from 'uuid';
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { MIN_PDF_WIDTH, OPTION_SYSTEM_PROMPT, OPTION_DIALOGUE_SYSTEM_PROMPT, FORMAT_DATA_SYSTEM_PROMPT, DELIBERATION_SYSTEM_PROMPT, DELIBERATION_DIALOGUE_SYSTEM_PROMPT, STAGE } from '@/utils/constants';
+import { STAGE } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
 import { logUserAction } from '@/utils/logger';
@@ -41,8 +38,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
   const [pageTextItems, setPageTextItems] = useState<{ [n:number]:any[] }>({});
-  const [showMemoModal, setShowMemoModal] = useState(false);
-  const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
   const [dividedMeetingTexts, setDividedMeetingTexts] = useState<DividedMeetingTexts | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -387,7 +382,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             return; // ハイライト処理が完了したら終了
         }
     }
-    // ----------------------------------------------------
 
     // --- 既存のテキスト選択ロジック (ハイライトクリックでなかった場合のみ実行) ---
     const text=sel.toString().trim();
@@ -1100,7 +1094,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.log('[Export][Frontend] Blob size:', (pdfBlob as Blob).size);
 
       // デフォルトのファイル名を生成
-      let filename = 'export_with_comments.pdf';
+      const filename = 'export_with_comments.pdf';
 
       // ダウンロード処理
       const urlObj = window.URL.createObjectURL(pdfBlob as Blob);

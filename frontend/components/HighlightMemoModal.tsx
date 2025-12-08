@@ -1,4 +1,3 @@
-// src/components/HighlightMemoModal.tsx
 import React, { useState, MouseEvent } from 'react';
 import { useDispatch } from 'react-redux';
 import { setActiveHighlightId } from '@/redux/features/editor/editorSlice';

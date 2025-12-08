@@ -70,7 +70,7 @@ const SignupPage: React.FC = () => {
           confirmPassword: !!cError,
         },
         timestamp: new Date().toISOString(),
-      }, 'anonymous'); // バリデーション失敗時は匿名
+      }, 'anonymous');
       setFormError(t('Signup.validation.fix-errors'));
       return;
     }
@@ -79,9 +79,9 @@ const SignupPage: React.FC = () => {
 
     logUserAction('signup_attempt', {
       username,
-      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'), // メールアドレスをマスク
+      email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
       timestamp: new Date().toISOString(),
-    }, 'anonymous'); // サインアップ試行時は匿名
+    }, 'anonymous');
 
     const { data, error } = await apiClient<any>('/signup', {
       method: 'POST',
@@ -100,7 +100,7 @@ const SignupPage: React.FC = () => {
         username,
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      }, 'anonymous'); // サインアップ失敗時は匿名
+      }, 'anonymous');
       setFormError(error);
       setIsSubmitting(false);
       return;
@@ -113,7 +113,7 @@ const SignupPage: React.FC = () => {
         username,
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      }, 'anonymous'); // サインアップ失敗時は匿名
+      }, 'anonymous');
       setFormError(t('Signup.error'));
       setIsSubmitting(false);
       return;
@@ -123,7 +123,7 @@ const SignupPage: React.FC = () => {
       username,
       email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
       timestamp: new Date().toISOString(),
-    }, email); // サインアップ成功時はemailをユーザーIDとして使用
+    }, email);
     setSuccessMessage(t('Signup.success'));
 
     // 自動ログイン処理
@@ -138,7 +138,7 @@ const SignupPage: React.FC = () => {
         username,
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      }, email); // 自動ログイン成功時はemailをユーザーIDとして使用
+      }, email);
       router.replace('/projects');
     } else {
       console.error('[Signup] Auto-login failed');
@@ -147,7 +147,7 @@ const SignupPage: React.FC = () => {
         username,
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      }, email); // 自動ログイン失敗時もemailをユーザーIDとして使用
+      }, email);
       setFormError(t('Signup.login-failed'));
       setIsSubmitting(false);
     }

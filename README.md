@@ -184,14 +184,14 @@ http://127.0.0.1:3000 にアクセスできるか確認
 ### 環境変数の一覧
 
 .env（ルートディレクトリ）
-MYSQL_HOST={ホスト名}
-MYSQL_ROOT_PASSWORD={ルートパスワード}
-MYSQL_USER={ユーザ名}
-MYSQL_ROOT={ルートユーザ名}
-MYSQL_PASSWORD={パスワード}
-MYSQL_DATABASE={データベース名}
+DB_HOST={ホスト名}
+DB_ROOT_PASSWORD={ルートパスワード}
+DB_USER={ユーザ名}
+DB_ROOT={ルートユーザ名}
+DB_PASSWORD={パスワード}
+DB_DATABASE={データベース名}
 MYSQL_TEST_DATABASE={テスト用データベース名}
-DATABASE_URL=mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:3306/{MYSQL_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
+DATABASE_URL=mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
 
 .env（frontend 内）
 OPENAI_SECRET_KEY={OpenAI の API キー}
@@ -203,14 +203,14 @@ AWS_REGION={リージョン名}
 S3_BUCKET_NAME={バケット名}
 
 .env（backend 内）
-MYSQL_HOST={ホスト名}
-MYSQL_ROOT_PASSWORD={ルートパスワード}
-MYSQL_USER={ユーザ名}
-MYSQL_ROOT={ルートユーザ名}
-MYSQL_PASSWORD={パスワード}
-MYSQL_DATABASE={データベース名}
+DB_HOST={ホスト名}
+DB_ROOT_PASSWORD={ルートパスワード}
+DB_USER={ユーザ名}
+DB_ROOT={ルートユーザ名}
+DB_PASSWORD={パスワード}
+DB_DATABASE={データベース名}
 MYSQL_TEST_DATABASE={テスト用データベース名}
-DATABASE_URL=mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:3306/{MYSQL_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
+DATABASE_URL=mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
 SECRET_KEY = {JWT 用シークレットキー}
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -228,14 +228,14 @@ S3_BUCKET_NAME={バケット名}
 
 ## 本番環境
 
-ルートディレクトリ直下のDocumentファイルを参照
+ルートディレクトリ直下の Document ファイルを参照
 
 ## 開発の流れ
 
-ルートディレクトリ直下のDocumentファイルを参照
+ルートディレクトリ直下の Document ファイルを参照
 
 ## その他注意点
 
-ルートディレクトリ直下のNoteファイルを参照
+ルートディレクトリ直下の Note ファイルを参照
 
 <p align="right">(<a href="#top">トップへ</a>)</p>

@@ -19,3 +19,4 @@ reportlab
 babel
 openai
 s3
+psycopg2-binary

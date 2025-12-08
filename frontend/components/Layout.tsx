@@ -1,4 +1,3 @@
-// src/components/Layout.tsx
 import Head from 'next/head';
 import React, { ChangeEvent, PropsWithChildren, useCallback, useEffect } from 'react';
 import styles from '../styles/Layout.module.css';

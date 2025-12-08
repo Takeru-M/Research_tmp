@@ -42,11 +42,11 @@ async def receive_frontend_logs(request: BatchLogRequest):
                 args=(),
                 exc_info=None,
             )
-            
+
             log_dict = log_data.dict()
             log_dict['source'] = 'frontend'
             log_record.log_data = log_dict
-            
+
             logging.getLogger('user_action').handle(log_record)
 
         return {"status": "success", "received": len(request.logs)}

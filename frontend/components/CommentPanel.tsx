@@ -1,5 +1,3 @@
-// ../components/CommentPanel.tsx
-
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {

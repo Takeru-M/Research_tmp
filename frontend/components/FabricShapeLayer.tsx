@@ -1,5 +1,4 @@
-// 使用はしているが，未実装のためおそらく役に立っていない
-// src/components/FabricShapeLayer.tsx
+// 未実装のため役に立っていない
 import React, { useRef, useEffect, useCallback } from 'react';
 import * as fabric from 'fabric';
 import { PdfRectWithPage } from '../redux/features/editor/editorTypes';

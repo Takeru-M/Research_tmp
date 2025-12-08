@@ -61,7 +61,7 @@ export const makeSelectCommentsByHighlight = (highlightId?: string) =>
     (state: RootState) => state.editor.comments,
     (comments) => {
       if (!highlightId) return comments;
-      return comments.filter((c) => c.highlightId === highlightId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      return comments.filter((c) => c.highlightId === highlightId).sort((a, b) => a.created_at.localeCompare(b.created_at));
     }
   );
 

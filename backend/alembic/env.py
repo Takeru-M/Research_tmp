@@ -31,7 +31,6 @@ target_metadata = SQLModel.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
-
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -64,21 +63,12 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # 環境変数からURLを動的に構築
-    DB_HOST = os.getenv("MYSQL_HOST")
-    DB_ROOT = os.getenv("MYSQL_ROOT")
-    DB_USER = os.getenv("MYSQL_USER")
-    DB_ROOT_PASSWORD = os.getenv("MYSQL_ROOT_PASSWORD")
-    DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
-    DB_NAME = os.getenv("MYSQL_DATABASE")
+    DB_URL = os.getenv("DATABASE_URL")
 
-    db_url = (
-      f"mysql+pymysql://{DB_HOST}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?charset=utf8mb4&collation=utf8mb4_unicode_ci"
-    )
+    if not DB_URL:
+        raise ValueError("DATABASE_URL is not set or empty")
 
-    # alembic.iniのURLを上書き
-    # if db_url:
-    #     config.set_main_option("sqlalchemy.url", db_url)
+    config.set_main_option("sqlalchemy.url", DB_URL)
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
@@ -89,10 +79,6 @@ def run_migrations_online() -> None:
             "use_unicode": True,
         }
     )
-    # connectable = create_engine(
-    #     url,
-    #     poolclass=pool.NullPool,
-    # )
 
     with connectable.connect() as connection:
         context.configure(

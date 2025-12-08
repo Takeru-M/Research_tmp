@@ -1,4 +1,3 @@
-// src/pages/index.tsx
 import React, { useCallback, useEffect, useState, ChangeEvent, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -7,9 +6,6 @@ import {
   updateHighlightMemo,
   setActiveHighlightId,
   setActiveCommentId,
-  deleteComment,
-  deleteHighlight,
-  updateComment,
   setHighlights,
   setComments,
   setCompletionStage,
@@ -17,11 +13,9 @@ import {
 } from '../redux/features/editor/editorSlice';
 
 import {
-  selectFile,
   selectFileType,
   selectFileContent,
   selectPdfHighlights,
-  selectTextHighlights,
   selectActiveHighlightId,
   selectActiveHighlightMemo,
   selectAllComments,
@@ -36,17 +30,13 @@ import { useRouter } from 'next/router';
 import HighlightMemoModal from '../components/HighlightMemoModal';
 import CommentPanel from '../components/CommentPanel';
 import styles from '../styles/Index.module.css';
-import { v4 as uuidv4 } from 'uuid';
 import "../lang/config";
 import { useTranslation } from "react-i18next";
-import { CSSProperties } from 'react';
 import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
-import LoginPage from './login';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import { useSelector as useReduxSelector } from 'react-redux';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { apiClient } from '@/utils/apiClient';
-import { apiV1Client } from '@/utils/apiV1Client';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { logUserAction } from '@/utils/logger';
 
@@ -59,7 +49,6 @@ const EditorPageContent: React.FC = () => {
   const router = useRouter();
   const { data: session } = useSession();
 
-  const file = useSelector(selectFile);
   const fileType = useSelector(selectFileType);
   const fileContent = useSelector(selectFileContent);
   const pdfHighlights = useSelector(selectPdfHighlights);
@@ -72,7 +61,6 @@ const EditorPageContent: React.FC = () => {
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const [isFileUploaded, setIsFileUploaded] = useState(false);
-  const [currentFileId, setCurrentFileId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ユーザーIDを取得するヘルパー関数を追加
