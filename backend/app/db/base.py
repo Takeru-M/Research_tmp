@@ -38,6 +38,12 @@ engine = create_engine(
     get_db_url(),
     echo=False,
     pool_pre_ping=True,
+    pool_recycle=3600,
+    connect_args={
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+    },
 )
 
 # 接続ごとに文字コードを強制設定
@@ -61,15 +67,15 @@ def get_session() -> Generator[Session, None, None]:
     依存性注入(DI)のためのセッションジェネレータ関数。
     FastAPIの `Depends` で使用します。
     """
-    with Session(engine) as session:
-        try:
-            yield session
-        except Exception as e:
-            session.rollback()
-            logger.error(f"[get_session] Database session error: {e}", exc_info=True)
-            raise
-        finally:
-            session.close()
+    session = Session(engine)
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 # Alembic設定用のmetadata
 metadata = SQLModel.metadata

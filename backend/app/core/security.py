@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Annotated
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 from app.db.base import get_session
 from app.models.users import User
+from app.api.deps import get_db
 import os
 import logging
 
@@ -72,29 +73,29 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 # ===== get_current_user（ここが必要） =====
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    session: Session = Depends(get_session),
-) -> User:
-    """JWT から user_id を取り出し、DB からユーザを取得"""
-    payload = decode_access_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="トークンが無効または期限切れです",
-        )
-
-    user_id: int = payload.get("user_id")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-
-    user = session.exec(select(User).where(User.id == user_id)).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    return user
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: Session = Depends(get_db),
+):
+    """トークンからユーザーを取得"""
+    try:
+        payload = decode_access_token(token)  # ← decode_token → decode_access_token
+        
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user_id = payload.get("user_id")
+        
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        
+        user = session.exec(
+            select(User).where(User.id == user_id)
+        ).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return user
+    except Exception as e:
+        logger.error(f"Error in get_current_user: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
