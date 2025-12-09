@@ -34,33 +34,37 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          console.error("Missing credentials");
+          return null;
+        }
 
-        const url = `${process.env.NEXT_PUBLIC_API_URL}`;
         try {
-          const response = await fetch(
-            `${url}/auth/token`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                email: credentials.email,
-                password: credentials.password,
-              }),
-            }
-          );
+          const url = `${process.env.NEXT_PUBLIC_API_URL}/auth/token`;
+          console.log("Auth endpoint:", url);
+
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+
+          console.log("Auth response status:", response.status);
+          const data = await response.json();
+          console.log("Auth response data:", data);
 
           if (!response.ok) {
             console.error("FastAPI Authentication failed:", response.statusText);
             return null;
           }
 
-          const data: FastApiAuthResponse = await response.json();
-
           if (!data.access_token || !data.user_id) {
-            console.error("Missing required fields in response");
+            console.error("Missing required fields in response:", data);
             return null;
           }
 

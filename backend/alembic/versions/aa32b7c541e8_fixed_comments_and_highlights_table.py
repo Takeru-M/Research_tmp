@@ -29,47 +29,41 @@ def upgrade() -> None:
     if 'project_files' not in existing_tables:
         op.create_table('project_files',
             sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('file_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-            sa.Column('file_key', sqlmodel.sql.sqltypes.AutoString(length=500), nullable=False),
-            sa.Column('file_url', sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True),
+            sa.Column('file_name', sa.String(), nullable=False),
+            sa.Column('file_key', sa.String(length=500), nullable=False),
+            sa.Column('file_url', sa.String(length=500), nullable=True),
             sa.Column('file_size', sa.Integer(), nullable=True),
             sa.Column('project_id', sa.Integer(), nullable=True),
             sa.Column('created_at', sa.DateTime(), nullable=False),
-            sa.PrimaryKeyConstraint('id'),
-            mysql_charset='utf8mb4',
-            mysql_collate='utf8mb4_unicode_ci'
+            sa.PrimaryKeyConstraint('id')
         )
     
-    # 2. highlights テーブルを作成（CASCADE 付き）
+    # 2. highlights テーブルを作成
     if 'highlights' not in existing_tables:
         op.create_table('highlights',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('project_file_id', sa.Integer(), nullable=False),
-            sa.Column('created_by', sa.String(length=255, collation='utf8mb4_unicode_ci'), nullable=False),
-            sa.Column('memo', sa.Text(collation='utf8mb4_unicode_ci'), nullable=True),
-            sa.Column('text', sa.Text(collation='utf8mb4_unicode_ci'), nullable=True),
+            sa.Column('created_by', sa.String(length=255), nullable=False),
+            sa.Column('memo', sa.Text(), nullable=True),
+            sa.Column('text', sa.Text(), nullable=True),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.ForeignKeyConstraint(['project_file_id'], ['project_files.id'], ondelete='CASCADE'),
-            sa.PrimaryKeyConstraint('id'),
-            mysql_charset='utf8mb4',
-            mysql_collate='utf8mb4_unicode_ci'
+            sa.PrimaryKeyConstraint('id')
         )
     
-    # 3. comments テーブルを作成（CASCADE 付き）
+    # 3. comments テーブルを作成
     if 'comments' not in existing_tables:
         op.create_table('comments',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('highlight_id', sa.Integer(), nullable=True),
             sa.Column('parent_id', sa.Integer(), nullable=True),
-            sa.Column('author', sa.String(length=255, collation='utf8mb4_unicode_ci'), nullable=False),
-            sa.Column('text', sa.Text(collation='utf8mb4_unicode_ci'), nullable=False),
+            sa.Column('author', sa.String(length=255), nullable=False),
+            sa.Column('text', sa.Text(), nullable=False),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=True),
             sa.ForeignKeyConstraint(['highlight_id'], ['highlights.id'], ondelete='CASCADE'),
             sa.ForeignKeyConstraint(['parent_id'], ['comments.id'], ondelete='CASCADE'),
-            sa.PrimaryKeyConstraint('id'),
-            mysql_charset='utf8mb4',
-            mysql_collate='utf8mb4_unicode_ci'
+            sa.PrimaryKeyConstraint('id')
         )
     
     # 4. highlight_rects テーブルを作成（CASCADE 付き）
@@ -82,7 +76,7 @@ def upgrade() -> None:
             sa.Column('y1', sa.Float(), nullable=False),
             sa.Column('x2', sa.Float(), nullable=False),
             sa.Column('y2', sa.Float(), nullable=False),
-            sa.Column('element_type', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+            sa.Column('element_type', sa.String(), nullable=True),
             sa.ForeignKeyConstraint(['highlight_id'], ['highlights.id'], ondelete='CASCADE'),
             sa.PrimaryKeyConstraint('id')
         )
