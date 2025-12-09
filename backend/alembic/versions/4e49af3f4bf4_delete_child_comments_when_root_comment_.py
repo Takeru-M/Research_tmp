@@ -27,9 +27,10 @@ def upgrade() -> None:
                existing_type=sa.String(length=255),
                type_=sa.Text(),
                existing_nullable=False)
-        batch_op.drop_constraint('comments_ibfk_3', type_='foreignkey')
-        batch_op.drop_constraint('comments_ibfk_2', type_='foreignkey')
-        batch_op.drop_constraint('comments_ibfk_1', type_='foreignkey')
+        # PostgreSQL用に制約名を修正
+        batch_op.drop_constraint('comments_project_file_id_fkey', type_='foreignkey')
+        batch_op.drop_constraint('comments_parent_id_fkey', type_='foreignkey')
+        batch_op.drop_constraint('comments_highlight_id_fkey', type_='foreignkey')
         batch_op.create_foreign_key(None, 'comments', ['parent_id'], ['id'], ondelete='CASCADE')
         batch_op.create_foreign_key(None, 'highlights', ['highlight_id'], ['id'], ondelete='CASCADE')
         batch_op.drop_column('deleted')
@@ -47,15 +48,15 @@ def upgrade() -> None:
                existing_nullable=True)
 
     with op.batch_alter_table('project_files', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('file_name', sqlmodel.sql.sqltypes.AutoString(length=255), nullable=False))
-        batch_op.add_column(sa.Column('mime_type', sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True))
+        batch_op.add_column(sa.Column('file_name', sa.String(length=255), nullable=False))
+        batch_op.add_column(sa.Column('mime_type', sa.String(length=100), nullable=True))
         batch_op.add_column(sa.Column('file_size', sa.Integer(), nullable=True))
         batch_op.add_column(sa.Column('updated_at', sa.DateTime(), nullable=False))
         batch_op.drop_column('filename')
         batch_op.drop_column('file_type')
 
     with op.batch_alter_table('projects', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('project_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False))
+        batch_op.add_column(sa.Column('project_name', sa.String(), nullable=False))
         batch_op.add_column(sa.Column('updated_at', sa.DateTime(), nullable=True))
         batch_op.add_column(sa.Column('deleted_at', sa.DateTime(), nullable=True))
         batch_op.drop_column('name')
