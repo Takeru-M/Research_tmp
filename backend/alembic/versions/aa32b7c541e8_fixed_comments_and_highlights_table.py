@@ -40,7 +40,7 @@ def upgrade() -> None:
             mysql_collate='utf8mb4_unicode_ci'
         )
     
-    # 2. highlights テーブルを作成（collation削除）
+    # 2. highlights テーブルを作成
     if 'highlights' not in existing_tables:
         op.create_table('highlights',
             sa.Column('id', sa.Integer(), nullable=False),
@@ -53,7 +53,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
     
-    # 3. comments テーブルを作成（collation削除）
+    # 3. comments テーブルを作成
     if 'comments' not in existing_tables:
         op.create_table('comments',
             sa.Column('id', sa.Integer(), nullable=False),
