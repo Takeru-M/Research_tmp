@@ -93,11 +93,12 @@ def downgrade() -> None:
         batch_op.add_column(sa.Column('project_file_id', sa.Integer(), autoincrement=False, nullable=False))
         batch_op.add_column(sa.Column('edited_at', sa.DateTime(), nullable=True))
         batch_op.add_column(sa.Column('deleted', sa.Boolean(), autoincrement=False, nullable=False))
-        batch_op.drop_constraint(None, type_='foreignkey')
-        batch_op.drop_constraint(None, type_='foreignkey')
-        batch_op.create_foreign_key('comments_ibfk_1', 'highlights', ['highlight_id'], ['id'])
-        batch_op.create_foreign_key('comments_ibfk_2', 'comments', ['parent_id'], ['id'])
-        batch_op.create_foreign_key('comments_ibfk_3', 'project_files', ['project_file_id'], ['id'])
+        # PostgreSQL向けに制約名を修正
+        batch_op.drop_constraint('comments_highlight_id_fkey', type_='foreignkey')
+        batch_op.drop_constraint('comments_parent_id_fkey', type_='foreignkey')
+        batch_op.create_foreign_key('comments_project_file_id_fkey', 'project_files', ['project_file_id'], ['id'])
+        batch_op.create_foreign_key('comments_highlight_id_fkey', 'highlights', ['highlight_id'], ['id'])
+        batch_op.create_foreign_key('comments_parent_id_fkey', 'comments', ['parent_id'], ['id'])
         batch_op.alter_column('text',
                existing_type=sa.Text(),
                type_=sa.String(length=255),
