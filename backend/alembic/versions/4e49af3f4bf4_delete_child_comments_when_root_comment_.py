@@ -24,12 +24,12 @@ def upgrade() -> None:
     with op.batch_alter_table('comments', schema=None) as batch_op:
         batch_op.add_column(sa.Column('updated_at', sa.DateTime(), nullable=True))
         batch_op.alter_column('text',
-               existing_type=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=255),
-               type_=sa.Text(collation='utf8mb4_unicode_ci'),
+               existing_type=sa.String(length=255),
+               type_=sa.Text(),
                existing_nullable=False)
-        batch_op.drop_constraint(batch_op.f('comments_ibfk_3'), type_='foreignkey')
-        batch_op.drop_constraint(batch_op.f('comments_ibfk_2'), type_='foreignkey')
-        batch_op.drop_constraint(batch_op.f('comments_ibfk_1'), type_='foreignkey')
+        batch_op.drop_constraint('comments_ibfk_3', type_='foreignkey')
+        batch_op.drop_constraint('comments_ibfk_2', type_='foreignkey')
+        batch_op.drop_constraint('comments_ibfk_1', type_='foreignkey')
         batch_op.create_foreign_key(None, 'comments', ['parent_id'], ['id'], ondelete='CASCADE')
         batch_op.create_foreign_key(None, 'highlights', ['highlight_id'], ['id'], ondelete='CASCADE')
         batch_op.drop_column('deleted')
@@ -38,12 +38,12 @@ def upgrade() -> None:
 
     with op.batch_alter_table('highlights', schema=None) as batch_op:
         batch_op.alter_column('memo',
-               existing_type=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=255),
-               type_=sa.Text(collation='utf8mb4_unicode_ci'),
+               existing_type=sa.String(length=255),
+               type_=sa.Text(),
                existing_nullable=True)
         batch_op.alter_column('text',
-               existing_type=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=255),
-               type_=sa.Text(collation='utf8mb4_unicode_ci'),
+               existing_type=sa.String(length=255),
+               type_=sa.Text(),
                existing_nullable=True)
 
     with op.batch_alter_table('project_files', schema=None) as batch_op:
@@ -81,26 +81,26 @@ def downgrade() -> None:
 
     with op.batch_alter_table('highlights', schema=None) as batch_op:
         batch_op.alter_column('text',
-               existing_type=sa.Text(collation='utf8mb4_unicode_ci'),
-               type_=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=255),
+               existing_type=sa.Text(),
+               type_=sa.String(length=255),
                existing_nullable=True)
         batch_op.alter_column('memo',
-               existing_type=sa.Text(collation='utf8mb4_unicode_ci'),
-               type_=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=255),
+               existing_type=sa.Text(),
+               type_=sa.String(length=255),
                existing_nullable=True)
 
     with op.batch_alter_table('comments', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('project_file_id', mysql.INTEGER(), autoincrement=False, nullable=False))
-        batch_op.add_column(sa.Column('edited_at', mysql.DATETIME(), nullable=True))
-        batch_op.add_column(sa.Column('deleted', mysql.TINYINT(display_width=1), autoincrement=False, nullable=False))
+        batch_op.add_column(sa.Column('project_file_id', sa.Integer(), autoincrement=False, nullable=False))
+        batch_op.add_column(sa.Column('edited_at', sa.DateTime(), nullable=True))
+        batch_op.add_column(sa.Column('deleted', sa.Boolean(), autoincrement=False, nullable=False))
         batch_op.drop_constraint(None, type_='foreignkey')
         batch_op.drop_constraint(None, type_='foreignkey')
-        batch_op.create_foreign_key(batch_op.f('comments_ibfk_1'), 'highlights', ['highlight_id'], ['id'])
-        batch_op.create_foreign_key(batch_op.f('comments_ibfk_2'), 'comments', ['parent_id'], ['id'])
-        batch_op.create_foreign_key(batch_op.f('comments_ibfk_3'), 'project_files', ['project_file_id'], ['id'])
+        batch_op.create_foreign_key('comments_ibfk_1', 'highlights', ['highlight_id'], ['id'])
+        batch_op.create_foreign_key('comments_ibfk_2', 'comments', ['parent_id'], ['id'])
+        batch_op.create_foreign_key('comments_ibfk_3', 'project_files', ['project_file_id'], ['id'])
         batch_op.alter_column('text',
-               existing_type=sa.Text(collation='utf8mb4_unicode_ci'),
-               type_=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=255),
+               existing_type=sa.Text(),
+               type_=sa.String(length=255),
                existing_nullable=False)
         batch_op.drop_column('updated_at')
 
