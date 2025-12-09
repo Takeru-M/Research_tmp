@@ -68,16 +68,22 @@ def run_migrations_online() -> None:
     if not DB_URL:
         raise ValueError("DATABASE_URL is not set or empty")
 
+    # charset パラメータを削除（PostgreSQL では無効）
+    if "charset" in DB_URL:
+        DB_URL = DB_URL.split("?")[0]
+        if "?" in os.getenv("DATABASE_URL"):
+            # ? の後ろを保持するが charset は削除
+            params = os.getenv("DATABASE_URL").split("?")[1]
+            params = "&".join([p for p in params.split("&") if not p.startswith("charset")])
+            if params:
+                DB_URL += "?" + params
+
     config.set_main_option("sqlalchemy.url", DB_URL)
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        # connect_args={
-        #     "charset": "utf8mb4",
-        #     "use_unicode": True,
-        # }
     )
 
     with connectable.connect() as connection:
