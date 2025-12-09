@@ -1,11 +1,8 @@
 from datetime import datetime, timedelta
-from typing import Optional, Annotated
+from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session, select
-from app.models.users import User
 import os
 import logging
 
@@ -67,41 +64,3 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 # OAuth2 のトークンスキーム
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
-
-# ===== get_current_user（ここが必要） =====
-
-def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    session: Session = Depends(lambda: __import__('app.api.deps', fromlist=['get_db']).get_db),  # ← next() を削除
-):
-    """トークンからユーザーを取得"""
-    try:
-        logger.info("Starting get_current_user")
-        payload = decode_access_token(token)
-        
-        if not payload:
-            logger.error("Payload is None")
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        user_id = payload.get("user_id")
-        logger.info(f"Extracted user_id: {user_id}")
-        
-        if user_id is None:
-            logger.error("user_id is None")
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-        
-        user = session.exec(
-            select(User).where(User.id == user_id)
-        ).first()
-        
-        if not user:
-            logger.error(f"User not found for user_id: {user_id}")
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        logger.info(f"Successfully retrieved user: {user.email}")
-        return user
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in get_current_user: {e}")
-        raise HTTPException(status_code=401, detail="Invalid token")
