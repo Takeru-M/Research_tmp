@@ -72,18 +72,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    session: Session = Depends(lambda: __import__('app.api.deps', fromlist=['get_db']).get_db()),  # ← 遅延インポート
+    session: Session = Depends(lambda: next(__import__('app.api.deps', fromlist=['get_db']).get_db())),  # ← next() を追加
 ):
     """トークンからユーザーを取得"""
     try:
+        logger.info("Starting get_current_user")
         payload = decode_access_token(token)
         
         if not payload:
+            logger.error("Payload is None")
             raise HTTPException(status_code=401, detail="Invalid token")
         
         user_id = payload.get("user_id")
+        logger.info(f"Extracted user_id: {user_id}")
         
         if user_id is None:
+            logger.error("user_id is None")
             raise HTTPException(status_code=401, detail="Invalid token payload")
         
         user = session.exec(
@@ -91,9 +95,13 @@ def get_current_user(
         ).first()
         
         if not user:
+            logger.error(f"User not found for user_id: {user_id}")
             raise HTTPException(status_code=404, detail="User not found")
         
+        logger.info(f"Successfully retrieved user: {user.email}")
         return user
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in get_current_user: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
