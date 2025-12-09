@@ -106,7 +106,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # PostgreSQL用に修正（MySQL固有の設定を削除）
+    # PostgreSQL用に修正
     op.create_table('projects',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), autoincrement=False, nullable=False),
@@ -134,8 +134,7 @@ def downgrade() -> None:
     
     # highlightsテーブルの外部キーを戻す
     with op.batch_alter_table('highlights', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('project_file_id', mysql.INTEGER(), autoincrement=False, nullable=False))
-        # 制約名を明示的に指定して削除
+        batch_op.add_column(sa.Column('project_file_id', sa.Integer(), autoincrement=False, nullable=False))
         batch_op.drop_constraint('highlights_ibfk_1', type_='foreignkey')
         batch_op.create_foreign_key('highlights_ibfk_1', 'project_files', ['project_file_id'], ['id'])
         batch_op.drop_column('document_file_id')
