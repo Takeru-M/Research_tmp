@@ -79,12 +79,13 @@ def upgrade() -> None:
             "name": "Sample3",
             "email": "test3.test@test.com",
             "hashed_password": get_password_hash("Password3"),
-            "deleted_at": None,  # 論理削除例が必要なら適宜値を設定
+            "deleted_at": None,
         },
     ]
 
+    conn = op.get_bind()
     for u in seed_users:
-        op.execute(
+        conn.execute(
             sa.text(
                 """
                 INSERT INTO users (name, email, hashed_password, created_at, updated_at, deleted_at)
@@ -140,7 +141,8 @@ def downgrade() -> None:
         batch_op.drop_column('document_file_id')
 
     # --- delete seeded users ---
-    op.execute(
+    conn = op.get_bind()
+    conn.execute(
         sa.text(
             """
             DELETE FROM users
