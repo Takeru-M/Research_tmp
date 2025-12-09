@@ -5,9 +5,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
-from app.db.base import get_session
 from app.models.users import User
-from app.api.deps import get_db
 import os
 import logging
 
@@ -74,11 +72,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    session: Session = Depends(get_db),
+    session: Session = Depends(lambda: __import__('app.api.deps', fromlist=['get_db']).get_db()),  # ← 遅延インポート
 ):
     """トークンからユーザーを取得"""
     try:
-        payload = decode_access_token(token)  # ← decode_token → decode_access_token
+        payload = decode_access_token(token)
         
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid token")
