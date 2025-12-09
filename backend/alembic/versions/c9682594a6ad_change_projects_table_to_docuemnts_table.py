@@ -25,7 +25,7 @@ def upgrade() -> None:
     op.create_table('documents',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('document_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('document_name', sa.String(), nullable=False),
     sa.Column('stage', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -36,10 +36,10 @@ def upgrade() -> None:
     op.create_table('document_files',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('document_id', sa.Integer(), nullable=False),
-    sa.Column('file_name', sqlmodel.sql.sqltypes.AutoString(length=255), nullable=False),
-    sa.Column('file_key', sqlmodel.sql.sqltypes.AutoString(length=500), nullable=False),
-    sa.Column('file_url', sqlmodel.sql.sqltypes.AutoString(length=500), nullable=True),
-    sa.Column('mime_type', sqlmodel.sql.sqltypes.AutoString(length=100), nullable=True),
+    sa.Column('file_name', sa.String(length=255), nullable=False),
+    sa.Column('file_key', sa.String(length=500), nullable=False),
+    sa.Column('file_url', sa.String(length=500), nullable=True),
+    sa.Column('mime_type', sa.String(length=100), nullable=True),
     sa.Column('file_size', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
@@ -50,8 +50,8 @@ def upgrade() -> None:
     # highlightsテーブルの外部キーを先に変更
     with op.batch_alter_table('highlights', schema=None) as batch_op:
         batch_op.add_column(sa.Column('document_file_id', sa.Integer(), nullable=False))
-        batch_op.drop_constraint('highlights_ibfk_1', type_='foreignkey')
-        batch_op.create_foreign_key(None, 'document_files', ['document_file_id'], ['id'])
+        batch_op.drop_constraint('highlights_project_file_id_fkey', type_='foreignkey')
+        batch_op.create_foreign_key('highlights_document_file_id_fkey', 'document_files', ['document_file_id'], ['id'])
         batch_op.drop_column('project_file_id')
     
     # 外部キー制約を削除した後にテーブルを削除
@@ -115,7 +115,7 @@ def downgrade() -> None:
     sa.Column('project_name', sa.String(length=255), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name='projects_ibfk_1'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name='projects_user_id_fkey'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('project_files',
@@ -128,15 +128,15 @@ def downgrade() -> None:
     sa.Column('mime_type', sa.String(length=100), nullable=True),
     sa.Column('file_size', sa.Integer(), autoincrement=False, nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], name='project_files_ibfk_1'),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], name='project_files_project_id_fkey'),
     sa.PrimaryKeyConstraint('id')
     )
     
     # highlightsテーブルの外部キーを戻す
     with op.batch_alter_table('highlights', schema=None) as batch_op:
         batch_op.add_column(sa.Column('project_file_id', sa.Integer(), autoincrement=False, nullable=False))
-        batch_op.drop_constraint('highlights_ibfk_1', type_='foreignkey')
-        batch_op.create_foreign_key('highlights_ibfk_1', 'project_files', ['project_file_id'], ['id'])
+        batch_op.drop_constraint('highlights_document_file_id_fkey', type_='foreignkey')
+        batch_op.create_foreign_key('highlights_project_file_id_fkey', 'project_files', ['project_file_id'], ['id'])
         batch_op.drop_column('document_file_id')
 
     # --- delete seeded users ---
