@@ -72,7 +72,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    session: Session = Depends(lambda: next(__import__('app.api.deps', fromlist=['get_db']).get_db())),  # ← next() を追加
+    session: Session = Depends(lambda: __import__('app.api.deps', fromlist=['get_db']).get_db),  # ← next() を削除
 ):
     """トークンからユーザーを取得"""
     try:

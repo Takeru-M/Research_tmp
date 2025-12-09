@@ -39,11 +39,6 @@ engine = create_engine(
     echo=False,
     pool_pre_ping=True,
     pool_recycle=3600,
-    connect_args={
-        "connect_timeout": 10,
-        "keepalives": 1,
-        "keepalives_idle": 30,
-    },
 )
 
 # 接続ごとに文字コードを強制設定
@@ -70,9 +65,9 @@ def get_session() -> Generator[Session, None, None]:
     session = Session(engine)
     try:
         yield session
-        session.commit()
-    except Exception:
-        session.rollback()
+    except Exception as e:
+        logger.error(f"[get_session] Database session error: {e}")
+        session.rollback()  # ← エラー時は必ずロールバック
         raise
     finally:
         session.close()
