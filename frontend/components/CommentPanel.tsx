@@ -303,7 +303,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   const saveEdit = async (id: string) => {
     try {
-      const { data, error, status } = await apiClient<Comment>(`/comments/${id}`, {
+      const { data, error, status } = await apiClient<Comment>(`/comments/${id}/`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
@@ -372,7 +372,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       if (comment.parentId === null) {
         // ルートコメント: ハイライトがあれば一緒に削除
         if (comment.highlightId) {
-          const { error } = await apiClient<void>(`/highlights/${comment.highlightId}`, {
+          const { error } = await apiClient<void>(`/highlights/${comment.highlightId}/`, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
@@ -393,7 +393,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
           dispatch(deleteComment({ id }));
         } else {
-          const { error } = await apiClient<void>(`/comments/${comment.id}`, {
+          const { error } = await apiClient<void>(`/comments/${comment.id}/`, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
@@ -415,7 +415,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         }
       } else {
         // 返信コメント: コメント単体削除
-        const { error } = await apiClient<void>(`/comments/${id}`, {
+        const { error } = await apiClient<void>(`/comments/${id}/`, {
           method: 'DELETE',
           headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
@@ -471,7 +471,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     try {
       const userName = session?.user?.name || t("CommentPanel.comment-author-user");
 
-      const { data, error } = await apiClient<Comment>('/comments', {
+      const { data, error } = await apiClient<Comment>('/comments/', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {

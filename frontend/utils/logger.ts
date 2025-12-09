@@ -39,7 +39,7 @@ async function sendBatch(): Promise<void> {
     };
 
     const { data, error } = await apiClient<{ success: boolean; message: string }>(
-      '/logs',
+      '/logs/',
       {
         method: 'POST',
         body: batchData,

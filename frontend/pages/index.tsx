@@ -87,7 +87,7 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[]>(`/highlights/file/${fileId}`, {
+      const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[]>(`/highlights/file/${fileId}/`, {
         method: 'GET',
         headers: {Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -195,7 +195,7 @@ const EditorPageContent: React.FC = () => {
   const fetchDocumentFile = useCallback(async (documentId: number) => {
     dispatch(startLoading('Loading document file...'));
     try {
-      const { data: response, error } = await apiClient<DocumentFileResponse[]>(`/documents/${documentId}/document-files`, {
+      const { data: response, error } = await apiClient<DocumentFileResponse[]>(`/documents/${documentId}/document-files/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -226,7 +226,7 @@ const EditorPageContent: React.FC = () => {
       console.log(latestFile);
       dispatch(setFileId(latestFile.id));
 
-      const { data: blobData, error: blobError } = await apiClient<Blob>(`/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`, {
+      const { data: blobData, error: blobError } = await apiClient<Blob>(`/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         responseType: 'blob',
@@ -272,7 +272,7 @@ const EditorPageContent: React.FC = () => {
     try {
       dispatch(startLoading('Loading document info...'));
 
-      const { data: res, error } = await apiClient<DocumentResponse>(`/documents/${documentId}`, {
+      const { data: res, error } = await apiClient<DocumentResponse>(`/documents/${documentId}/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -367,7 +367,7 @@ const EditorPageContent: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const { data: s3Data, error: s3Error, status: s3Status } = await apiClient<S3UploadResponse>('/s3/upload', {
+      const { data: s3Data, error: s3Error, status: s3Status } = await apiClient<S3UploadResponse>('/s3/upload/', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: formData,
@@ -408,7 +408,7 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      const { data: dbResponse, error: dbError } = await apiClient<CreateDocumentFileResponse>('/document-files', {
+      const { data: dbResponse, error: dbError } = await apiClient<CreateDocumentFileResponse>('/document-files/', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         body: {
@@ -652,7 +652,7 @@ const EditorPageContent: React.FC = () => {
 
           const userName = getUserName();
 
-          const { data: response, error } = await apiClient<CreateHighlightResponse>('/highlights', {
+          const { data: response, error } = await apiClient<CreateHighlightResponse>('/highlights/', {
             method: 'POST',
             headers: { Authorization: `Bearer ${session?.accessToken}` },
             body: {

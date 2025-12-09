@@ -46,7 +46,7 @@ const Documents: React.FC = () => {
         timestamp: new Date().toISOString(),
       }, getUserId());
 
-      const { data, error, status: httpStatus } = await apiClient<Document[]>('/documents', {
+      const { data, error, status: httpStatus } = await apiClient<Document[]>('/documents/', {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -130,7 +130,7 @@ const Documents: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    const { data, error } = await apiClient<Document>('/documents', {
+    const { data, error } = await apiClient<Document>('/documents/', {
       method: 'POST',
       headers: { Authorization: `Bearer ${session?.accessToken}`},
       body: {
@@ -224,7 +224,7 @@ const Documents: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    const { error } = await apiClient<null>(`/documents/${documentId}`, {
+    const { error } = await apiClient<null>(`/documents/${documentId}/`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${session?.accessToken}` },
     });
@@ -263,7 +263,7 @@ const Documents: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    const { data, error } = await apiClient<Document>(`/documents/${editingDocument.id}`, {
+    const { data, error } = await apiClient<Document>(`/documents/${editingDocument.id}/`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${session?.accessToken}` },
       body: { document_name: editedName },

@@ -85,7 +85,7 @@ const SignupPage: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, 'anonymous');
 
-    const { data, error } = await apiClient<SignupResponse>('/auth/signup', {
+    const { data, error } = await apiClient<SignupResponse>('/auth/signup/', {
       method: 'POST',
       body: {
         username,

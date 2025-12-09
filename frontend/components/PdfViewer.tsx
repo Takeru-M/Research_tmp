@@ -664,7 +664,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         const { data: formatDataResponse, error: formatDataError } = await apiClient<FormatDataResponse>(
-          '/openai/format-data',
+          '/openai/format-data/',
           {
             method: 'POST',
             body: {
@@ -693,7 +693,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<OptionAnalyzeResponse>(
-          '/openai/option-analyze',
+          '/openai/option-analyze/',
           {
             method: 'POST',
             body: {
@@ -723,7 +723,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           for (const hf of highlight_feedback) {
             if (hf.intervention_needed) {
               const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
-                '/comments',
+                '/comments/',
                 {
                   method: 'POST',
                   headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -783,7 +783,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 }
 
                 const { data: highlightResponse, error: highlightError } = await apiClient<HighlightCreateResponse>(
-                  '/highlights',
+                  '/highlights/',
                   {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -846,7 +846,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const documentId = getDocumentIdFromCookie();
           if (documentId) {
             const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
-              `/documents/${documentId}/update-completion-stage`,
+              `/documents/${documentId}/update-completion-stage/`,
               {
                 method: 'PATCH',
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -916,7 +916,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         const { data: deliberationResponse, error: deliberationError } = await apiClient<DeliberationAnalyzeResponse>(
-          '/openai/deliberation-analyze',
+          '/openai/deliberation-analyze/',
           {
             method: 'POST',
             body: {
@@ -951,7 +951,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               console.log('[handleCompletion] Saving comment with parent_id:', hf.id, 'highlight_id:', hf.highlight_id);
 
               const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
-                '/comments',
+                '/comments/',
                 {
                   method: 'POST',
                   headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -995,7 +995,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const documentId = getDocumentIdFromCookie();
           if (documentId) {
             const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
-              `/documents/${documentId}/update-completion-stage`,
+              `/documents/${documentId}/update-completion-stage/`,
               {
                 method: 'PATCH',
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -1071,7 +1071,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       // apiClient でblob形式で取得
       const { data: pdfBlob, error: exportError, status: exportStatus } = await apiClient<Blob>(
-        `/documents/${documentId}/files/${fileId}/export`,
+        `/documents/${documentId}/files/${fileId}/export/`,
         {
           method: 'GET',
           headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -1120,7 +1120,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       // ステージを EXPORT に更新
       const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
-        `/documents/${documentId}/update-completion-stage`,
+        `/documents/${documentId}/update-completion-stage/`,
         {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -1229,9 +1229,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       let apiEndpoint: string;
 
       if (completionStage === STAGE.GIVE_DELIBERATION_TIPS) {
-        apiEndpoint = '/openai/option-dialogue';
+        apiEndpoint = '/openai/option-dialogue/';
       } else if (completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) {
-        apiEndpoint = '/openai/deliberation-dialogue';
+        apiEndpoint = '/openai/deliberation-dialogue/';
       } else {
         console.error('[handleDialogue] Unsupported completion stage:', completionStage);
         setErrorMessage(t('Error.dialogue-failed'));
@@ -1282,7 +1282,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             }
 
             const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
-              '/comments',
+              '/comments/',
               {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
