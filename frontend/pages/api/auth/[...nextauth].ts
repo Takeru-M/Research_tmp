@@ -21,6 +21,7 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60,
@@ -40,7 +41,13 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const url = `${process.env.NEXT_PUBLIC_API_URL}/auth/token`;
+          const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+          if (!baseUrl) {
+            console.error("API_URL is not configured");
+            return null;
+          }
+
+          const url = `${baseUrl}/auth/token`;
           console.log("Auth endpoint:", url);
 
           const response = await fetch(url, {
@@ -55,16 +62,17 @@ export const authOptions: NextAuthOptions = {
           });
 
           console.log("Auth response status:", response.status);
-          const data = await response.json();
-          console.log("Auth response data:", data);
+          const data: FastApiAuthResponse = await response.json();
+          console.log("Auth response data:", JSON.stringify(data));
 
           if (!response.ok) {
-            console.error("FastAPI Authentication failed:", response.statusText);
+            console.error("FastAPI error:", data);
             return null;
           }
 
+          // レスポンスフィールドが実際に存在するか確認
           if (!data.access_token || !data.user_id) {
-            console.error("Missing required fields in response:", data);
+            console.error("Missing fields. Received:", Object.keys(data));
             return null;
           }
 

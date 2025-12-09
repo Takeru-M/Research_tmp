@@ -13,6 +13,7 @@
 front:vercel
 back:render
 db:render
+postgresql+psycopg2://research_db_rfcb_user:JMZ2B995aAxhSmiT5pdu7UNl6uKayXbf@dpg-d4r2d0ndiees739jfbv0-a.virginia-postgres.render.com/research_db_rfcb
 
 // ログについて
 ログはbackend/logsに保存．
