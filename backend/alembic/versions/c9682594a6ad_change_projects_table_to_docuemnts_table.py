@@ -58,6 +58,10 @@ def upgrade() -> None:
     op.drop_table('project_files')
     op.drop_table('projects')
 
+    # email に UNIQUE 制約を追加
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.create_unique_constraint('users_email_key', ['email'])
+
     # --- seed users (PostgreSQL) ---
     from app.core.security import get_password_hash
 
