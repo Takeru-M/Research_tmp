@@ -226,7 +226,7 @@ const EditorPageContent: React.FC = () => {
       console.log(latestFile);
       dispatch(setFileId(latestFile.id));
 
-      const { data: blobData, error: blobError } = await apiClient<Blob>(`/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}/`, {
+      const { data: blobData, error: blobError } = await apiClient<Blob>(`/s3/get-file?key=${encodeURIComponent(latestFile.file_key)}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
         responseType: 'blob',
