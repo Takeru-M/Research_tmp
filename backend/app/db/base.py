@@ -15,14 +15,28 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set in environment variables")
 
+def get_db_url() -> str:
+    """DATABASE_URL から charset を削除"""
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError("DATABASE_URL is not set")
+    
+    # charset パラメータを削除
+    if "charset" in db_url:
+        db_url = db_url.split("?")[0]
+        # ? の後ろの他のパラメータは保持
+        if "?" in os.getenv("DATABASE_URL"):
+            params = os.getenv("DATABASE_URL").split("?")[1]
+            params = "&".join([p for p in params.split("&") if not p.startswith("charset")])
+            if params:
+                db_url += "?" + params
+    
+    return db_url
+
 # Engineの作成
 engine = create_engine(
-    DATABASE_URL,
-    echo=True,
-    connect_args={
-        "charset": "utf8mb4",
-        "use_unicode": True,
-    },
+    get_db_url(),
+    echo=False,
     pool_pre_ping=True,
 )
 
