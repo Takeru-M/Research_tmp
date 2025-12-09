@@ -9,7 +9,7 @@ from app.crud import document as crud_document
 from app.crud import document_file as crud_document_file
 from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentRead, CompletionStageUpdate
 from app.schemas.document_file import DocumentFileRead
-from app.core.security import get_current_user
+from app.api.deps import get_current_user
 from app.models import User, DocumentFile, Highlight, HighlightRect, Comment
 from app.services.pdf_export_service import PDFExportService
 from app.utils.s3 import fetch_pdf_bytes, delete_s3_files
