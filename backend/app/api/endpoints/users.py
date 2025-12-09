@@ -31,8 +31,8 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 
 @router.get("/", response_model=List[UserRead], tags=["Users"])
 def read_users(
-    offset: int = 0, 
-    limit: int = 100, 
+    offset: int = 0,
+    limit: int = 100,
     session: Session = Depends(get_session)
 ):
     """すべてのユーザーを取得します。"""

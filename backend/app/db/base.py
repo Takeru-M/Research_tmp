@@ -20,7 +20,7 @@ def get_db_url() -> str:
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise ValueError("DATABASE_URL is not set")
-    
+
     # charset パラメータを削除
     if "charset" in db_url:
         db_url = db_url.split("?")[0]
@@ -30,7 +30,7 @@ def get_db_url() -> str:
             params = "&".join([p for p in params.split("&") if not p.startswith("charset")])
             if params:
                 db_url += "?" + params
-    
+
     return db_url
 
 # Engineの作成
@@ -65,9 +65,10 @@ def get_session() -> Generator[Session, None, None]:
     session = Session(engine)
     try:
         yield session
+        session.commit()
     except Exception as e:
         logger.error(f"[get_session] Database session error: {e}")
-        session.rollback()  # ← エラー時は必ずロールバック
+        session.rollback()
         raise
     finally:
         session.close()
