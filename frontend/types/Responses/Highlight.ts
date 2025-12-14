@@ -40,3 +40,8 @@ export interface HighlightWithCommentsResponse {
   highlight: HighlightResponse;
   comments: CommentResponse[];
 }
+
+export interface HighlightsWithStatusResponse {
+  highlights: HighlightWithCommentsResponse[];
+  has_soft_deleted_llm: boolean;
+}

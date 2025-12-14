@@ -23,6 +23,7 @@ const initialState: EditorState = {
   documentName: null,
   completionStage: STAGE.GIVE_OPTION_TIPS,
   selectedRootCommentIds: [] as string[],
+  hasSoftDeletedLLMComment: false,
 };
 
 const editorSlice = createSlice({
@@ -105,7 +106,6 @@ const editorSlice = createSlice({
     },
 
     setHighlights: (state, action: PayloadAction<PdfHighlight[]>) => {
-      console.log('setHighlights called with:', action.payload);
       state.pdfHighlights = action.payload;
       // highlightsにも追加
       state.highlights = [
@@ -115,7 +115,6 @@ const editorSlice = createSlice({
     },
 
     setComments: (state, action: PayloadAction<Comment[]>) => {
-      console.log('setComments called with:', action.payload);
       state.comments = action.payload;
     },
 
@@ -167,10 +166,6 @@ const editorSlice = createSlice({
           if (pdfHighlight) pdfHighlight.hasUserReply = true;
         }
       }
-    },
-
-    setAllComments(state, action: PayloadAction<Comment[]>) {
-      state.comments = action.payload;
     },
 
     updateComment(state, action: PayloadAction<{ id: string; text: string }>) {
@@ -294,7 +289,11 @@ const editorSlice = createSlice({
 
     setCompletionStage(state, action: PayloadAction<number>) {
       state.completionStage = action.payload;
-    }
+    },
+
+    setHasSoftDeletedLLMComment: (state, action: PayloadAction<boolean>) => {
+      state.hasSoftDeletedLLMComment = action.payload;
+    },
   },
 });
 
@@ -308,7 +307,6 @@ export const {
   updateHighlightMemo,
   deleteHighlight,
   addComment,
-  setAllComments,
   updateComment,
   deleteComment,
   setActiveHighlightId,
@@ -322,6 +320,7 @@ export const {
   addLLMResponse,
   setDocumentName,
   setCompletionStage,
+  setHasSoftDeletedLLMComment,
   toggleSelectRootComment,
   clearSelectedRootComments,
 } = editorSlice.actions;

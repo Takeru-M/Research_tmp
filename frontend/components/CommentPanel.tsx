@@ -19,6 +19,7 @@ import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE } from "@/utils/con
 import { apiClient } from "@/utils/apiClient";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { logUserAction } from "@/utils/logger";
+import { DeleteReasonModal } from './DeleteReasonModal';
 
 // 動的なパディングを計算するヘルパー関数
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
@@ -66,7 +67,6 @@ const CommentHeader: React.FC<{
     completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS
   );
 
-  // セッション情報から取得したユーザー名を優先的に使用
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");
   const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
 
@@ -201,8 +201,6 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const { t } = useTranslation();
   const { data: session } = useSession();
   const [errorMessage, setErrorMessage] = useState<string>("");
-
-  // ユーザーIDを取得するヘルパー関数を追加
   const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
 
   const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: RootState) => s.editor);
@@ -213,6 +211,11 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [menuOpenMap, setMenuOpenMap] = useState<Record<string, boolean>>({});
+
+  const [deleteReasonModalOpen, setDeleteReasonModalOpen] = useState(false);
+  const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const commentPanelRef = useRef<HTMLDivElement>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
@@ -354,6 +357,20 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   };
 
   const removeCommentFn = async (id: string) => {
+    const comment = comments.find((c: Comment) => c.id === id);
+    if (!comment) {
+      console.warn('[removeCommentFn] Comment not found:', id);
+      return;
+    }
+
+    const isLLMComment = (comment.author || "").toLowerCase() === t("CommentPanel.comment-author-LLM").toLowerCase();
+
+    if (isLLMComment) {
+      setPendingDeleteCommentId(id);
+      setDeleteReasonModalOpen(true);
+      return;
+    }
+
     if (!window.confirm(t("Alert.comment-delete"))) {
       logUserAction('comment_delete_cancelled', {
         commentId: id,
@@ -362,11 +379,17 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       return;
     }
 
+    await performDelete(id, null);
+  };
+
+  const performDelete = async (id: string, reason: string | null) => {
     const comment = comments.find((c: Comment) => c.id === id);
     if (!comment) {
-      console.warn('[removeCommentFn] Comment not found:', id);
+      console.warn('[performDelete] Comment not found:', id);
       return;
     }
+
+    setIsDeleting(true);
 
     try {
       if (comment.parentId === null) {
@@ -378,7 +401,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           });
 
           if (error) {
-            console.error('[removeCommentFn] Highlight delete error:', error);
+            console.error('[performDelete] Highlight delete error:', error);
             setErrorMessage(t('Error.delete-comment-failed'));
             logUserAction('comment_delete_failed', {
               commentId: id,
@@ -389,17 +412,22 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             return;
           }
 
-          console.log('[removeCommentFn] Highlight deleted:', comment.highlightId);
+          console.log('[performDelete] Highlight deleted:', comment.highlightId);
           dispatch({ type: "editor/deleteHighlight", payload: { id: comment.highlightId } });
           dispatch(deleteComment({ id }));
         } else {
-          const { error } = await apiClient<void>(`/comments/${comment.id}/`, {
+          let deleteUrl = `/comments/${comment.id}/`;
+          if (reason) {
+            deleteUrl += `?reason=${encodeURIComponent(reason)}`;
+          }
+
+          const { error } = await apiClient<void>(deleteUrl, {
             method: 'DELETE',
             headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
           });
 
           if (error) {
-            console.error('[removeCommentFn] Comment delete error:', error);
+            console.error('[performDelete] Comment delete error:', error);
             setErrorMessage(t('Error.delete-comment-failed'));
             logUserAction('comment_delete_failed', {
               commentId: id,
@@ -410,34 +438,22 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             return;
           }
 
-          console.log('[removeCommentFn] Comment deleted:', comment.id);
+          console.log('[performDelete] Comment deleted:', comment.id);
           dispatch(deleteComment({ id }));
         }
       } else {
-        // 返信コメント: コメント単体削除
-        let reasonParam = "";
-        const isLLM = (comment.author || "").toLowerCase() === t("CommentPanel.comment-author-llm").toLowerCase();
-        if (isLLM) {
-          const input = window.prompt(t("CommentPanel.enter-delete-reason"));
-          if (!input || !input.trim()) {
-            setErrorMessage(t('Alert.delete-comment-reason-required'));
-            logUserAction('comment_delete_failed', {
-              commentId: id,
-              reason: 'empty_reason',
-              timestamp: new Date().toISOString(),
-            }, getUserId());
-            return;
-          }
-          reasonParam = `?reason=${encodeURIComponent(input.trim())}`;
+        let deleteUrl = `/comments/${id}/`;
+        if (reason) {
+          deleteUrl += `?reason=${encodeURIComponent(reason)}`;
         }
 
-        const { error } = await apiClient<void>(`/comments/${id}/${reasonParam}`, {
+        const { error } = await apiClient<void>(deleteUrl, {
           method: 'DELETE',
           headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
 
         if (error) {
-          console.error('[removeCommentFn] Reply delete error:', error);
+          console.error('[performDelete] Reply delete error:', error);
           setErrorMessage(t('Error.delete-comment-failed'));
           logUserAction('comment_delete_failed', {
             commentId: id,
@@ -448,8 +464,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           return;
         }
 
-        console.log('[removeCommentFn] Reply deleted:', id);
-        // LLMソフトデリートはUIからは非表示にする（現行仕様通り削除扱い）
+        console.log('[performDelete] Reply deleted:', id);
         dispatch(deleteComment({ id }));
       }
 
@@ -457,19 +472,29 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         commentId: id,
         isRoot: comment.parentId === null,
         hadHighlight: !!comment.highlightId,
+        hadReason: !!reason,
         timestamp: new Date().toISOString(),
       }, getUserId());
       closeMenu(id);
     } catch (error: Error | unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[removeCommentFn] Unexpected error:', error);
+      console.error('[performDelete] Unexpected error:', error);
       setErrorMessage(t('Error.delete-comment-failed'));
       logUserAction('comment_delete_failed', {
         commentId: id,
         reason: errorMessage,
         timestamp: new Date().toISOString(),
       }, getUserId());
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDeleteReasonConfirm = async (reason: string) => {
+    if (!pendingDeleteCommentId) return;
+    await performDelete(pendingDeleteCommentId, reason);
+    setDeleteReasonModalOpen(false);
+    setPendingDeleteCommentId(null);
   };
 
   const sendReply = async (parentId: string) => {
@@ -680,6 +705,18 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           onClose={() => setErrorMessage("")}
         />
       )}
+      <DeleteReasonModal
+        isOpen={deleteReasonModalOpen}
+        commentAuthor={
+          comments.find((c: Comment) => c.id === pendingDeleteCommentId)?.author || ""
+        }
+        onConfirm={handleDeleteReasonConfirm}
+        onCancel={() => {
+          setDeleteReasonModalOpen(false);
+          setPendingDeleteCommentId(null);
+        }}
+        isLoading={isDeleting}
+      />
       <div
         ref={commentPanelRef}
         className={styles.commentPanel}

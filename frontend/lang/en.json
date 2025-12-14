@@ -82,7 +82,10 @@
     "select": "Select",
     "unselect": "Unselect",
     "selected": "Selected",
-    "enter-delete-reason": "Please enter a reason for deletion"
+    "delete-llm-comment": "Delete LLM Comment",
+    "delete-llm-comment-reason-prompt": "Please enter a reason for deleting this LLM comment.",
+    "delete-reason-placeholder": "Enter deletion reason...",
+    "restore-llm-reply": "Restore reply from LLM"
   },
   "Alert": {
     "session-expired": "Your session has expired. Please log in again.",

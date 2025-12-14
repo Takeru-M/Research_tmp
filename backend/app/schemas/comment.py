@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 class CommentBase(BaseModel):
@@ -21,6 +21,12 @@ class CommentRead(CommentBase):
     text: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
+    deleted_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class CommentListResponse(BaseModel):
+    comments: List[CommentRead]
+    has_soft_deleted_llm: bool

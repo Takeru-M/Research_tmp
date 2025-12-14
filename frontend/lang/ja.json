@@ -82,7 +82,10 @@
     "select": "選択",
     "unselect": "選択解除",
     "selected": "選択済み",
-    "enter-delete-reason": "削除理由を入力してください"
+    "delete-llm-comment": "LLMコメント削除",
+    "delete-llm-comment-reason-prompt": "このLLMコメントを削除する理由を入力してください。",
+    "delete-reason-placeholder": "削除理由を入力...",
+    "restore-llm-reply": "LLMからの返信を復元する"
   },
   "Alert": {
     "session-expired": "セッションの有効期限が切れました。再度ログインしてください。",

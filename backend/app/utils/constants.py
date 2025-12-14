@@ -1,3 +1,5 @@
+LLM_AUTHOR_LOWER = "llm"
+
 # LLMに要求する出力形式
 JSON_SAMPLE = {
     "responses": [

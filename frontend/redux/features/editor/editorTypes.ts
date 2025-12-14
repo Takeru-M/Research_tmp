@@ -84,17 +84,20 @@ export interface EditorState {
   documentName?: string | null;
   completionStage: number;
   selectedRootCommentIds: string[];
+  hasSoftDeletedLLMComment: boolean;
 }
 
 export type Comment = {
   id: string;
   highlightId: string;
-  parentId: string | null; // null = root comment in thread
+  parentId: string | null;
   author: string;
   text: string;
   created_at: string;
   edited_at?: string | null;
   deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_reason?: string | null;
 };
 
 export type HighlightInfo = {
