@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
+from typing import Optional
 from app.models.comments import Comment
 from app.schemas.comment import CommentCreate, CommentUpdate
 
@@ -46,10 +47,21 @@ def update_comment(session: Session, comment: Comment, comment_in: CommentUpdate
     session.refresh(comment)
     return comment
 
-def delete_comment(session: Session, comment_id: int) -> None:
-    """コメントを完全に削除"""
+def delete_comment(session: Session, comment_id: int, reason: Optional[str] = None) -> None:
+    """author が LLM の場合は理由付きでソフトデリート、それ以外はハードデリート"""
     statement = select(Comment).where(Comment.id == comment_id)
     comment = session.exec(statement).first()
-    if comment:
+    if not comment:
+        return
+
+    if (comment.author or "").strip().lower() == "llm":
+        # ソフトデリート
+        comment.deleted_at = datetime.utcnow()
+        comment.deleted_reason = reason
+        session.add(comment)
+        session.commit()
+        session.refresh(comment)
+    else:
+        # 従来通りハードデリート
         session.delete(comment)
         session.commit()

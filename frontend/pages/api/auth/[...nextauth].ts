@@ -52,7 +52,7 @@ export const authOptions: NextAuthOptions = {
 
           const response = await fetch(url, {
             method: "POST",
-            headers: {
+            headers: { 
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
@@ -62,17 +62,27 @@ export const authOptions: NextAuthOptions = {
           });
 
           console.log("Auth response status:", response.status);
-          const data: FastApiAuthResponse = await response.json();
-          console.log("Auth response data:", JSON.stringify(data));
 
           if (!response.ok) {
-            console.error("FastAPI error:", data);
+            const ct = response.headers.get("content-type") || "";
+            let errBody: any;
+            try {
+              errBody = ct.includes("application/json")
+                ? await response.json()
+                : await response.text();
+            } catch (parseError) {
+              console.error("Failed to parse error response:", parseError);
+              errBody = await response.text();
+            }
+            console.error("FastAPI error:", errBody);
             return null;
           }
 
-          // レスポンスフィールドが実際に存在するか確認
+          const data: FastApiAuthResponse = await response.json();
+          console.log("Auth response data:", JSON.stringify(data));
+
           if (!data.access_token || !data.user_id) {
-            console.error("Missing fields. Received:", Object.keys(data));
+            console.error("Missing fields. Received keys:", Object.keys(data || {}));
             return null;
           }
 

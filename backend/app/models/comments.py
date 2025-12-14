@@ -5,10 +5,6 @@ from sqlalchemy import String, Text, ForeignKey
 
 class Comment(SQLModel, table=True):
     __tablename__ = "comments"
-    __table_args__ = {
-        'mysql_charset': 'utf8mb4',
-        'mysql_collate': 'utf8mb4_unicode_ci'
-    }
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -31,17 +27,19 @@ class Comment(SQLModel, table=True):
     )
 
     author: str = Field(
-        sa_column=Column(
-            String(255, collation='utf8mb4_unicode_ci'),
-            nullable=False
-        )
+        sa_column=Column(String(255), nullable=False)
     )
     text: str = Field(
-        sa_column=Column(
-            Text(collation='utf8mb4_unicode_ci'),
-            nullable=False
-        )
+        sa_column=Column(Text(), nullable=False)
     )
+
+    # ソフトデリート用
+    deleted_at: Optional[datetime] = None
+    deleted_reason: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text(), nullable=True)
+    )
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
 

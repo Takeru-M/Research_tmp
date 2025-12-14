@@ -9,27 +9,44 @@ services:
     ports:
       - "3000:3000"
     environment:
-# HMRの接続ホストを自身のサービス名 'frontend' に設定
       WDS_SOCKET_HOST: "frontend"
-      # Nginx経由ではなく直接3000ポートで接続していることを明示
       WDS_SOCKET_PORT: "3000"
-      WDS_SOCKET_PATH: "/_next/webpack-hmr" # パスも明示的に設定
+      WDS_SOCKET_PATH: "/_next/webpack-hmr"
     command: npm run dev
 
   backend:
-      # 開発用にFastAPIの.envを反映
-      environment:
-        # FastAPIのコード内で参照する環境変数
-        DB_HOST: ${DB_HOST}
-        DB_PORT: ${DB_PORT}
-        DB_DATABASE: ${DB_DATABASE}
-        DB_USERNAME: ${DB_USER}
-        DB_PASSWORD: ${DB_PASSWORD}
-        APP_ENV: development
-      env_file:
-        - ./backend/.env
-      command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      # docker 内の Postgres に接続
+      DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_DATABASE}
+      APP_ENV: development
+    env_file:
+      - ./backend/.env
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      db:
+        condition: service_healthy
 
   nginx:
     ports:
       - "80:80"
+
+  # 開発用 DB（PostgreSQL）
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db_dev
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE} -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:

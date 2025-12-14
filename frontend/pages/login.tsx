@@ -22,16 +22,24 @@ const LoginPage: React.FC = () => {
     return session?.user?.id || session?.user?.email || 'anonymous';
   }, [session]);
 
+  React.useEffect(() => {
+    if (status === "authenticated") {
+      logUserAction('login_page_accessed_while_authenticated', {
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+      router.push('/documents');
+    }
+  }, [status, router, getUserId]);
+
   const handleLogin = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setIsLoading(true);
 
-    // ログイン試行時は匿名でログ記録（ユーザーIDがまだ確定していないため）
     logUserAction('login_attempt', {
       email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
       timestamp: new Date().toISOString(),
-    }, 'anonymous'); // ログイン前は匿名
+    }, 'anonymous');
 
     const result = await signIn('credentials', {
       email,
@@ -47,7 +55,7 @@ const LoginPage: React.FC = () => {
         reason: result.error,
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      }, 'anonymous'); // ログイン失敗時も匿名
+      }, 'anonymous');
       setAuthError(t('Login.error-message'));
       setIsLoading(false);
       return;
@@ -56,15 +64,12 @@ const LoginPage: React.FC = () => {
     if (result?.ok) {
       console.log("[Login] Sign-in successful, redirecting to /documents");
       
-      // ログイン成功後、セッション情報を取得するまで少し待つ
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // ログイン成功時はユーザーIDを記録
-      // この時点ではまだsessionが更新されていない可能性があるため、emailを使用
       logUserAction('login_success', {
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),
         timestamp: new Date().toISOString(),
-      }, email); // ログイン成功時はemailをユーザーIDとして使用
+      }, email);
       
       router.push('/documents');
     }
@@ -74,12 +79,8 @@ const LoginPage: React.FC = () => {
     return <div className={styles.loading}>{t('Loading...')}</div>;
   }
 
+  // useEffect で既にハンドルされるため、ここでは表示しない
   if (status === "authenticated") {
-    // 既にログイン済みの場合
-    logUserAction('login_page_accessed_while_authenticated', {
-      timestamp: new Date().toISOString(),
-    }, getUserId());
-    router.push('/documents');
     return null;
   }
 

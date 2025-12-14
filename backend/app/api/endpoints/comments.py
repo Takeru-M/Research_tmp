@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session
-from typing import List
+from typing import List, Optional
 from app.db.base import get_session
 from app.crud import comment as crud_comment
 from app.schemas.comment import CommentCreate, CommentUpdate, CommentRead
@@ -161,10 +161,11 @@ def update_comment_endpoint(
 
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_comment_endpoint(
-    comment_id: int, 
-    session: Session = Depends(get_session)
+    comment_id: int,
+    session: Session = Depends(get_session),
+    reason: Optional[str] = Query(default=None, description="LLM コメントの削除理由")
 ):
-    """コメントを削除"""
+    """コメントを削除（LLM は理由を保存してソフトデリート）"""
     try:
         if comment_id <= 0:
             raise HTTPException(
@@ -172,18 +173,25 @@ def delete_comment_endpoint(
                 detail="無効なコメントIDです"
             )
 
-        logger.info(f"Deleting comment: ID={comment_id}")
+        logger.info(f"Deleting comment: ID={comment_id}, reason={reason}")
+        # author 判定のため一度取得
         comment = crud_comment.get_comment_by_id(session, comment_id)
-        
         if not comment:
             logger.warning(f"Comment not found for deletion: ID={comment_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="コメントが見つかりません"
             )
-        
-        crud_comment.delete_comment(session, comment_id)
-        logger.info(f"Comment deleted successfully: ID={comment_id}")
+
+        if (comment.author or "").strip().lower() == "llm" and (reason is None or not reason.strip()):
+            logger.warning("LLM comment deletion attempted without reason")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="LLMコメントの削除理由を入力してください"
+            )
+
+        crud_comment.delete_comment(session, comment_id, reason)
+        logger.info(f"Comment deleted (soft/hard) successfully: ID={comment_id}")
         return None
     except HTTPException:
         raise

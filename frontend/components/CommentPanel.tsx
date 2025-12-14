@@ -415,7 +415,23 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         }
       } else {
         // 返信コメント: コメント単体削除
-        const { error } = await apiClient<void>(`/comments/${id}/`, {
+        let reasonParam = "";
+        const isLLM = (comment.author || "").toLowerCase() === t("CommentPanel.comment-author-llm").toLowerCase();
+        if (isLLM) {
+          const input = window.prompt(t("CommentPanel.enter-delete-reason"));
+          if (!input || !input.trim()) {
+            setErrorMessage(t('Alert.delete-comment-reason-required'));
+            logUserAction('comment_delete_failed', {
+              commentId: id,
+              reason: 'empty_reason',
+              timestamp: new Date().toISOString(),
+            }, getUserId());
+            return;
+          }
+          reasonParam = `?reason=${encodeURIComponent(input.trim())}`;
+        }
+
+        const { error } = await apiClient<void>(`/comments/${id}/${reasonParam}`, {
           method: 'DELETE',
           headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
         });
@@ -433,6 +449,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         }
 
         console.log('[removeCommentFn] Reply deleted:', id);
+        // LLMソフトデリートはUIからは非表示にする（現行仕様通り削除扱い）
         dispatch(deleteComment({ id }));
       }
 

@@ -41,7 +41,7 @@ app.add_middleware(
 
 # 他のミドルウェアを追加
 app.add_middleware(LoggingMiddleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "research-tmp.onrender.com", "research-tmp.vercel.app"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "backend", "backend:8000", "research-tmp.onrender.com", "research-tmp.vercel.app"])
 
 # ルーターを含める
 app.include_router(api_router)

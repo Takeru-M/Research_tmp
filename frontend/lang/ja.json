@@ -81,7 +81,8 @@
     "show-more": "全体を表示",
     "select": "選択",
     "unselect": "選択解除",
-    "selected": "選択済み"
+    "selected": "選択済み",
+    "enter-delete-reason": "削除理由を入力してください"
   },
   "Alert": {
     "session-expired": "セッションの有効期限が切れました。再度ログインしてください。",
@@ -89,6 +90,7 @@
     "not-input-pdf": "PDFを読み込んでいません",
     "file-support": "現在，PDFとテキストファイルのみサポートしています",
     "comment-delete": "このコメントを削除してもよろしいですか？",
+    "delete-comment-reason-required": "コメント削除の理由を入力してください",
     "file-already-uploaded": "ファイルは既にアップロード済みです。新しいファイルをアップロードする場合は、ドキュメントを新規作成してください。"
   },
   "Error": {

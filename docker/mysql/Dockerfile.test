@@ -1,3 +1,0 @@
-FROM mysql:8.0
-# 初期化SQLファイルなどをCOPYする
-# COPY ./init.sql /docker-entrypoint-initdb.d/

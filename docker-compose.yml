@@ -24,8 +24,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      db_test:
-        condition: service_healthy
+    environment:
+      # 開発用（docker 内接続）
+      DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_DATABASE}
+      APP_ENV: development
 
   # --- Nginx (Webサーバ/リバースプロキシ) ---
   nginx:
@@ -40,48 +42,21 @@ services:
       - frontend
       - backend
 
-  # --- MySQL (開発/本番用DB) ---
+  # --- PostgreSQL (開発/本番用DB) ---
   db:
-    image: mysql:8.0
-    container_name: mysql_db
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --skip-character-set-client-handshake
-      - --default-authentication-plugin=mysql_native_password
+    image: postgres:15-alpine
+    container_name: postgres_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE} -h localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
     volumes:
-      - db-data:/var/lib/mysql
-    networks:
-      - app-network
-
-  # --- MySQL (テスト用DB) ---
-  db_test:
-    # 開発環境でのみ使用
-    image: mysql:8.0
-    container_name: mysql_db_test
-    environment:
-      MYSQL_DATABASE: ${MYSQL_TEST_DATABASE}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      TZ: 'Asia/Tokyo'
-    healthcheck: # DBのヘルスチェックを定義
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - db-test-data:/var/lib/mysql
+      - db-data:/var/lib/postgresql/data
     networks:
       - app-network
 
