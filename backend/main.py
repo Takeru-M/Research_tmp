@@ -29,6 +29,7 @@ app = FastAPI(
 # CORS設定を最初に追加
 origins = [
     "http://localhost:3000",
+    "http://frontend:3000",
     "https://research-tmp.vercel.app"
 ]
 app.add_middleware(
@@ -41,7 +42,7 @@ app.add_middleware(
 
 # 他のミドルウェアを追加
 app.add_middleware(LoggingMiddleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "backend", "backend:8000", "research-tmp.onrender.com", "research-tmp.vercel.app"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "backend", "nginx", "research-tmp.onrender.com", "research-tmp.vercel.app"])
 
 # ルーターを含める
 app.include_router(api_router)

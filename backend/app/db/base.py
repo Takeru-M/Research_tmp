@@ -41,14 +41,15 @@ engine = create_engine(
     pool_recycle=3600,
 )
 
-# 接続ごとに文字コードを強制設定
+# PostgreSQL 接続時の文字コード設定
 @event.listens_for(engine, "connect")
 def set_charset(dbapi_conn, connection_record):
-    """MySQL接続時の文字コード設定"""
+    """PostgreSQL接続時の文字コード設定"""
     try:
         cursor = dbapi_conn.cursor()
-        cursor.execute("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci")
-        cursor.execute("SET CHARACTER SET utf8mb4")
+        # PostgreSQL は自動的に UTF-8 を使用するため、明示的な設定は不要
+        # ただし、必要に応じて client_encoding を設定可能
+        cursor.execute("SET client_encoding TO 'utf-8'")
         cursor.close()
     except Exception as e:
         logger.error(f"[set_charset] Error setting charset: {e}")

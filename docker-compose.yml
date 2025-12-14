@@ -8,39 +8,27 @@ services:
     container_name: nextjs_frontend
     networks:
       - app-network
+    ports:
+      - "3000:3000"
 
 # --- FastAPI (バックエンド) ---
   backend:
-    # 既存のbackend/Dockerfileを使用
     build:
-      context: .  # Dockerfileの位置に合わせて修正
-      dockerfile: docker/backend/Dockerfile # ./backend/Dockerfile を指す
-    container_name: fastapi_backend # コンテナ名を変更
-    # アプリケーションコードのマウント（開発中にホスト側で編集したコードをコンテナに反映）
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: fastapi_backend
     volumes:
       - ./backend:/app
     networks:
       - app-network
+    ports:
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # 開発用（docker 内接続）
       DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_DATABASE}
       APP_ENV: development
-
-  # --- Nginx (Webサーバ/リバースプロキシ) ---
-  nginx:
-    image: nginx:stable-alpine
-    container_name: nginx_proxy
-    volumes:
-      - ./backend:/var/www/html
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-    networks:
-      - app-network
-    depends_on:
-      - frontend
-      - backend
 
   # --- PostgreSQL (開発/本番用DB) ---
   db:

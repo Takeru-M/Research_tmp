@@ -47,13 +47,14 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          const url = `${baseUrl}/auth/token`;
+          const url = `${baseUrl}/auth/token/`;
           console.log("Auth endpoint:", url);
 
           const response = await fetch(url, {
             method: "POST",
-            headers: { 
+            headers: {
               "Content-Type": "application/json",
+              "Host": new URL(baseUrl).hostname,
             },
             body: JSON.stringify({
               email: credentials.email,

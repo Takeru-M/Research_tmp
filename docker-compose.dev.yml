@@ -18,7 +18,6 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # docker 内の Postgres に接続
       DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_DATABASE}
       APP_ENV: development
     env_file:
@@ -27,10 +26,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  nginx:
-    ports:
-      - "80:80"
 
   # 開発用 DB（PostgreSQL）
   db:
