@@ -2,6 +2,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
+from app.core.logging import user_log_buffer
+from datetime import datetime
 
 router = APIRouter()
 
@@ -14,7 +16,7 @@ class LogData(BaseModel):
     details: Optional[dict] = None
     userAgent: str
     url: str
-    userId: Optional[str] = None  # ユーザーIDを追加
+    userId: Optional[str] = None
 
 class BatchLogRequest(BaseModel):
     logs: List[LogData]
@@ -33,21 +35,20 @@ async def receive_frontend_logs(request: BatchLogRequest):
             if log_data.type != 'user_action':
                 continue
 
-            log_record = logging.LogRecord(
-                name='user_action',
-                level=logging.INFO,
-                pathname='',
-                lineno=0,
-                msg=f"User action: {log_data.action} (userId: {log_data.userId or 'anonymous'})",
-                args=(),
-                exc_info=None,
-            )
-
-            log_dict = log_data.dict()
-            log_dict['source'] = 'frontend'
-            log_record.log_data = log_dict
-
-            logging.getLogger('user_action').handle(log_record)
+            # ログデータを整形してバッファに追加
+            formatted_log = {
+                'timestamp': log_data.timestamp,
+                'type': log_data.type,
+                'action': log_data.action,
+                'details': log_data.details or {},
+                'userAgent': log_data.userAgent,
+                'url': log_data.url,
+                'userId': log_data.userId or 'anonymous',
+                'source': 'frontend',
+                'received_at': datetime.utcnow().isoformat()
+            }
+            
+            await user_log_buffer.add_log(formatted_log)
 
         return {"status": "success", "received": len(request.logs)}
     except Exception as e:
