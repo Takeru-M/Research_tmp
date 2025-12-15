@@ -10,7 +10,7 @@ import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { RootState } from '@/redux/store';
 import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
-import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, updateHighlightMemo, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
+import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import FabricShapeLayer from './FabricShapeLayer';
 import LoadingOverlay from './LoadingOverlay';
@@ -31,6 +31,7 @@ import {
   HighlightCreateResponse,
   UpdateCompletionStageResponse,
 } from '@/types/Responses/Openai';
+import { groupTextItemsToLines, GroupedLine } from '../utils/pdfTextGrouper';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -50,6 +51,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageTextItems, setPageTextItems] = useState<{ [n:number]:TextItem[] }>({});
   const [dividedMeetingTexts, setDividedMeetingTexts] = useState<DividedMeetingTexts | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [groupedTextLines, setGroupedTextLines] = useState<GroupedLine[]>([]);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
@@ -215,6 +217,27 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       }
     }
   }, [numPages, pageData, dispatch, getUserId]);
+
+  // 全ページロード後に行グルーピングを生成
+  useEffect(() => {
+    if (!numPages) return;
+    // 必要なデータが揃っているか確認
+    for (let i = 1; i <= numPages; i++) {
+      if (!pageTextItems[i] || !pageData[i]?.height) return;
+    }
+
+    const lines: GroupedLine[] = [];
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const pageHeight = pageData[pageNum]?.height || 0;
+      const grouped = groupTextItemsToLines(pageTextItems[pageNum] || [], pageHeight);
+      grouped.forEach((g) => (g.pageNum = pageNum));
+      lines.push(...grouped);
+    }
+
+    // ページ順にソート
+    lines.sort((a, b) => a.pageNum - b.pageNum || a.yCenter - b.yCenter);
+    setGroupedTextLines(lines);
+  }, [numPages, pageTextItems, pageData]);
 
   // PDFページのレンダリングが完了した後、その寸法からスケールを計算するロジック
   useEffect(()=>{
@@ -668,8 +691,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           {
             method: 'POST',
             body: {
-              pdfTextData: pdfTextContent
-            }
+              pdfTextData: {
+                lines: groupedTextLines,
+              },
+            },
           }
         );
 
@@ -686,6 +711,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
         const firstResponseData = parseJSONResponse(formatDataResponse.analysis);
         setDividedMeetingTexts(firstResponseData);
+        console.log(firstResponseData);
 
         const userInput = {
           "mt_text": formatDataResponse.analysis,
@@ -714,6 +740,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         const responseData = parseJSONResponse(optionAnalyzeResponse.analysis);
+        console.log(responseData);
 
         if (responseData) {
           const highlight_feedback = responseData.highlight_feedback;

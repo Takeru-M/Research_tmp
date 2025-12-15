@@ -1,4 +1,5 @@
 from typing import List, Optional, Any
+import json
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -31,8 +32,40 @@ class OptionAnalyzeRequest(BaseModel):
     userInput: Any = Field(..., alias="userInput")
 
 
+class PdfItem(BaseModel):
+    text: str
+    x1: float
+    x2: float
+    y1: float
+    y2: float
+
+    model_config = {"populate_by_name": True, "extra": "allow"}
+
+
+class PdfLine(BaseModel):
+    pageNum: int = Field(..., alias="pageNum")
+    text: str
+    x1: float
+    x2: float
+    y1: float
+    y2: float
+    yCenter: float = Field(..., alias="yCenter")
+    items: List[PdfItem]
+
+    model_config = {"populate_by_name": True, "extra": "allow"}
+
+
+class PdfTextData(BaseModel):
+    lines: List[PdfLine]
+    rawText: Optional[str] = Field(None, alias="rawText")
+
+    model_config = {"populate_by_name": True, "extra": "allow"}
+
+
 class FormatDataRequest(BaseModel):
-    pdfTextData: str = Field(..., alias="pdfTextData")
+    pdfTextData: PdfTextData = Field(..., alias="pdfTextData")
+
+    model_config = {"populate_by_name": True}
 
 
 class DialogueInput(BaseModel):
@@ -90,12 +123,13 @@ def option_analyze(req: OptionAnalyzeRequest):
 
 @router.post("/format-data")
 def format_data(req: FormatDataRequest):
+    user_json = req.model_dump(by_alias=True)["pdfTextData"]
     return _call_chat(
         model="gpt-4o-mini",
         temperature=0.0,
         system_prompt=FORMAT_DATA_SYSTEM_PROMPT,
-        user_content=req.pdfTextData,
-        as_json=False,
+        user_content=json.dumps(user_json, ensure_ascii=False),
+        as_json=True,
     )
 
 

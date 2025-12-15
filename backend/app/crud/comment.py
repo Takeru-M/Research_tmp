@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from app.models.comments import Comment
 from app.schemas.comment import CommentCreate, CommentUpdate
 import logging
+from datetime import datetime
 from app.utils.constants import LLM_AUTHOR_LOWER
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,18 @@ def get_comments_by_highlight(session: Session, highlight_id: int) -> List[Comme
     return session.exec(
         select(Comment).where(Comment.highlight_id == highlight_id).order_by(Comment.created_at)
     ).all()
+
+def get_active_comments_by_highlight(session: Session, highlight_id: int) -> List[Comment]:
+    """deleted_at が None のコメントのみ取得"""
+    stmt = (
+        select(Comment)
+        .where(
+            Comment.highlight_id == highlight_id,
+            Comment.deleted_at.is_(None)
+        )
+        .order_by(Comment.created_at)
+    )
+    return session.exec(stmt).all()
 
 def update_comment(session: Session, comment: Comment, comment_in: CommentUpdate) -> Comment:
     update_data = comment_in.model_dump(exclude_unset=True)

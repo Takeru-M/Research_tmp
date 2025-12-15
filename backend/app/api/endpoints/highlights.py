@@ -235,7 +235,7 @@ def get_highlights_by_file_endpoint(
         for hl in highlights:
             try:
                 rects = crud_highlight_rect.get_rects_by_highlight(session, hl.id)
-                comments = crud_comment.get_comments_by_highlight_id(session, hl.id) or []
+                comments = crud_comment.get_active_comments_by_highlight(session, hl.id) or []
 
                 highlight_read = HighlightRead(
                     id=hl.id,
