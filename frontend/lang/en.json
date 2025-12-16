@@ -28,6 +28,7 @@
     "password-mismatch": "Passwords do not match",
     "has-account": "Already have an account?",
     "login-link-text": "Login here",
+    "submitting": "Signing up...",
     "validation": {
       "username-min": "Username must be at least 3 characters long",
       "email-invalid": "Please enter a valid email address",

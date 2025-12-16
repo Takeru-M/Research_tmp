@@ -28,6 +28,7 @@
     "password-mismatch": "パスワードが一致しません",
     "has-account": "すでにアカウントをお持ちですか？",
     "login-link-text": "こちらからログイン",
+    "submitting": "サインアップ中...",
     "validation": {
       "username-min": "ユーザ名は3文字以上で入力してください",
       "email-invalid": "有効なメールアドレスを入力してください",

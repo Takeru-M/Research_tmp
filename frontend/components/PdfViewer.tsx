@@ -296,30 +296,46 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
 
-      const isLLMHighlight = h.createdBy === t("CommentPanel.comment-author-LLM");
+      // ハイライトに紐づくコメントスレッドを取得
+      const relatedComments = comments.filter(c => c.highlightId === h.id);
+      const sortedComments = [...relatedComments].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      const latestComment = sortedComments[0];
 
+      // ハイライトの色を決定するロジック
       let baseBg: string;
       let activeBg: string;
       let baseBorderColor: string;
       let activeBorderColor: string;
 
-      if (isLLMHighlight) {
-        if (h.hasUserReply) {
+      if (!latestComment) {
+        // コメントがない場合：ユーザーハイライト（黄色）
+        baseBg = 'rgba(255, 235, 59, 0.40)';
+        activeBg = 'rgba(255, 235, 59, 0.65)';
+        baseBorderColor = '#ffeb3b';
+        activeBorderColor = '#fbc02d';
+      } else if (latestComment.author === t("CommentPanel.comment-author-LLM")) {
+        // 最新コメントがLLM：青色
+        baseBg = 'rgba(52, 168, 224, 0.30)';
+        activeBg = 'rgba(52, 168, 224, 0.50)';
+        baseBorderColor = '#34a8e0';
+        activeBorderColor = '#1e88c6';
+      } else {
+        // 最新コメントがユーザー かつ スレッド内にLLMコメントが存在：緑色
+        const hasLLMComment = relatedComments.some(c => c.author === t("CommentPanel.comment-author-LLM"));
+        if (hasLLMComment) {
           baseBg = 'rgba(76, 175, 80, 0.30)';
           activeBg = 'rgba(76, 175, 80, 0.50)';
           baseBorderColor = '#4CAF50';
           activeBorderColor = '#388E3C';
         } else {
-          baseBg = 'rgba(52, 168, 224, 0.30)';
-          activeBg = 'rgba(52, 168, 224, 0.50)';
-          baseBorderColor = '#34a8e0';
-          activeBorderColor = '#1e88c6';
+          // ユーザーハイライト（黄色）
+          baseBg = 'rgba(255, 235, 59, 0.40)';
+          activeBg = 'rgba(255, 235, 59, 0.65)';
+          baseBorderColor = '#ffeb3b';
+          activeBorderColor = '#fbc02d';
         }
-      } else {
-        baseBg = 'rgba(255, 235, 59, 0.40)';
-        activeBg = 'rgba(255, 235, 59, 0.65)';
-        baseBorderColor = '#ffeb3b';
-        activeBorderColor = '#fbc02d';
       }
 
       const isActive = effectiveActiveHighlightId === h.id;
@@ -340,7 +356,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         />
       ));
     });
-  },[highlights,pageData,pageScales,effectiveActiveHighlightId, onHighlightClick, dispatch, t]);
+  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, onHighlightClick, dispatch, t]);
 
   // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {

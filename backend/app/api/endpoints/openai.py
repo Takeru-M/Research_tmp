@@ -96,31 +96,6 @@ def _call_chat(model: str, temperature: float, system_prompt: str, user_content:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to call OpenAI: {str(e)}")
 
-
-@router.post("/deliberation-analyze")
-def deliberation_analyze(req: DeliberationAnalyzeRequest):
-    user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
-    return _call_chat(
-        model="gpt-4o-mini",
-        temperature=0.2,
-        system_prompt=DELIBERATION_SYSTEM_PROMPT,
-        user_content=user_content,
-        as_json=True,
-    )
-
-
-@router.post("/option-analyze")
-def option_analyze(req: OptionAnalyzeRequest):
-    user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
-    return _call_chat(
-        model="gpt-4o-mini",
-        temperature=0.5,
-        system_prompt=OPTION_SYSTEM_PROMPT,
-        user_content=user_content,
-        as_json=True,
-    )
-
-
 @router.post("/format-data")
 def format_data(req: FormatDataRequest):
     user_json = req.model_dump(by_alias=True)["pdfTextData"]
@@ -132,6 +107,16 @@ def format_data(req: FormatDataRequest):
         as_json=True,
     )
 
+@router.post("/option-analyze")
+def option_analyze(req: OptionAnalyzeRequest):
+    user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
+    return _call_chat(
+        model="gpt-5",
+        temperature=0.5,
+        system_prompt=OPTION_SYSTEM_PROMPT,
+        user_content=user_content,
+        as_json=True,
+    )
 
 @router.post("/option-dialogue")
 def option_dialogue(req: OptionDialogueRequest):
@@ -144,6 +129,16 @@ def option_dialogue(req: OptionDialogueRequest):
         as_json=True,
     )
 
+@router.post("/deliberation-analyze")
+def deliberation_analyze(req: DeliberationAnalyzeRequest):
+    user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
+    return _call_chat(
+        model="gpt-5",
+        temperature=0.2,
+        system_prompt=DELIBERATION_SYSTEM_PROMPT,
+        user_content=user_content,
+        as_json=True,
+    )
 
 @router.post("/deliberation-dialogue")
 def deliberation_dialogue(req: DeliberationDialogueRequest):
