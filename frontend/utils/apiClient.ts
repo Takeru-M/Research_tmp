@@ -75,6 +75,54 @@ async function handleSessionExpired(): Promise<void> {
   
   await signOut({ redirect: false });
   
+  // メッセージ表示用のダイアログ
+  const message = 'セッションが切れました。ログインページにリダイレクトします。';
+  
+  // ブラウザのアラート、またはカスタムダイアログを表示
+  if (typeof window !== 'undefined') {
+    // カスタムダイアログを表示する場合は、以下のようにする
+    const showDialog = (): Promise<void> => {
+      return new Promise((resolve) => {
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'alertdialog');
+        dialog.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          padding: 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          z-index: 10000;
+          text-align: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          max-width: 400px;
+        `;
+        
+        const title = document.createElement('h2');
+        title.style.cssText = 'margin: 0 0 12px 0; font-size: 18px; color: #d32f2f;';
+        title.textContent = 'セッションが切れました';
+        
+        const text = document.createElement('p');
+        text.style.cssText = 'margin: 0 0 16px 0; font-size: 14px; color: #666;';
+        text.textContent = 'ログインページにリダイレクトしています...';
+        
+        dialog.appendChild(title);
+        dialog.appendChild(text);
+        document.body.appendChild(dialog);
+        
+        // 2秒後にリダイレクト
+        setTimeout(() => {
+          document.body.removeChild(dialog);
+          resolve();
+        }, 2000);
+      });
+    };
+    
+    await showDialog();
+  }
+  
   // ログインページにリダイレクト（リダイレクト先のURLを指定）
   const loginUrl = `/login?error=session_expired&callbackUrl=${encodeURIComponent(currentPath)}`;
   window.location.href = loginUrl;
