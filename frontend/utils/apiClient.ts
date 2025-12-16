@@ -65,6 +65,21 @@ export function parseJSONResponse(responseText: string): any {
   }
 }
 
+// セッション切れ時の処理関数
+async function handleSessionExpired(): Promise<void> {
+  // next-auth の signOut を呼び出す
+  const { signOut } = await import('next-auth/react');
+  
+  // 現在のURLを保存
+  const currentPath = window.location.pathname + window.location.search;
+  
+  await signOut({ redirect: false });
+  
+  // ログインページにリダイレクト（リダイレクト先のURLを指定）
+  const loginUrl = `/login?error=session_expired&callbackUrl=${encodeURIComponent(currentPath)}`;
+  window.location.href = loginUrl;
+}
+
 export async function apiClient<T>(
   path: string,
   options: ApiRequestOptions = {}
@@ -85,6 +100,14 @@ export async function apiClient<T>(
       headers: fetchHeaders,
       body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
+
+    // セッション切れ判定（401 or 403）
+    if (res.status === 401 || res.status === 403) {
+      console.warn('[apiClient] Session expired detected. Status:', res.status);
+      await handleSessionExpired();
+      // リダイレクト後は実行されないが、念のため終了
+      return { data: null, error: 'Session expired', status: res.status };
+    }
 
     if (!res.ok) {
       const errorMessage = await parseErrorMessage(res);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, FormEvent } from 'react';
+import React, { useState, useCallback, FormEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -16,6 +16,7 @@ const LoginPage: React.FC = () => {
   const { status, data: session } = useSession({
     required: false,
   });
+  const { callbackUrl } = router.query;
 
   // ユーザーIDを取得するヘルパー関数
   const getUserId = useCallback(() => {
@@ -71,9 +72,14 @@ const LoginPage: React.FC = () => {
         timestamp: new Date().toISOString(),
       }, email);
       
-      router.push('/documents');
+      // callbackUrl が string であることを確認してから使用
+      if (callbackUrl && typeof callbackUrl === 'string') {
+        router.push(decodeURIComponent(callbackUrl));
+      } else {
+        router.push('/documents');
+      }
     }
-  }, [email, password, router, t]);
+  }, [email, password, router, t, callbackUrl]);
 
   if (status === 'loading') {
     return <div className={styles.loading}>{t('Loading...')}</div>;
@@ -91,13 +97,13 @@ const LoginPage: React.FC = () => {
           {t('Login.title')}
         </h2>
 
-        {router.query.error === 'session-expired' && (
+        {router.query.error === 'session_expired' && (
           <p className={styles.error}>
             {t('Alert.session-expired')}
           </p>
         )}
 
-        {(authError || (router.query.error && router.query.error !== 'session-expired')) && (
+        {(authError || (router.query.error && router.query.error !== 'session_expired')) && (
           <p className={styles.error}>
             {authError || t('Login.error-message')}
           </p>

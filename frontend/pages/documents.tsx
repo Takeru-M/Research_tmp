@@ -51,24 +51,9 @@ const Documents: React.FC = () => {
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
 
+      // 以下から401/403のチェックを削除し、その他のエラーのみ処理
       if (error) {
         console.error('[fetchDocuments] Error:', error, 'Status:', httpStatus);
-        if (httpStatus === 401 || httpStatus === 403) {
-          logUserAction('documents_fetch_auth_error', {
-            status: httpStatus,
-            timestamp: new Date().toISOString(),
-          }, getUserId());
-
-          setErrorMessage(t('Error.session-expired'));
-          setLoading(false);
-
-          setTimeout(async () => {
-            await signOut({ redirect: false });
-            router.push('/login?error=session_expired');
-          }, 2000);
-          return;
-        }
-
         setErrorMessage(t('Error.fetch-documents-failed'));
         logUserAction('documents_fetch_failed', {
           reason: error,
