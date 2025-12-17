@@ -20,7 +20,7 @@ import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { STAGE } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
-import { logUserAction } from '@/utils/logger';
+import { logUserAction, logLLMAnalysis } from '@/utils/logger';
 import styles from '../styles/PdfViewer.module.css';
 import {
   FormatDataResponse,
@@ -762,6 +762,20 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           const highlight_feedback = responseData.highlight_feedback;
           const unhighlighted_feedback = responseData.unhighlighted_feedback;
 
+          // LLM分析ログを記録
+          logLLMAnalysis(
+            'option_analyze',
+            {
+              highlight_feedback,
+              unhighlighted_feedback,
+            },
+            getUserId(),
+            getDocumentIdFromCookie() ?? undefined,
+            fileId ?? undefined,
+            highlights.length,
+            comments.length
+          );
+
           // ハイライト有箇所に対するLLMコメント保存
           for (const hf of highlight_feedback) {
             if (hf.intervention_needed) {
@@ -982,6 +996,26 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const responseData = parseJSONResponse(deliberationResponse.analysis);
 
         if (responseData) {
+          // LLM分析ログを記録
+          logLLMAnalysis(
+            'deliberation_analyze',
+            {
+              highlight_feedback: responseData.suggestions?.map((s: any) => ({
+                id: s.id,
+                highlight_id: s.highlight_id,
+                intervention_needed: true,
+                intervention_reason: '',
+                suggestion: s.suggestion,
+                suggestion_reason: '',
+              })) || [],
+            },
+            getUserId(),
+            getDocumentIdFromCookie() ?? undefined,
+            fileId ?? undefined,
+            highlights.length,
+            comments.length
+          );
+
           for (const hf of responseData.suggestions) {
             if (hf.suggestion) {
               const parentCommentExists = comments.some(c => c.id === hf.id);
@@ -1316,6 +1350,23 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const responseData = parseJSONResponse(dialogueResponse.analysis);
 
       if (responseData && responseData.dialogue_responses) {
+        // LLM対話ログを記録
+        const analysisType = completionStage === STAGE.GIVE_DELIBERATION_TIPS 
+          ? 'option_dialogue' 
+          : 'deliberation_dialogue';
+        
+        logLLMAnalysis(
+          analysisType,
+          {
+            dialogue_responses: responseData.dialogue_responses,
+          },
+          getUserId(),
+          getDocumentIdFromCookie() ?? undefined,
+          fileId ?? undefined,
+          highlights.length,
+          comments.length
+        );
+
         for (const dr of responseData.dialogue_responses) {
           if (dr.root_comment_id && dr.response_text) {
             const rootComment = comments.find(c => c.id === dr.root_comment_id);
