@@ -993,12 +993,15 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
         const responseData = parseJSONResponse(deliberationResponse.analysis);
 
-        // 未定義対策
-        const suggestions: any[] = Array.isArray(responseData?.suggestions)
-          ? responseData.suggestions
-          : [];
+        // suggestions を安全に配列化（未定義/オブジェクト対応）
+        const rawSuggestions = (responseData as any)?.suggestions;
+        const suggestions: any[] = Array.isArray(rawSuggestions)
+          ? rawSuggestions
+          : (rawSuggestions && typeof rawSuggestions === 'object')
+            ? Object.values(rawSuggestions)
+            : [];
 
-        // LLMログ（mapの前に配列保証）
+        // LLMログ（配列保証後にmap）
         logLLMAnalysis(
           'deliberation_analyze',
           {
@@ -1018,10 +1021,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           comments.length
         );
 
+        // 以降の保存処理も suggestions 配列で反復
         for (const hf of suggestions) {
           if (hf.suggestion) {
             const parentCommentExists = comments.some(c => c.id === hf.id);
-
             if (!parentCommentExists) {
               console.warn('[handleCompletion] Parent comment ID not found:', hf.id);
               continue;
