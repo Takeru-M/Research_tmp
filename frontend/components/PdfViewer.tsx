@@ -20,7 +20,7 @@ import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { STAGE } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
-import { logUserAction /*, logLLMAnalysis*/ } from '@/utils/logger';
+import { logUserAction } from '@/utils/logger'; // ← logLLMAnalysis はインポートしない
 import styles from '../styles/PdfViewer.module.css';
 import {
   FormatDataResponse,
@@ -982,7 +982,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
         const responseData = parseJSONResponse(deliberationResponse.analysis);
 
-        // suggestions を安全に配列化（未定義/オブジェクト対応）
+        // suggestions を安全に配列化（未定義/オブジェクトでも配列へ）
         const rawSuggestions = (responseData as any)?.suggestions;
         const suggestionsArr: any[] = Array.isArray(rawSuggestions)
           ? rawSuggestions
@@ -990,16 +990,16 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             ? Object.values(rawSuggestions)
             : [];
 
-        // 以降の保存処理も suggestionsArr 配列で反復
-        for (const hf of suggestionsArr) {
-          if (hf.suggestion) {
-            const parentCommentExists = comments.some(c => c.id === hf.id);
+        // ループ見出しにカンマ演算子を使わない
+        for (const s of suggestionsArr) {
+          if (s.suggestion) {
+            const parentCommentExists = comments.some(c => c.id === s.id);
             if (!parentCommentExists) {
-              console.warn('[handleCompletion] Parent comment ID not found:', hf.id);
+              console.warn('[handleCompletion] Parent comment ID not found:', s.id);
               continue;
             }
 
-            console.log('[handleCompletion] Saving comment with parent_id:', hf.id, 'highlight_id:', hf.highlight_id);
+            console.log('[handleCompletion] Saving comment with parent_id:', s.id, 'highlight_id:', s.highlight_id);
 
             const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
               '/comments/',
@@ -1007,10 +1007,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 method: 'POST',
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
                 body: {
-                  highlight_id: parseInt(hf.highlight_id, 10),
-                  parent_id: parseInt(hf.id, 10),
+                  highlight_id: parseInt(s.highlight_id, 10),
+                  parent_id: parseInt(s.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
-                  text: hf.suggestion,
+                  text: s.suggestion,
                 }
               }
             );
@@ -1031,10 +1031,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             dispatch(
               addComment({
                 id: commentResponse.id.toString(),
-                highlightId: hf.highlight_id,
-                parentId: hf.id,
+                highlightId: s.highlight_id,
+                parentId: s.id,
                 author: t("CommentPanel.comment-author-LLM"),
-                text: hf.suggestion,
+                text: s.suggestion,
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -1072,7 +1072,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           console.log('[handleCompletion] Completion stage updated to', stageVal);
           dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
           logUserAction('deliberation_analysis_completed', {
-            newCompletionStage: stageVal,
+            suggestionCount: suggestionsArr.length,
             timestamp: new Date().toISOString(),
           }, getUserId());
         }
