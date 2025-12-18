@@ -20,7 +20,7 @@ import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
 import { STAGE } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
-import { logUserAction, logLLMAnalysis } from '@/utils/logger';
+import { logUserAction /*, logLLMAnalysis*/ } from '@/utils/logger';
 import styles from '../styles/PdfViewer.module.css';
 import {
   FormatDataResponse,
@@ -984,14 +984,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
         // suggestions を安全に配列化（未定義/オブジェクト対応）
         const rawSuggestions = (responseData as any)?.suggestions;
-        const suggestions: any[] = Array.isArray(rawSuggestions)
+        const suggestionsArr: any[] = Array.isArray(rawSuggestions)
           ? rawSuggestions
           : (rawSuggestions && typeof rawSuggestions === 'object')
             ? Object.values(rawSuggestions)
             : [];
 
-        // 以降の保存処理も suggestions 配列で反復
-        for (const hf of suggestions) {
+        // 以降の保存処理も suggestionsArr 配列で反復
+        for (const hf of suggestionsArr) {
           if (hf.suggestion) {
             const parentCommentExists = comments.some(c => c.id === hf.id);
             if (!parentCommentExists) {
