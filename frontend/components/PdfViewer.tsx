@@ -765,17 +765,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           ? responseData.unhighlighted_feedback
           : [];
 
-        // LLMログ
-        logLLMAnalysis(
-          'option_analyze',
-          { highlight_feedback, unhighlighted_feedback },
-          getUserId(),
-          getDocumentIdFromCookie() ?? undefined,
-          fileId ?? undefined,
-          highlights.length,
-          comments.length
-        );
-
         // 以降の処理も配列に対してのみ実行
         for (const hf of highlight_feedback) {
           if (hf.intervention_needed) {
@@ -1000,26 +989,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           : (rawSuggestions && typeof rawSuggestions === 'object')
             ? Object.values(rawSuggestions)
             : [];
-
-        // LLMログ（配列保証後にmap）
-        logLLMAnalysis(
-          'deliberation_analyze',
-          {
-            highlight_feedback: suggestions.map((s: any) => ({
-              id: s.id,
-              highlight_id: s.highlight_id,
-              intervention_needed: true,
-              intervention_reason: '',
-              suggestion: s.suggestion,
-              suggestion_reason: '',
-            })),
-          },
-          getUserId(),
-          getDocumentIdFromCookie() ?? undefined,
-          fileId ?? undefined,
-          highlights.length,
-          comments.length
-        );
 
         // 以降の保存処理も suggestions 配列で反復
         for (const hf of suggestions) {
@@ -1363,16 +1332,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           completionStage === STAGE.GIVE_DELIBERATION_TIPS
             ? 'option_dialogue'
             : 'deliberation_dialogue';
-
-        logLLMAnalysis(
-          analysisType,
-          { dialogue_responses: dialogueResponses },
-          getUserId(),
-          getDocumentIdFromCookie() ?? undefined,
-          fileId ?? undefined,
-          highlights.length,
-          comments.length
-        );
 
         for (const dr of dialogueResponses) {
           if (dr.root_comment_id && dr.response_text) {
