@@ -112,7 +112,6 @@ def option_analyze(req: OptionAnalyzeRequest):
     user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
     return _call_chat(
         model="gpt-5",
-        temperature=0.5,
         system_prompt=OPTION_SYSTEM_PROMPT,
         user_content=user_content,
         as_json=True,
@@ -134,7 +133,6 @@ def deliberation_analyze(req: DeliberationAnalyzeRequest):
     user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
     return _call_chat(
         model="gpt-5",
-        temperature=0.2,
         system_prompt=DELIBERATION_SYSTEM_PROMPT,
         user_content=user_content,
         as_json=True,
