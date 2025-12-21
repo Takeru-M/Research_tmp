@@ -132,7 +132,7 @@ const CommentHeader: React.FC<{
             ⋮
           </button>
 
-          {isMenuOpen && !isExportStage && (
+          {isMenuOpen && (
             <div className={styles.dropdownMenu}>
               {/* ルートのみ「選択」または「選択解除」ボタン表示 */}
               {showSelectButton && (
@@ -738,25 +738,28 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
             const replies = getReplies(root.id);
             const totalReplies = replies.length;
 
+            console.log('[CommentPanel] Rendering root comment:', {
+              rootId: root.id,
+              replyCount: replies.length,
+              replies: replies.map(r => ({ id: r.id, parentId: r.parentId })),
+            });
+
             // 初期折りたたみ条件を計算（状態には保存しない）
             const baseInitiallyCollapsed =
               totalReplies > COLLAPSE_THRESHOLD ||
               (sortedRootComments.length > ROOTS_COLLAPSE_THRESHOLD && rootIdx >= ROOTS_COLLAPSE_THRESHOLD);
 
-            // EXPORT ステージでは折りたたまない（常に展開）
+            // EXPORT ステージでも初期状態は baseInitiallyCollapsed に従う
+            // つまり、子コメントが多い場合や後ろのスレッドは展開しない
             const isCollapsed =
-              isExportStage
+              root.id === activeRootId
                 ? false
-                : root.id === activeRootId
-                  ? false
-                  : (collapsedMap[root.id] ?? baseInitiallyCollapsed);
+                : (collapsedMap[root.id] ?? baseInitiallyCollapsed);
 
-            // EXPORT ステージでは常に全返信を表示
-            const visibleReplies = isExportStage
-              ? replies
-              : (isCollapsed && totalReplies > COLLAPSE_THRESHOLD
-                  ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
-                  : replies);
+            // 表示する返信を計算（EXPORT でも同じロジック）
+            const visibleReplies = isCollapsed && totalReplies > COLLAPSE_THRESHOLD
+              ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
+              : replies;
 
             const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
             const isActive = activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId);
@@ -774,6 +777,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                   logUserAction('root_comment_selected', {
                     rootCommentId: root.id,
                     highlightId: root.highlightId,
+                    replyCount: replies.length,
                     timestamp: new Date().toISOString(),
                   }, getUserId());
                 }}

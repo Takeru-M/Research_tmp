@@ -166,25 +166,50 @@ const EditorPageContent: React.FC = () => {
         const h = item.highlight;
         const hId = (h.id || h.id)?.toString();
         if (!hId) return [];
+        
         const list = Array.isArray(item.comments) ? item.comments : [];
-        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null }) => ({
-          id: c.id.toString(),
-          highlightId: hId,
-          parentId: c.parent_id !== null && c.parent_id !== undefined ? c.parent_id.toString() : null,
-          author: c.author || getUserName(),
-          text: c.text,
-          created_at: c.created_at,
-          edited_at: c.updated_at || null,
-          deleted: false,
-        }));
+        
+        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null }) => {
+          console.log('[fetchHighlightsAndComments] Converting comment:', {
+            id: c.id,
+            parent_id: c.parent_id,
+            author: c.author,
+            text: c.text.substring(0, 30),
+          });
+          
+          return {
+            id: c.id.toString(),
+            highlightId: hId,
+            parentId: c.parent_id !== null && c.parent_id !== undefined 
+              ? c.parent_id.toString() 
+              : null,
+            author: c.author || getUserName(),
+            text: c.text,
+            created_at: c.created_at,
+            edited_at: c.updated_at || null,
+            deleted: false,
+          };
+        });
       });
 
-      console.log('Converted ALL comments:');
+      console.log('[fetchHighlightsAndComments] Final comments array:', {
+        totalCount: comments.length,
+        rootCount: comments.filter(c => c.parentId === null).length,
+        replyCount: comments.filter(c => c.parentId !== null).length,
+        comments: comments.map(c => ({
+          id: c.id,
+          parentId: c.parentId,
+          author: c.author,
+        })),
+      });
+
       dispatch(setComments(comments));
       logUserAction('highlights_and_comments_loaded', {
         fileId,
         highlightCount: highlights.length,
         commentCount: comments.length,
+        rootCommentCount: comments.filter(c => c.parentId === null).length,
+        replyCount: comments.filter(c => c.parentId !== null).length,
         timestamp: new Date().toISOString(),
       }, getUserId());
     } finally {
