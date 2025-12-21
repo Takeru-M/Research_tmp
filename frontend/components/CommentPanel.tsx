@@ -743,15 +743,20 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
               totalReplies > COLLAPSE_THRESHOLD ||
               (sortedRootComments.length > ROOTS_COLLAPSE_THRESHOLD && rootIdx >= ROOTS_COLLAPSE_THRESHOLD);
 
-            // アクティブなルートは常に展開する。それ以外は状態またはデフォルトに従う
+            // EXPORT ステージでは折りたたまない（常に展開）
             const isCollapsed =
-              root.id === activeRootId
+              isExportStage
                 ? false
-                : (collapsedMap[root.id] ?? baseInitiallyCollapsed);
+                : root.id === activeRootId
+                  ? false
+                  : (collapsedMap[root.id] ?? baseInitiallyCollapsed);
 
-            const visibleReplies = isCollapsed && totalReplies > COLLAPSE_THRESHOLD
-              ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
-              : replies;
+            // EXPORT ステージでは常に全返信を表示
+            const visibleReplies = isExportStage
+              ? replies
+              : (isCollapsed && totalReplies > COLLAPSE_THRESHOLD
+                  ? replies.slice(totalReplies - COLLAPSE_THRESHOLD)
+                  : replies);
 
             const showCollapseButton = totalReplies > COLLAPSE_THRESHOLD;
             const isActive = activeCommentId === root.id || (activeHighlightId && root.highlightId === activeHighlightId);

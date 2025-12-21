@@ -27,21 +27,5 @@ services:
       db:
         condition: service_healthy
 
-  # 開発用 DB（PostgreSQL）
-  db:
-    image: postgres:15-alpine
-    container_name: postgres_db_dev
-    environment:
-      POSTGRES_DB: ${DB_DATABASE}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE} -h localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - db-data:/var/lib/postgresql/data
-
 volumes:
   db-data:
