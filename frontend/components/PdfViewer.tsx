@@ -1120,53 +1120,53 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.log(`[Export][Frontend] Start. documentId=${documentId}, fileId=${fileId}, at=${new Date().toISOString()}`);
 
       // apiClient でblob形式で取得
-      const { data: pdfBlob, error: exportError, status: exportStatus } = await apiClient<Blob>(
-        `/documents/${documentId}/files/${fileId}/export/`,
-        {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${session?.accessToken}` },
-          responseType: 'blob',
-        }
-      );
+      // const { data: pdfBlob, error: exportError, status: exportStatus } = await apiClient<Blob>(
+      //   `/documents/${documentId}/files/${fileId}/export/`,
+      //   {
+      //     method: 'GET',
+      //     headers: { Authorization: `Bearer ${session?.accessToken}` },
+      //     responseType: 'blob',
+      //   }
+      // );
 
-      console.log(`[Export][Frontend] Export response: error=${!!exportError}, status=${exportStatus}`);
+      // console.log(`[Export][Frontend] Export response: error=${!!exportError}, status=${exportStatus}`);
 
-      if (exportError) {
-        console.error(`[Export][Frontend] Export request failed. error=${exportError}`);
-        setErrorMessage(t('Error.export-failed'));
-        logUserAction('export_failed', {
-          reason: 'export_api_error',
-          error: exportError,
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-        return;
-      }
+      // if (exportError) {
+      //   console.error(`[Export][Frontend] Export request failed. error=${exportError}`);
+      //   setErrorMessage(t('Error.export-failed'));
+      //   logUserAction('export_failed', {
+      //     reason: 'export_api_error',
+      //     error: exportError,
+      //     timestamp: new Date().toISOString(),
+      //   }, getUserId());
+      //   return;
+      // }
 
-      if (!pdfBlob) {
-        console.error('[Export][Frontend] No blob returned');
-        setErrorMessage(t('Error.export-failed'));
-        logUserAction('export_failed', {
-          reason: 'no_blob_returned',
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-        return;
-      }
+      // if (!pdfBlob) {
+      //   console.error('[Export][Frontend] No blob returned');
+      //   setErrorMessage(t('Error.export-failed'));
+      //   logUserAction('export_failed', {
+      //     reason: 'no_blob_returned',
+      //     timestamp: new Date().toISOString(),
+      //   }, getUserId());
+      //   return;
+      // }
 
-      console.log('[Export][Frontend] Blob size:', (pdfBlob as Blob).size);
+      // console.log('[Export][Frontend] Blob size:', (pdfBlob as Blob).size);
 
-      // デフォルトのファイル名を生成
-      const filename = 'export_with_comments.pdf';
+      // // デフォルトのファイル名を生成
+      // const filename = 'export_with_comments.pdf';
 
-      // ダウンロード処理
-      const urlObj = window.URL.createObjectURL(pdfBlob as Blob);
-      const a = document.createElement('a');
-      a.href = urlObj;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(urlObj);
-      console.log('[Export][Frontend] Download triggered & URL revoked');
+      // // ダウンロード処理
+      // const urlObj = window.URL.createObjectURL(pdfBlob as Blob);
+      // const a = document.createElement('a');
+      // a.href = urlObj;
+      // a.download = filename;
+      // document.body.appendChild(a);
+      // a.click();
+      // a.remove();
+      // window.URL.revokeObjectURL(urlObj);
+      // console.log('[Export][Frontend] Download triggered & URL revoked');
 
       // ステージを EXPORT に更新
       const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
@@ -1195,11 +1195,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.EXPORT;
       const stageVal = Number(stageValRaw);
       dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
-      logUserAction('export_completed', {
-        filename,
-        blobSize: (pdfBlob as Blob).size,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      // logUserAction('export_completed', {
+      //   filename,
+      //   blobSize: (pdfBlob as Blob).size,
+      //   timestamp: new Date().toISOString(),
+      // }, getUserId());
       router.push('/documents');
     } catch (error) {
       console.error('[handleCompletionforExport] Error:', error);

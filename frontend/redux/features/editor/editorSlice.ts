@@ -24,6 +24,8 @@ const initialState: EditorState = {
   completionStage: STAGE.GIVE_OPTION_TIPS,
   selectedRootCommentIds: [] as string[],
   hasSoftDeletedLLMComment: false,
+  lastLLMCommentRestoreTime: null,
+  lastSoftDeleteFlagCheckTime: null,
 };
 
 const editorSlice = createSlice({
@@ -276,6 +278,9 @@ const editorSlice = createSlice({
       state.documentName = null;
       state.completionStage = STAGE.GIVE_OPTION_TIPS;
       state.selectedRootCommentIds = [];
+      state.hasSoftDeletedLLMComment = false;
+      state.lastLLMCommentRestoreTime = null;
+      state.lastSoftDeleteFlagCheckTime = null;
     },
 
     addLLMResponse: (state, action) => {
@@ -293,6 +298,14 @@ const editorSlice = createSlice({
 
     setHasSoftDeletedLLMComment: (state, action: PayloadAction<boolean>) => {
       state.hasSoftDeletedLLMComment = action.payload;
+    },
+
+    triggerLLMCommentRefresh: (state) => {
+      state.lastLLMCommentRestoreTime = Date.now();
+    },
+
+    triggerSoftDeleteFlagCheck: (state) => {
+      state.lastSoftDeleteFlagCheckTime = Date.now();
     },
   },
 });
@@ -323,6 +336,8 @@ export const {
   setHasSoftDeletedLLMComment,
   toggleSelectRootComment,
   clearSelectedRootComments,
+  triggerLLMCommentRefresh,
+  triggerSoftDeleteFlagCheck,
 } = editorSlice.actions;
 
 export default editorSlice.reducer;

@@ -85,6 +85,7 @@ export interface EditorState {
   completionStage: number;
   selectedRootCommentIds: string[];
   hasSoftDeletedLLMComment: boolean;
+  lastLLMCommentRestoreTime: number | null;
 }
 
 export type Comment = {

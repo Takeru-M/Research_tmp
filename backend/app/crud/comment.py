@@ -4,7 +4,7 @@ from app.models.comments import Comment
 from app.schemas.comment import CommentCreate, CommentUpdate
 import logging
 from datetime import datetime
-from app.utils.constants import LLM_AUTHOR_LOWER
+from app.utils.constants import LLM_AUTHOR, LLM_AUTHOR_LOWER
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,12 @@ def update_comment(session: Session, comment: Comment, comment_in: CommentUpdate
     return comment
 
 def delete_comment(session: Session, comment_id: int, reason: Optional[str] = None) -> None:
-    """author が LLM の場合は理由付きでソフトデリート、それ以外はハードデリート"""
+    """
+    コメント削除処理
+    - ルートコメント（parent_id=None）かつ author=LLM: 子コメントごと全てハードデリート
+    - LLMの子コメント（parent_id!=None かつ author=LLM）: 理由付きでソフトデリート
+    - その他（非LLMコメント）: ハードデリート
+    """
     statement = select(Comment).where(Comment.id == comment_id)
     comment = session.exec(statement).first()
     
@@ -71,24 +76,42 @@ def delete_comment(session: Session, comment_id: int, reason: Optional[str] = No
         return
 
     is_llm = (comment.author or "").strip().lower() == LLM_AUTHOR_LOWER
+    is_root = comment.parent_id is None
     
-    if is_llm:
-        # ソフトデリート（理由必須）
+    # LLMルートコメント: 子コメントごと全てハードデリート
+    if is_root and is_llm:
+        child_statement = select(Comment).where(Comment.parent_id == comment_id)
+        child_comments = session.exec(child_statement).all()
+        
+        # 子コメントを先に削除
+        for child in child_comments:
+            session.delete(child)
+            logger.info(f"[delete_comment] Child comment deleted: {child.id}")
+        
+        # ルートコメントを削除
+        session.delete(comment)
+        session.commit()
+        logger.info(f"[delete_comment] LLM root comment and children hard-deleted: {comment_id}, children_count: {len(child_comments)}")
+        return
+    
+    # LLM子コメント: 理由付きでソフトデリート
+    if not is_root and is_llm:
         if not reason or not reason.strip():
-            logger.error(f"[delete_comment] LLM comment deletion attempted without reason: {comment_id}")
-            raise ValueError("LLMコメントの削除には理由が必須です")
+            logger.error(f"[delete_comment] LLM child comment soft-delete attempted without reason: {comment_id}")
+            raise ValueError("LLM子コメントの削除には理由が必須です")
         
         comment.deleted_at = datetime.utcnow()
         comment.deleted_reason = reason.strip()
         session.add(comment)
         session.commit()
         session.refresh(comment)
-        logger.info(f"[delete_comment] LLM comment soft-deleted: {comment_id}, reason: {reason[:50]}...")
-    else:
-        # 従来通りハードデリート
-        session.delete(comment)
-        session.commit()
-        logger.info(f"[delete_comment] Non-LLM comment hard-deleted: {comment_id}")
+        logger.info(f"[delete_comment] LLM child comment soft-deleted: {comment_id}, reason: {reason[:50]}...")
+        return
+    
+    # その他のコメント（非LLMコメント）: ハードデリート
+    session.delete(comment)
+    session.commit()
+    logger.info(f"[delete_comment] Comment hard-deleted: {comment_id}, is_root: {is_root}, is_llm: {is_llm}")
 
 def restore_latest_soft_deleted_llm(session: Session) -> Optional[Comment]:
     stmt = (
@@ -108,11 +131,13 @@ def restore_latest_soft_deleted_llm(session: Session) -> Optional[Comment]:
     session.refresh(comment)
     return comment
 
-def has_soft_deleted_llm_by_highlight(session: Session, highlight_id: int) -> bool:
-    # author が LLM（ケース無視）かつ deleted_at がセットされているものが存在するか
-    stmt = select(Comment).where(
-        Comment.highlight_id == highlight_id,
-        Comment.deleted_at.is_not(None),
-        Comment.author.ilike("LLM")
-    ).limit(1)
+def has_soft_deleted_llm(session: Session) -> bool:
+    stmt = (
+        select(Comment)
+        .where(
+            Comment.deleted_at.is_not(None),
+            Comment.author.ilike(LLM_AUTHOR)
+        )
+        .limit(1)
+    )
     return session.exec(stmt).first() is not None

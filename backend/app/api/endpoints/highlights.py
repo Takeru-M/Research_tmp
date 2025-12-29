@@ -315,6 +315,12 @@ def delete_highlight_endpoint(
         
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.warning(f"Validation error deleting highlight {highlight_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"Error deleting highlight {highlight_id}: {str(e)}", exc_info=True)
         raise HTTPException(

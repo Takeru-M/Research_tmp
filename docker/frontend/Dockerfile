@@ -10,6 +10,9 @@ RUN npm install
 
 # 開発用ビルドステージ (docker-compose.dev.ymlでボリュームマウントを前提)
 FROM base AS dev
+# ホットリロード有効化（Docker+Mac環境向けポーリング監視）
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
 # 開発中はソースコードをボリュームマウントで対応するため、ここではコピーしない
 # 開発サーバーを起動（docker-composeで上書き可能）
 CMD ["npm", "run", "dev"]

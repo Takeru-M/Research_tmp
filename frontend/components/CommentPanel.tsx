@@ -8,6 +8,7 @@ import {
   setActiveCommentId,
   setActiveHighlightId,
   toggleSelectRootComment,
+  triggerSoftDeleteFlagCheck,
 } from "../redux/features/editor/editorSlice";
 import { selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { PdfHighlight, HighlightInfo } from "@/redux/features/editor/editorTypes";
@@ -364,14 +365,27 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
     }
 
     const isLLMComment = (comment.author || "").toLowerCase() === t("CommentPanel.comment-author-LLM").toLowerCase();
+    const isRootComment = comment.parentId === null;
 
-    if (isLLMComment) {
+    // ルートでないLLMコメント: 理由の入力を求める
+    if (isLLMComment && !isRootComment) {
       setPendingDeleteCommentId(id);
       setDeleteReasonModalOpen(true);
+      logUserAction('comment_delete_reason_requested', {
+        commentId: id,
+        reason: 'llm_comment_soft_delete',
+        isRoot: isRootComment,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       return;
     }
 
-    if (!window.confirm(t("Alert.comment-delete"))) {
+    // 確認ダイアログを表示（ルートと子で異なるメッセージ）
+    const confirmMessage = isRootComment
+      ? t("Alert.comments-delete")
+      : t("Alert.comment-delete");
+    
+    if (!window.confirm(confirmMessage)) {
       logUserAction('comment_delete_cancelled', {
         commentId: id,
         timestamp: new Date().toISOString(),
@@ -402,7 +416,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
           if (error) {
             console.error('[performDelete] Highlight delete error:', error);
-            setErrorMessage(t('Error.delete-comment-failed'));
+            const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
+            if (errorStr.includes('削除できません') || errorStr.includes('Cannot delete')) {
+              setErrorMessage(t('Error.cannot-delete-llm-root-with-children') || error);
+            } else {
+              setErrorMessage(t('Error.delete-comment-failed'));
+            }
             logUserAction('comment_delete_failed', {
               commentId: id,
               reason: 'highlight_delete_error',
@@ -428,7 +447,12 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
           if (error) {
             console.error('[performDelete] Comment delete error:', error);
-            setErrorMessage(t('Error.delete-comment-failed'));
+            const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
+            if (errorStr.includes('削除できません') || errorStr.includes('Cannot delete')) {
+              setErrorMessage(t('Error.cannot-delete-llm-root-with-children') || error);
+            } else {
+              setErrorMessage(t('Error.delete-comment-failed'));
+            }
             logUserAction('comment_delete_failed', {
               commentId: id,
               reason: 'comment_delete_error',
@@ -442,6 +466,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           dispatch(deleteComment({ id }));
         }
       } else {
+        // 子コメント削除
         let deleteUrl = `/comments/${id}/`;
         if (reason) {
           deleteUrl += `?reason=${encodeURIComponent(reason)}`;
@@ -473,8 +498,15 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
         isRoot: comment.parentId === null,
         hadHighlight: !!comment.highlightId,
         hadReason: !!reason,
+        wasSoftDelete: !!reason,
         timestamp: new Date().toISOString(),
       }, getUserId());
+
+      // LLMコメントのソフトデリート時は、復元ボタン表示フラグをチェック
+      if (reason && (comment.author || "").toLowerCase() === t("CommentPanel.comment-author-LLM").toLowerCase()) {
+        dispatch(triggerSoftDeleteFlagCheck());
+      }
+
       closeMenu(id);
     } catch (error: Error | unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
