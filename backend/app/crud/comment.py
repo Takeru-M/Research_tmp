@@ -40,16 +40,46 @@ def get_comments_by_highlight(session: Session, highlight_id: int) -> List[Comme
     ).all()
 
 def get_active_comments_by_highlight(session: Session, highlight_id: int) -> List[Comment]:
-    """deleted_at が None のコメントのみ取得"""
-    stmt = (
+    """
+    ハイライトに紐づくすべてのアクティブコメント（ルート + 子）を取得
+    子コメントのhighlight_idがnullでも取得できるように、ルートコメントから辿る
+    """
+    # まずルートコメントを取得
+    root_stmt = (
         select(Comment)
         .where(
             Comment.highlight_id == highlight_id,
+            Comment.parent_id.is_(None),
             Comment.deleted_at.is_(None)
         )
         .order_by(Comment.created_at)
     )
-    return session.exec(stmt).all()
+    root_comments = list(session.exec(root_stmt).all())
+    
+    if not root_comments:
+        return []
+    
+    # ルートコメントのIDを収集
+    root_ids = [rc.id for rc in root_comments]
+    
+    # 子コメントを取得（parent_idがルートコメントのいずれか）
+    child_stmt = (
+        select(Comment)
+        .where(
+            Comment.parent_id.in_(root_ids),
+            Comment.deleted_at.is_(None)
+        )
+        .order_by(Comment.created_at)
+    )
+    child_comments = list(session.exec(child_stmt).all())
+    
+    # ルートコメントと子コメントを結合して返す
+    all_comments = root_comments + child_comments
+    
+    logger.info(f"[get_active_comments_by_highlight] highlight_id={highlight_id}: "
+                f"root={len(root_comments)}, children={len(child_comments)}, total={len(all_comments)}")
+    
+    return all_comments
 
 def update_comment(session: Session, comment: Comment, comment_in: CommentUpdate) -> Comment:
     update_data = comment_in.model_dump(exclude_unset=True)
