@@ -296,9 +296,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
 
-      // ハイライトに紐づくコメントスレッドを取得
-      const relatedComments = comments.filter(c => c.highlightId === h.id);
-      const sortedComments = [...relatedComments].sort((a, b) => 
+      // ハイライトに紐づくコメントスレッドを取得（ルートコメントとその返信を含む）
+      const rootComments = comments.filter(c => c.highlightId === h.id && c.parentId === null);
+      const childComments = comments.filter(c => rootComments.some(rc => rc.id === c.parentId));
+      const allRelatedComments = [...rootComments, ...childComments];
+      
+      const sortedComments = [...allRelatedComments].sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       const latestComment = sortedComments[0];
@@ -323,7 +326,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         activeBorderColor = '#1e88c6';
       } else {
         // 最新コメントがユーザー かつ スレッド内にLLMコメントが存在：緑色
-        const hasLLMComment = relatedComments.some(c => c.author === t("CommentPanel.comment-author-LLM"));
+        const hasLLMComment = allRelatedComments.some(c => c.author === t("CommentPanel.comment-author-LLM"));
         if (hasLLMComment) {
           baseBg = 'rgba(76, 175, 80, 0.30)';
           activeBg = 'rgba(76, 175, 80, 0.50)';
