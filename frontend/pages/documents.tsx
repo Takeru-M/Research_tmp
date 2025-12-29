@@ -126,7 +126,12 @@ const Documents: React.FC = () => {
 
     if (error) {
       console.error('[handleCreateDocument] Error:', error);
-      setErrorMessage(t('Error.create-document-failed'));
+      // 409エラーの場合は重複エラーメッセージを表示
+      if (error.includes('409') || error.includes('同じ名前') || error.includes('already exists')) {
+        setErrorMessage(t('Error.duplicate-document-name'));
+      } else {
+        setErrorMessage(t('Error.create-document-failed'));
+      }
       logUserAction('document_creation_failed', {
         documentName: newDocumentName,
         reason: error,
@@ -257,7 +262,11 @@ const Documents: React.FC = () => {
 
     if (error) {
       console.error('[handleSaveEdit] Error:', error);
-      setErrorMessage(t('Error.update-document-failed'));
+      if (error.includes('409') || error.includes('同じ名前') || error.includes('already exists')) {
+        setErrorMessage(t('Error.duplicate-document-name'));
+      } else {
+        setErrorMessage(t('Error.update-document-failed'));
+      }
       logUserAction('document_update_failed', {
         documentId: editingDocument.id,
         oldName: editingDocument.document_name,

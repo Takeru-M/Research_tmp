@@ -1198,11 +1198,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.EXPORT;
       const stageVal = Number(stageValRaw);
       dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
-      // logUserAction('export_completed', {
-      //   filename,
-      //   blobSize: (pdfBlob as Blob).size,
-      //   timestamp: new Date().toISOString(),
-      // }, getUserId());
+      logUserAction('export_completed', {
+        filename,
+        blobSize: (pdfBlob as Blob).size,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       router.push('/documents');
     } catch (error) {
       console.error('[handleCompletionforExport] Error:', error);
