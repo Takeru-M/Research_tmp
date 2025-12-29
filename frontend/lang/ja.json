@@ -1,8 +1,10 @@
 {
   "main-title": "システム",
   "app-description": "ファイルエディタアプリケーション",
-  "header": {
-    "back-to-document-list": "ドキュメント一覧に戻る"
+  "Header": {
+    "back-to-document-list": "一覧に戻る",
+    "restore-btn-ttl": "削除したLLMコメントを復元",
+    "restoring-llm-comments": "削除したLLMコメントを復元中..."
   },
   "Utils": {
     "edit": "編集",
@@ -94,6 +96,7 @@
     "not-input-pdf": "PDFを読み込んでいません",
     "file-support": "現在，PDFとテキストファイルのみサポートしています",
     "comment-delete": "このコメントを削除してもよろしいですか？",
+    "comments-delete": "選択したスレッドを削除してもよろしいですか？ この操作は元に戻せません。",
     "delete-comment-reason-required": "コメント削除の理由を入力してください",
     "file-already-uploaded": "ファイルは既にアップロード済みです。新しいファイルをアップロードする場合は、ドキュメントを新規作成してください。"
   },
@@ -122,7 +125,8 @@
     "invalid-response-format": "無効なレスポンス形式が返されました。もう一度お試しください。",
     "update-comment-failed": "コメントの更新に失敗しました。もう一度お試しください。",
     "delete-comment-failed": "コメントの削除に失敗しました。もう一度お試しください。",
-    "save-reply-failed": "返信の保存に失敗しました。もう一度お試しください。"
+    "save-reply-failed": "返信の保存に失敗しました。もう一度お試しください。",
+    "cannot-delete-llm-root-with-children": "LLMのルートコメントに子コメントがある場合は削除できません"
   },
   "LoadingOverlay": {
     "analyzing": "解析しています...",

@@ -113,20 +113,36 @@ class PDFExportService:
         return output
 
     def _get_highlights_with_comments(self, document_file_id: int) -> List[Highlight]:
+        """コメントツリーを構築して取得"""
         statement = (
             select(Highlight)
             .where(Highlight.document_file_id == document_file_id)
             .order_by(Highlight.created_at)
         )
         highlights = self.db.exec(statement).all()
+        
         for h in highlights:
+            # 全コメントを取得
             stmt_c = (
                 select(Comment)
-                .where(Comment.highlight_id == h.id)
-                .where(Comment.parent_id == None)
+                .where(
+                    Comment.highlight_id == h.id,
+                    Comment.deleted_at.is_(None)
+                )
                 .order_by(Comment.created_at)
             )
-            h.comments = list(self.db.exec(stmt_c).all())
+            all_comments = list(self.db.exec(stmt_c).all())
+            
+            # ルートコメントのみを h.comments に設定
+            h.comments = [c for c in all_comments if c.parent_id is None]
+            
+            # 各ルートコメントにリプライを紐付け
+            for root_comment in h.comments:
+                root_comment.replies = [
+                    c for c in all_comments 
+                    if c.parent_id == root_comment.id
+                ]
+        
         return highlights
 
     def _create_comment_pages(self, highlights: List[Highlight]) -> BytesIO:

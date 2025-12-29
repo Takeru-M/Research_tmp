@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.db.base import get_session
 from app.crud import comment as crud_comment
 from app.schemas.comment import CommentCreate, CommentUpdate, CommentRead
+from app.utils.constants import LLM_AUTHOR_LOWER
 import logging
 
 logger = logging.getLogger(__name__)
@@ -183,14 +184,28 @@ def delete_comment_endpoint(
                 detail="コメントが見つかりません"
             )
 
-        if (comment.author or "").strip().lower() == "llm" and (reason is None or not reason.strip()):
-            logger.warning("LLM comment deletion attempted without reason")
+        logger.info(f"Comment found for deletion: ID={comment_id}, author={comment.author}")
+        is_llm = (comment.author or "").strip().lower() == LLM_AUTHOR_LOWER
+        is_root = comment.parent_id is None
+        logger.info(f"Is LLM comment: {is_llm}, Is root: {is_root}")
+
+        # LLM子コメントのみ理由を求める（ルートコメントは理由不要で子ごと削除）
+        if is_llm and not is_root and (reason is None or not reason.strip()):
+            logger.warning("LLM child comment deletion attempted without reason")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="LLMコメントの削除理由を入力してください"
+                detail="LLM子コメントの削除理由を入力してください"
             )
 
-        crud_comment.delete_comment(session, comment_id, reason)
+        try:
+            crud_comment.delete_comment(session, comment_id, reason)
+        except ValueError as e:
+            logger.error(f"Validation error deleting comment {comment_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
         logger.info(f"Comment deleted (soft/hard) successfully: ID={comment_id}")
         return None
     except HTTPException:
@@ -200,4 +215,40 @@ def delete_comment_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="コメント削除中にエラーが発生しました"
+        )
+
+@router.get("/llm/soft-deleted/exists")
+def soft_deleted_llm_exists(
+    session: Session = Depends(get_session)
+):
+    """ソフトデリート済みのLLMコメントが存在するかを判定"""
+    try:
+        exists = crud_comment.has_soft_deleted_llm(session)
+        return {"exists": bool(exists)}
+    except Exception as e:
+        logger.error(f"Error checking soft-deleted LLM comments: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ソフトデリート状況の取得中にエラーが発生しました"
+        )
+
+@router.post("/llm/soft-deleted/restore-latest", response_model=CommentRead)
+def restore_latest_soft_deleted_llm_endpoint(
+    session: Session = Depends(get_session)
+):
+    try:
+        restored = crud_comment.restore_latest_soft_deleted_llm(session)
+        if not restored:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="復元可能なLLMコメントがありません"
+            )
+        return restored
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring soft-deleted LLM comment: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="LLMコメント復元中にエラーが発生しました"
         )

@@ -10,6 +10,7 @@ import {
   setComments,
   setCompletionStage,
   setFileId,
+  setHasSoftDeletedLLMComment,
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -39,7 +40,7 @@ import LoadingOverlay from '../components/LoadingOverlay';
 import { apiClient } from '@/utils/apiClient';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { logUserAction } from '@/utils/logger';
-import { HighlightWithCommentsResponse, CreateHighlightResponse } from '@/types/Responses/Highlight';
+import { HighlightWithCommentsResponse, CreateHighlightResponse, HighlightsWithStatusResponse } from '@/types/Responses/Highlight';
 import { DocumentFileResponse, CreateDocumentFileResponse } from '@/types/Responses/DocumentFile';
 import { S3UploadResponse } from '@/types/Responses/S3';
 import { DocumentResponse } from '@/types/Responses/Document';
@@ -87,7 +88,7 @@ const EditorPageContent: React.FC = () => {
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
     dispatch(startLoading('Loading highlights and comments...'));
     try {
-      const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[]>(`/highlights/file/${fileId}/`, {
+      const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[] | HighlightsWithStatusResponse>(`/highlights/file/${fileId}/`, {
         method: 'GET',
         headers: {Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -127,9 +128,24 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
+      const highlightEntries: HighlightWithCommentsResponse[] = Array.isArray(response)
+        ? response
+        : response.highlights || [];
+
+      if (!highlightEntries || highlightEntries.length === 0) {
+        console.info('[fetchHighlightsAndComments] No highlights array in response for fileId:', fileId);
+        dispatch(setHighlights([]));
+        dispatch(setComments([]));
+        logUserAction('highlights_fetch_empty', {
+          fileId,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return;
+      }
+
       console.log('Fetched highlights and ALL comments:');
 
-      const highlights: PdfHighlight[] = response.map((item: HighlightWithCommentsResponse) => {
+      const highlights: PdfHighlight[] = highlightEntries.map((item: HighlightWithCommentsResponse) => {
         const h = item.highlight;
         const highlightId = h.id || h.id;
         if (!highlightId) {
@@ -162,14 +178,14 @@ const EditorPageContent: React.FC = () => {
       console.log('Converted highlights:');
       dispatch(setHighlights(highlights));
 
-      const comments: CommentType[] = response.flatMap((item: HighlightWithCommentsResponse) => {
+      const comments: CommentType[] = highlightEntries.flatMap((item: HighlightWithCommentsResponse) => {
         const h = item.highlight;
         const hId = (h.id || h.id)?.toString();
         if (!hId) return [];
         
         const list = Array.isArray(item.comments) ? item.comments : [];
         
-        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null }) => {
+        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
           console.log('[fetchHighlightsAndComments] Converting comment:', {
             id: c.id,
             parent_id: c.parent_id,
@@ -187,7 +203,9 @@ const EditorPageContent: React.FC = () => {
             text: c.text,
             created_at: c.created_at,
             edited_at: c.updated_at || null,
-            deleted: false,
+            deleted: Boolean(c.deleted_at),
+            deleted_at: c.deleted_at || null,
+            deleted_reason: c.deleted_reason ?? null,
           };
         });
       });
@@ -364,6 +382,16 @@ const EditorPageContent: React.FC = () => {
       router.push('/documents');
     }
   }, [fetchDocumentInfo, fetchDocumentFile, router, getUserId]);
+
+  // LLMコメント復元トリガーを監視して再フェッチ
+  const lastLLMCommentRestoreTime = useSelector((state: RootState) => state.editor.lastLLMCommentRestoreTime);
+  
+  useEffect(() => {
+    if (lastLLMCommentRestoreTime !== null && fileId) {
+      console.log('[useEffect] LLM comment restore triggered, refetching highlights and comments');
+      fetchHighlightsAndComments(fileId);
+    }
+  }, [lastLLMCommentRestoreTime, fileId, fetchHighlightsAndComments]);
 
   // ---------------------------
   // S3アップロード + バックエンド保存

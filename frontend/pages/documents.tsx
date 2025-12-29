@@ -153,6 +153,7 @@ const Documents: React.FC = () => {
 
     Cookies.set('documentId', newDocument.id.toString(), { sameSite: 'lax', secure: true });
     Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
+    dispatch(setDocumentName(newDocument.document_name));
     
     setCreating(false);
     logUserAction('document_created', {

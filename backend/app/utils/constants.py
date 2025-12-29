@@ -1,3 +1,4 @@
+LLM_AUTHOR = "LLM"
 # LLMからのコメントかどうかを判定するためのauthorの小文字表記
 LLM_AUTHOR_LOWER = "llm"
 
