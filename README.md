@@ -10,16 +10,17 @@
   <img src="https://img.shields.io/badge/-Next.js-000000.svg?logo=next.js&style=for-the-badge">
   <img src="https://img.shields.io/badge/-React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB">
   <!-- バックエンド関連 -->
- <img src="https://img.shields.io/badge/-Laravel-FF2D20.svg?logo=laravel&style=for-the-badge">
+  <img src="https://img.shields.io/badge/-FastAPI-009688.svg?logo=fastapi&style=for-the-badge">
   <!-- フロントエンド言語 -->
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
   <!-- バックエンド言語 -->
-  <img src="https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">
   <!-- ミドルウェア -->
-  <img src="https://img.shields.io/badge/-Nginx-269539.svg?logo=nginx&style=for-the-badge">
-  <img src="https://img.shields.io/badge/-MySQL-4479A1.svg?logo=mysql&style=for-the-badge&logoColor=white">
+  <img src="https://img.shields.io/badge/-PostgreSQL-336791.svg?logo=postgresql&style=for-the-badge&logoColor=white">
   <!-- インフラ -->
   <img src="https://img.shields.io/badge/-Docker-1488C6.svg?logo=docker&style=for-the-badge">
+  <img src="https://img.shields.io/badge/-AWS-232F3E.svg?logo=amazon-aws&style=for-the-badge">
+  <img src="https://img.shields.io/badge/-Cloudflare-F38020.svg?logo=cloudflare&style=for-the-badge">
 </p>
 
 ## 目次
@@ -57,9 +58,9 @@ Research_tmp
 
 機能一覧：
 ・読み込んだ pdf ファイルをブラウザ上に表示し，pdf に対してハイライトをつけてコメントを書くことができる機能
-・吟味の余地がある箇所について他の選択肢を考えることが困難な学習者に対して，LLM が他の選択肢に目を向けさせるような示唆を出す機能（実装中）
-・吟味をすることが困難な学習者に対して，LLM が考える方向性に関する示唆を出す機能（実装中）
-・介入前と介入後で比較ができる機能（実装中）
+・吟味の余地がある箇所について他の選択肢を考えることが困難な学習者に対して，LLM が他の選択肢に目を向けさせるような示唆を出す機能
+・吟味をすることが困難な学習者に対して，LLM が考える方向性に関する示唆を出す機能
+・追加したハイライトやコメントをエクスポートする機能
 
 <!-- プロジェクトの概要を記載 -->
 
@@ -104,36 +105,41 @@ Research_tmp
 ├── .DS_Store
 ├── .env
 ├── .gitignore
+├── app
+│   └── i18n
 ├── backend
-│   ├── **pycache**
+│   ├── __pycache__
 │   ├── .env
 │   ├── .gitignore
 │   ├── .venv
 │   ├── alembic
 │   ├── alembic.ini
 │   ├── app
+│   ├── babel.cfg
+│   ├── entrypoint.sh
 │   ├── fileStructure
+│   ├── logs
 │   ├── main.py
 │   └── requirements.txt
+├── Commands
 ├── docker
 │   ├── .DS_Store
 │   ├── backend
 │   ├── frontend
-│   ├── mysql
 │   └── nginx
 ├── docker-compose.dev.yml
 ├── docker-compose.prod.yml
 ├── docker-compose.yml
 ├── Document
 ├── frontend
-│   ├── components
 │   ├── .DS_Store
 │   ├── .env
-│   ├── .env.local
 │   ├── .gitignore
 │   ├── app
+│   ├── components
 │   ├── eslint.config.mjs
 │   ├── lang
+│   ├── middleware.ts
 │   ├── next-env.d.ts
 │   ├── next.config.ts
 │   ├── package-lock.json
@@ -150,7 +156,9 @@ Research_tmp
 │   ├── types
 │   └── utils
 ├── mermaid
+├── Note
 ├── README.md
+├── render_backup.dump
 └── TableStructure.png
 
 ※backend の各フォルダの役割については backend/fileStructure を参照
@@ -170,12 +178,6 @@ Research_tmp
 // 開発用
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
-// 本番用
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-// テスト（Docker Compose ネットワーク内でコマンドを実行）
-docker compose exec backend bash -c "php artisan migrate --env=testing && vendor/bin/phpunit"
-
 ### 動作確認
 
 http://127.0.0.1:3000 にアクセスできるか確認
@@ -185,22 +187,20 @@ http://127.0.0.1:3000 にアクセスできるか確認
 
 .env（ルートディレクトリ）
 DB_HOST={ホスト名}
+DB_PORT={ポート番号}
+DB_ROOT={ルートユーザ名}
 DB_ROOT_PASSWORD={ルートパスワード}
 DB_USER={ユーザ名}
-DB_ROOT={ルートユーザ名}
 DB_PASSWORD={パスワード}
 DB_DATABASE={データベース名}
-MYSQL_TEST_DATABASE={テスト用データベース名}
 DATABASE_URL=mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
 
 .env（frontend 内）
-OPENAI_SECRET_KEY={OpenAI の API キー}
 NEXTAUTH_SECRET={JWT 用シークレットキー}
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-AWS_ACCESS_KEY_ID={AWS へアクセスするためのキー}
-AWS_SECRET_ACCESS_KEY={AWS へアクセスするためのシークレットキー}
-AWS_REGION={リージョン名}
-S3_BUCKET_NAME={バケット名}
+NODE_ENV=development
+NEXT_PUBLIC_NEXT_API_URL=http://localhost:3000/api
+NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+NEXT_PUBLIC_API_URL_LOCAL=http://localhost:8000/api/v1
 
 .env（backend 内）
 DB_HOST={ホスト名}
@@ -209,16 +209,25 @@ DB_USER={ユーザ名}
 DB_ROOT={ルートユーザ名}
 DB_PASSWORD={パスワード}
 DB_DATABASE={データベース名}
-MYSQL_TEST_DATABASE={テスト用データベース名}
 DATABASE_URL=mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_DATABASE}?charset=utf8mb4&collation=utf8mb4_unicode_ci
 SECRET_KEY = {JWT 用シークレットキー}
 JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = {アクセストークンの寿命}
 NEXT_PUBLIC_API_URL=http://backend:8000/api
 AWS_ACCESS_KEY_ID={AWS へアクセスするためのキー}
 AWS_SECRET_ACCESS_KEY={AWS へアクセスするためのシークレットキー}
 AWS_REGION={リージョン名}
 S3_BUCKET_NAME={バケット名}
+OPENAI_SECRET_KEY={OpenAIのAPIキー}
+R2_ENDPOINT_URL={R2のエンドポイントurl}
+R2_ACCESS_KEY_ID={R2のアクセスキー}
+R2_SECRET_ACCESS_KEY={R2のシークレットアクセスキー}
+R2_BUCKET_NAME={R2のバケット名}
+R2_API_TOKEN={R2のAPIトークン}
+DB_POOL_SIZE={データベース接続プールの最大常駐接続数}
+DB_MAX_OVERFLOW={プールサイズを超えて一時的に作成できる追加接続数の上限}
+DB_POOL_RECYCLE={各接続が再利用されるまでの最大秒数}
+ALLOWED_HOSTS=backend,localhost,127.0.0.1,*.onrender.com
 
 ※JWT 用シークレットキーについては"openssl rand -base64 32"等で発行
 
@@ -233,9 +242,5 @@ S3_BUCKET_NAME={バケット名}
 ## 開発の流れ
 
 ルートディレクトリ直下の Document ファイルを参照
-
-## その他注意点
-
-ルートディレクトリ直下の Note ファイルを参照
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
