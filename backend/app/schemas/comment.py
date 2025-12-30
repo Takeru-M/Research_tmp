@@ -9,6 +9,8 @@ class CommentBase(BaseModel):
 class CommentCreate(CommentBase):
     highlight_id: Optional[int] = None
     parent_id: Optional[int] = None
+    # LLMコメント用メタデータ（オプション）
+    suggestion_reason: Optional[str] = None
 
 class CommentUpdate(BaseModel):
     text: str
@@ -22,7 +24,6 @@ class CommentRead(CommentBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
-    deleted_reason: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -6,11 +6,14 @@ from pydantic import BaseModel
 import json
 import logging
 import app.crud.comment as crud_comment
+from app.crud import llm_comment_metadata as crud_llm_metadata
 from app.schemas.highlight import HighlightCreate, HighlightRead, HighlightWithComments
 from app.schemas.comment import CommentCreate, CommentRead
+from app.schemas.llm_comment_metadata import LLMCommentMetadataCreate
 from app.schemas.highlight_rect import HighlightRectCreate
 from app.crud import highlight as crud_highlight
 from app.crud import highlight_rect as crud_highlight_rect
+from app.utils.constants import LLM_AUTHOR_LOWER
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -152,7 +155,8 @@ def create_highlight_with_memo(
             highlight_id=db_highlight.id,
             parent_id=None,
             author=highlight_data.created_by,
-            text=highlight_data.memo
+            text=highlight_data.memo,
+            suggestion_reason=getattr(highlight_data, 'suggestion_reason', None)
         )
         logger.info(f"Comment input data: {comment_in.model_dump()}")
         
@@ -165,6 +169,16 @@ def create_highlight_with_memo(
             )
         
         logger.info(f"Comment created with ID: {db_comment.id}")
+        
+        # 3.5 LLMコメントの場合、メタデータを保存
+        if db_comment.author.lower() == LLM_AUTHOR_LOWER and hasattr(highlight_data, 'suggestion_reason') and highlight_data.suggestion_reason:
+            metadata = crud_llm_metadata.create_llm_comment_metadata(
+                session,
+                db_comment.id,
+                LLMCommentMetadataCreate(suggestion_reason=highlight_data.suggestion_reason)
+            )
+            logger.info(f"LLM metadata saved: comment_id={db_comment.id}, suggestion_reason={highlight_data.suggestion_reason[:50]}...")
+
         
         # 4. 作成したハイライトと矩形を返す
         logger.info("Fetching created highlight and rects...")

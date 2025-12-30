@@ -116,6 +116,7 @@
     "highlight-save-failed": "ハイライトの保存に失敗しました。もう一度お試しください。",
     "fetch-documents-failed": "ドキュメント一覧の読み込みに失敗しました。もう一度お試しください。",
     "create-document-failed": "ドキュメントの作成に失敗しました。もう一度お試しください。",
+    "duplicate-document-name": "同じ名前のドキュメントが既に存在します。別の名前を入力してください。",
     "update-document-failed": "ドキュメントの更新に失敗しました。もう一度お試しください。",
     "delete-document-failed": "ドキュメントの削除に失敗しました。もう一度お試しください。",
     "comment-save-failed": "コメントの保存に失敗しました。もう一度お試しください。",

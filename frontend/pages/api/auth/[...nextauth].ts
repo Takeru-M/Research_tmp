@@ -17,6 +17,63 @@ declare module "next-auth/jwt" {
   interface JWT {
     fastApiToken?: string;
     id?: string;
+    accessTokenExpires?: number; // JWTトークンの有効期限（UNIX timestamp）
+  }
+}
+
+/**
+ * バックエンドのトークンをリフレッシュする関数
+ */
+async function refreshAccessToken(token: any) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!baseUrl) {
+      console.error("API_URL is not configured");
+      throw new Error("API_URL is not configured");
+    }
+
+    const url = `${baseUrl}/auth/refresh/`;
+    console.log("Refreshing token at:", url);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token.fastApiToken}`,
+        "Host": new URL(baseUrl).hostname,
+      },
+    });
+
+    console.log("Refresh response status:", response.status);
+
+    if (!response.ok) {
+      console.error("Failed to refresh token");
+      throw new Error("Failed to refresh token");
+    }
+
+    const data: FastApiAuthResponse = await response.json();
+    console.log("Token refreshed successfully");
+
+    // トークンの有効期限を計算（現在時刻 + ACCESS_TOKEN_EXPIRE_MINUTES）
+    // バックエンドのトークン有効期限（分）を取得（デフォルト: 60分）
+    const tokenExpireMinutes = parseInt(process.env.NEXT_PUBLIC_TOKEN_EXPIRE_MINUTES || "60");
+    const now = Math.floor(Date.now() / 1000);
+    const accessTokenExpires = now + tokenExpireMinutes * 60;
+
+    return {
+      ...token,
+      fastApiToken: data.access_token,
+      id: String(data.user_id),
+      name: data.name || data.email,
+      email: data.email,
+      accessTokenExpires,
+    };
+  } catch (error) {
+    console.error("Error refreshing token:", error);
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    };
   }
 }
 
@@ -87,11 +144,17 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
+          // トークンの有効期限を計算（現在時刻 + ACCESS_TOKEN_EXPIRE_MINUTES）
+          const tokenExpireMinutes = parseInt(process.env.NEXT_PUBLIC_TOKEN_EXPIRE_MINUTES || "60");
+          const now = Math.floor(Date.now() / 1000);
+          const accessTokenExpires = now + tokenExpireMinutes * 60;
+
           return {
             id: String(data.user_id),
             name: data.name || data.email,
             email: data.email,
             fastApiToken: data.access_token,
+            accessTokenExpires,
           };
         } catch (error) {
           console.error("Authorization error:", error);
@@ -103,12 +166,40 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
+      // 初回ログイン時（userが存在する場合）
       if (user) {
         token.fastApiToken = (user as any).fastApiToken;
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
+        token.accessTokenExpires = (user as any).accessTokenExpires;
+        return token;
       }
+
+      // トークンリフレッシュエラーがある場合はそのまま返す
+      if (token.error) {
+        return token;
+      }
+
+      // トークンの有効期限をチェック
+      const now = Math.floor(Date.now() / 1000);
+      const accessTokenExpires = token.accessTokenExpires as number;
+
+      // 有効期限が設定されていない場合（古いセッション）
+      if (!accessTokenExpires) {
+        console.log("No expiration time set, refreshing token");
+        return refreshAccessToken(token);
+      }
+
+      // トークンの有効期限が5分以内に切れる場合は更新
+      const shouldRefresh = accessTokenExpires - now < 5 * 60;
+      
+      if (shouldRefresh) {
+        console.log("Token expiring soon, refreshing...");
+        return refreshAccessToken(token);
+      }
+
+      // トークンがまだ有効な場合はそのまま返す
       return token;
     },
 

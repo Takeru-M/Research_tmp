@@ -32,6 +32,15 @@ def get_documents_by_user(session: Session, user_id: int, offset: int = 0, limit
     ).offset(offset).limit(limit).order_by(Document.created_at.desc())
     return list(session.exec(statement).all())
 
+def get_document_by_name_and_user(session: Session, user_id: int, document_name: str) -> Optional[Document]:
+    """特定ユーザーのドキュメント名でドキュメントを取得（重複チェック用）"""
+    statement = select(Document).where(
+        Document.user_id == user_id,
+        Document.document_name == document_name,
+        Document.deleted_at.is_(None)
+    )
+    return session.exec(statement).first()
+
 def update_document(session: Session, document: Document, document_in: DocumentUpdate) -> Document:
     update_data = document_in.model_dump(exclude_unset=True)
     for key, value in update_data.items():

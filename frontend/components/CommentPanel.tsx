@@ -895,11 +895,8 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!isExportStage) {
-                        toggleCollapse(root.id);
-                      }
+                      toggleCollapse(root.id);
                     }}
-                    disabled={isExportStage}
                     className={styles.collapseButton}
                   >
                     {isCollapsed

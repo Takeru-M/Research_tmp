@@ -17,7 +17,7 @@ import LoadingOverlay from './LoadingOverlay';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { STAGE } from '@/utils/constants';
+import { STAGE, HIGHLIGHT_COLOR } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
 import { logUserAction } from '@/utils/logger'; // ← logLLMAnalysis はインポートしない
@@ -286,6 +286,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   }, [numPages, pageScales, pageData, onRenderSuccess, getUserId]);
 
+  // LLM名をuseMemoでメモ化し、コメント取得時も再評価されるようにする
+  const llmAuthorName = React.useMemo(() => t("CommentPanel.comment-author-LLM"), [t, comments]);
+
   // ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
   const renderHighlightVisuals = useCallback((page:number)=>{
     if(!pageData[page] || !pageScales[page]) return null;
@@ -296,9 +299,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const pdfH = h as PdfHighlight;
       const pageRects = pdfH.rects.filter(r => r.pageNum === page);
 
-      // ハイライトに紐づくコメントスレッドを取得
-      const relatedComments = comments.filter(c => c.highlightId === h.id);
-      const sortedComments = [...relatedComments].sort((a, b) => 
+      // ハイライトに紐づくコメントスレッドを取得（ルートコメントとその返信を含む）
+      const rootComments = comments.filter(c => c.highlightId === h.id && c.parentId === null);
+      const childComments = comments.filter(c => rootComments.some(rc => rc.id === c.parentId));
+      const allRelatedComments = [...rootComments, ...childComments];
+      
+      const sortedComments = [...allRelatedComments].sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       const latestComment = sortedComments[0];
@@ -311,30 +317,30 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       if (!latestComment) {
         // コメントがない場合：ユーザーハイライト（黄色）
-        baseBg = 'rgba(255, 235, 59, 0.40)';
-        activeBg = 'rgba(255, 235, 59, 0.65)';
-        baseBorderColor = '#ffeb3b';
-        activeBorderColor = '#fbc02d';
-      } else if (latestComment.author === t("CommentPanel.comment-author-LLM")) {
+        baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
+        activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
+        baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
+        activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
+      } else if (latestComment.author === llmAuthorName) {
         // 最新コメントがLLM：青色
-        baseBg = 'rgba(52, 168, 224, 0.30)';
-        activeBg = 'rgba(52, 168, 224, 0.50)';
-        baseBorderColor = '#34a8e0';
-        activeBorderColor = '#1e88c6';
+        baseBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE;
+        activeBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE;
+        baseBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE_BORDER;
+        activeBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE_BORDER;
       } else {
         // 最新コメントがユーザー かつ スレッド内にLLMコメントが存在：緑色
-        const hasLLMComment = relatedComments.some(c => c.author === t("CommentPanel.comment-author-LLM"));
+        const hasLLMComment = allRelatedComments.some(c => c.author === llmAuthorName);
         if (hasLLMComment) {
-          baseBg = 'rgba(76, 175, 80, 0.30)';
-          activeBg = 'rgba(76, 175, 80, 0.50)';
-          baseBorderColor = '#4CAF50';
-          activeBorderColor = '#388E3C';
+          baseBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE;
+          activeBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE;
+          baseBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE_BORDER;
+          activeBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE_BORDER;
         } else {
           // ユーザーハイライト（黄色）
-          baseBg = 'rgba(255, 235, 59, 0.40)';
-          activeBg = 'rgba(255, 235, 59, 0.65)';
-          baseBorderColor = '#ffeb3b';
-          activeBorderColor = '#fbc02d';
+          baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
+          activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
+          baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
+          activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
         }
       }
 
@@ -356,7 +362,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         />
       ));
     });
-  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, onHighlightClick, dispatch, t]);
+  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, llmAuthorName]);
 
   // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {
@@ -778,6 +784,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(hf.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: hf.suggestion,
+                  suggestion_reason: hf.suggestion_reason,  // LLM示唆の理由を保存
                 }
               }
             );
@@ -837,6 +844,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     created_by: userName,
                     memo: uhf.suggestion,
                     text: uhf.unhighlighted_text,
+                    suggestion_reason: uhf.suggestion_reason,  // LLM示唆の理由を保存
                     rects: foundRects.map(rect => ({
                       page_num: rect.pageNum,
                       x1: rect.x1,
@@ -1011,6 +1019,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(s.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: s.suggestion,
+                  suggestion_reason: s.suggestion_reason,  // LLM示唆の理由を保存
                 }
               }
             );
@@ -1120,53 +1129,53 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.log(`[Export][Frontend] Start. documentId=${documentId}, fileId=${fileId}, at=${new Date().toISOString()}`);
 
       // apiClient でblob形式で取得
-      // const { data: pdfBlob, error: exportError, status: exportStatus } = await apiClient<Blob>(
-      //   `/documents/${documentId}/files/${fileId}/export/`,
-      //   {
-      //     method: 'GET',
-      //     headers: { Authorization: `Bearer ${session?.accessToken}` },
-      //     responseType: 'blob',
-      //   }
-      // );
+      const { data: pdfBlob, error: exportError, status: exportStatus } = await apiClient<Blob>(
+        `/documents/${documentId}/files/${fileId}/export/`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+          responseType: 'blob',
+        }
+      );
 
-      // console.log(`[Export][Frontend] Export response: error=${!!exportError}, status=${exportStatus}`);
+      console.log(`[Export][Frontend] Export response: error=${!!exportError}, status=${exportStatus}`);
 
-      // if (exportError) {
-      //   console.error(`[Export][Frontend] Export request failed. error=${exportError}`);
-      //   setErrorMessage(t('Error.export-failed'));
-      //   logUserAction('export_failed', {
-      //     reason: 'export_api_error',
-      //     error: exportError,
-      //     timestamp: new Date().toISOString(),
-      //   }, getUserId());
-      //   return;
-      // }
+      if (exportError) {
+        console.error(`[Export][Frontend] Export request failed. error=${exportError}`);
+        setErrorMessage(t('Error.export-failed'));
+        logUserAction('export_failed', {
+          reason: 'export_api_error',
+          error: exportError,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return;
+      }
 
-      // if (!pdfBlob) {
-      //   console.error('[Export][Frontend] No blob returned');
-      //   setErrorMessage(t('Error.export-failed'));
-      //   logUserAction('export_failed', {
-      //     reason: 'no_blob_returned',
-      //     timestamp: new Date().toISOString(),
-      //   }, getUserId());
-      //   return;
-      // }
+      if (!pdfBlob) {
+        console.error('[Export][Frontend] No blob returned');
+        setErrorMessage(t('Error.export-failed'));
+        logUserAction('export_failed', {
+          reason: 'no_blob_returned',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return;
+      }
 
-      // console.log('[Export][Frontend] Blob size:', (pdfBlob as Blob).size);
+      console.log('[Export][Frontend] Blob size:', (pdfBlob as Blob).size);
 
-      // // デフォルトのファイル名を生成
-      // const filename = 'export_with_comments.pdf';
+      // デフォルトのファイル名を生成
+      const filename = 'export_with_comments.pdf';
 
-      // // ダウンロード処理
-      // const urlObj = window.URL.createObjectURL(pdfBlob as Blob);
-      // const a = document.createElement('a');
-      // a.href = urlObj;
-      // a.download = filename;
-      // document.body.appendChild(a);
-      // a.click();
-      // a.remove();
-      // window.URL.revokeObjectURL(urlObj);
-      // console.log('[Export][Frontend] Download triggered & URL revoked');
+      // ダウンロード処理
+      const urlObj = window.URL.createObjectURL(pdfBlob as Blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(urlObj);
+      console.log('[Export][Frontend] Download triggered & URL revoked');
 
       // ステージを EXPORT に更新
       const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
@@ -1195,11 +1204,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.EXPORT;
       const stageVal = Number(stageValRaw);
       dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.EXPORT : stageVal));
-      // logUserAction('export_completed', {
-      //   filename,
-      //   blobSize: (pdfBlob as Blob).size,
-      //   timestamp: new Date().toISOString(),
-      // }, getUserId());
+      logUserAction('export_completed', {
+        filename,
+        blobSize: (pdfBlob as Blob).size,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
       router.push('/documents');
     } catch (error) {
       console.error('[handleCompletionforExport] Error:', error);

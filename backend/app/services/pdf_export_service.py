@@ -9,9 +9,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from PyPDF2 import PdfReader, PdfWriter
-from sqlmodel import Session, select
+from sqlmodel import Session
 from app.models.highlights import Highlight
-from app.models.comments import Comment
+from app.crud import highlight as crud_highlight
+from app.crud import comment as crud_comment
 
 logger = logging.getLogger("app.pdf_export")
 
@@ -113,25 +114,16 @@ class PDFExportService:
         return output
 
     def _get_highlights_with_comments(self, document_file_id: int) -> List[Highlight]:
-        """コメントツリーを構築して取得"""
-        statement = (
-            select(Highlight)
-            .where(Highlight.document_file_id == document_file_id)
-            .order_by(Highlight.created_at)
-        )
-        highlights = self.db.exec(statement).all()
+        """
+        ファイルのハイライトとコメントツリーを取得
+        既存のCRUD操作を使用して重複を排除
+        """
+        # ハイライトを取得（CRUDレイヤー経由）
+        highlights = crud_highlight.get_highlights_by_file(self.db, document_file_id)
         
         for h in highlights:
-            # 全コメントを取得
-            stmt_c = (
-                select(Comment)
-                .where(
-                    Comment.highlight_id == h.id,
-                    Comment.deleted_at.is_(None)
-                )
-                .order_by(Comment.created_at)
-            )
-            all_comments = list(self.db.exec(stmt_c).all())
+            # アクティブなコメントを取得（CRUDレイヤー経由）
+            all_comments = crud_comment.get_active_comments_by_highlight(self.db, h.id)
             
             # ルートコメントのみを h.comments に設定
             h.comments = [c for c in all_comments if c.parent_id is None]

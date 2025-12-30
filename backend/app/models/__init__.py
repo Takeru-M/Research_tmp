@@ -8,6 +8,7 @@ from .document_files import DocumentFile
 from .highlights import Highlight
 from .highlight_rects import HighlightRect
 from .comments import Comment
+from .llm_comment_metadata import LLMCommentMetadata
 
 __all__ = [
   "User",
@@ -15,5 +16,6 @@ __all__ = [
   "DocumentFile",
   "Highlight",
   "HighlightRect",
-  "Comment"
+  "Comment",
+  "LLMCommentMetadata"
 ]

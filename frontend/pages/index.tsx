@@ -789,7 +789,8 @@ const EditorPageContent: React.FC = () => {
 
           setPendingHighlight(null);
           setShowMemoModal(false);
-          dispatch(setActiveHighlightId(null));
+          // 作成されたルートコメントをアクティブにして、CommentPanelを自動スクロール
+          dispatch(setActiveCommentId(response.comment_id.toString()));
         } finally {
           dispatch(stopLoading());
         }

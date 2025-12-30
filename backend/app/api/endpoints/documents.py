@@ -61,6 +61,18 @@ def create_document(
             )
         
         logger.info(f"[POST /documents] User {current_user.id} creating document: {document_in.document_name}")
+        
+        # 重複チェック
+        existing_document = crud_document.get_document_by_name_and_user(
+            session, current_user.id, document_in.document_name.strip()
+        )
+        if existing_document:
+            logger.warning(f"[POST /documents] Duplicate document name: {document_in.document_name}")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="同じ名前のドキュメントが既に存在します"
+            )
+        
         document_data = document_in.model_copy(update={"user_id": current_user.id})
         document = crud_document.create_document(session, document_data)
         
@@ -251,6 +263,18 @@ def update_document(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="このドキュメントの更新権限がありません"
             )
+        
+        # ドキュメント名が変更される場合、重複チェック
+        if document_in.document_name and document_in.document_name.strip() != document.document_name:
+            existing_document = crud_document.get_document_by_name_and_user(
+                session, current_user.id, document_in.document_name.strip()
+            )
+            if existing_document and existing_document.id != document_id:
+                logger.warning(f"[PUT /documents/{document_id}] Duplicate document name: {document_in.document_name}")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="同じ名前のドキュメントが既に存在します"
+                )
         
         updated_document = crud_document.update_document(session, document, document_in)
         

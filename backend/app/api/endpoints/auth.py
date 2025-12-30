@@ -6,7 +6,7 @@ from sqlmodel import Session
 from app.crud.user import create_user, authenticate_user_by_email
 from app.core.security import create_access_token, get_password_hash
 from app.schemas.auth import Token, UserSignupSchema, LoginRequest
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user
 from app.utils.validators import (
     validate_email,
     validate_username,
@@ -143,4 +143,36 @@ def login_for_access_token(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ログイン処理中にエラーが発生しました"
+        )
+
+@router.post("/refresh", response_model=Token)
+def refresh_access_token(
+    current_user = Depends(get_current_user),
+    session: Session = Depends(get_db)
+):
+    """既存のJWTトークンを使って新しいトークンを発行"""
+    try:
+        logger.info(f"Refreshing token for user: {current_user.email} (ID: {current_user.id})")
+        
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")))
+        access_token = create_access_token(
+            data={
+                "user_id": current_user.id,
+                "name": current_user.name,
+                "email": current_user.email
+            },
+            expires_delta=access_token_expires
+        )
+        
+        return Token(
+            access_token=access_token,
+            user_id=str(current_user.id),
+            name=current_user.name,
+            email=current_user.email
+        )
+    except Exception as e:
+        logger.error(f"Error refreshing token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="トークンの更新中にエラーが発生しました"
         )
