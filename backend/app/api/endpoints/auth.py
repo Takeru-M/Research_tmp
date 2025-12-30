@@ -6,7 +6,7 @@ from sqlmodel import Session
 from app.crud.user import create_user, authenticate_user_by_email
 from app.core.security import create_access_token, get_password_hash
 from app.schemas.auth import Token, UserSignupSchema, LoginRequest
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user
 from app.utils.validators import (
     validate_email,
     validate_username,

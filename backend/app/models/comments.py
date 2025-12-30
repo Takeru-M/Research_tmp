@@ -33,13 +33,6 @@ class Comment(SQLModel, table=True):
         sa_column=Column(Text(), nullable=False)
     )
 
-    # ソフトデリート用
-    deleted_at: Optional[datetime] = None
-    deleted_reason: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text(), nullable=True)
-    )
-
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
 
@@ -59,4 +52,13 @@ class Comment(SQLModel, table=True):
         sa_relationship_kwargs={
             "passive_deletes": True,  # 子ロードなしでDB連鎖削除に任せる
         },
+    )
+
+    # LLM専有メタデータ（LLMコメント=author=='LLM'のみ）
+    llm_metadata: Optional["LLMCommentMetadata"] = Relationship(
+        back_populates="comment",
+        sa_relationship_kwargs={
+            "uselist": False,  # 1対1リレーション
+            "foreign_keys": "LLMCommentMetadata.comment_id",
+        }
     )

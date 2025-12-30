@@ -17,7 +17,7 @@ import LoadingOverlay from './LoadingOverlay';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { STAGE } from '@/utils/constants';
+import { STAGE, HIGHLIGHT_COLOR } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
 import { logUserAction } from '@/utils/logger'; // ← logLLMAnalysis はインポートしない
@@ -286,6 +286,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
   }, [numPages, pageScales, pageData, onRenderSuccess, getUserId]);
 
+  // LLM名をuseMemoでメモ化し、コメント取得時も再評価されるようにする
+  const llmAuthorName = React.useMemo(() => t("CommentPanel.comment-author-LLM"), [t, comments]);
+
   // ハイライトの描画とクリックイベントを分離 (pointer-events: noneで透過)
   const renderHighlightVisuals = useCallback((page:number)=>{
     if(!pageData[page] || !pageScales[page]) return null;
@@ -314,30 +317,30 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       if (!latestComment) {
         // コメントがない場合：ユーザーハイライト（黄色）
-        baseBg = 'rgba(255, 235, 59, 0.40)';
-        activeBg = 'rgba(255, 235, 59, 0.65)';
-        baseBorderColor = '#ffeb3b';
-        activeBorderColor = '#fbc02d';
-      } else if (latestComment.author === t("CommentPanel.comment-author-LLM")) {
+        baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
+        activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
+        baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
+        activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
+      } else if (latestComment.author === llmAuthorName) {
         // 最新コメントがLLM：青色
-        baseBg = 'rgba(52, 168, 224, 0.30)';
-        activeBg = 'rgba(52, 168, 224, 0.50)';
-        baseBorderColor = '#34a8e0';
-        activeBorderColor = '#1e88c6';
+        baseBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE;
+        activeBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE;
+        baseBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE_BORDER;
+        activeBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE_BORDER;
       } else {
         // 最新コメントがユーザー かつ スレッド内にLLMコメントが存在：緑色
-        const hasLLMComment = allRelatedComments.some(c => c.author === t("CommentPanel.comment-author-LLM"));
+        const hasLLMComment = allRelatedComments.some(c => c.author === llmAuthorName);
         if (hasLLMComment) {
-          baseBg = 'rgba(76, 175, 80, 0.30)';
-          activeBg = 'rgba(76, 175, 80, 0.50)';
-          baseBorderColor = '#4CAF50';
-          activeBorderColor = '#388E3C';
+          baseBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE;
+          activeBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE;
+          baseBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE_BORDER;
+          activeBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE_BORDER;
         } else {
           // ユーザーハイライト（黄色）
-          baseBg = 'rgba(255, 235, 59, 0.40)';
-          activeBg = 'rgba(255, 235, 59, 0.65)';
-          baseBorderColor = '#ffeb3b';
-          activeBorderColor = '#fbc02d';
+          baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
+          activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
+          baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
+          activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
         }
       }
 
@@ -359,7 +362,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         />
       ));
     });
-  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, onHighlightClick, dispatch, t]);
+  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, llmAuthorName]);
 
   // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {
@@ -781,6 +784,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(hf.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: hf.suggestion,
+                  suggestion_reason: hf.suggestion_reason,  // LLM示唆の理由を保存
                 }
               }
             );
@@ -840,6 +844,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     created_by: userName,
                     memo: uhf.suggestion,
                     text: uhf.unhighlighted_text,
+                    suggestion_reason: uhf.suggestion_reason,  // LLM示唆の理由を保存
                     rects: foundRects.map(rect => ({
                       page_num: rect.pageNum,
                       x1: rect.x1,
@@ -1014,6 +1019,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(s.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: s.suggestion,
+                  suggestion_reason: s.suggestion_reason,  // LLM示唆の理由を保存
                 }
               }
             );

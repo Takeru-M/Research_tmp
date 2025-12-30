@@ -3,7 +3,9 @@ from sqlmodel import Session
 from typing import List, Optional
 from app.db.base import get_session
 from app.crud import comment as crud_comment
+from app.crud import llm_comment_metadata as crud_llm_metadata
 from app.schemas.comment import CommentCreate, CommentUpdate, CommentRead
+from app.schemas.llm_comment_metadata import LLMCommentMetadataCreate
 from app.utils.constants import LLM_AUTHOR_LOWER
 import logging
 
@@ -35,6 +37,16 @@ def create_comment_endpoint(
         logger.info(f"Creating comment: highlight_id={comment_in.highlight_id}, parent_id={comment_in.parent_id}")
         comment = crud_comment.create_comment(session, comment_in)
         logger.info(f"Comment created successfully: ID={comment.id}")
+        
+        # LLMコメントの場合、メタデータを保存
+        if comment.author.lower() == LLM_AUTHOR_LOWER and comment_in.suggestion_reason:
+            metadata = crud_llm_metadata.create_llm_comment_metadata(
+                session,
+                comment.id,
+                LLMCommentMetadataCreate(suggestion_reason=comment_in.suggestion_reason)
+            )
+            logger.info(f"LLM metadata saved: comment_id={comment.id}, suggestion_reason={comment_in.suggestion_reason[:50]}...")
+        
         return comment
     except HTTPException:
         raise
@@ -251,4 +263,57 @@ def restore_latest_soft_deleted_llm_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="LLMコメント復元中にエラーが発生しました"
+        )
+
+@router.post("/{comment_id}/llm-metadata", status_code=status.HTTP_201_CREATED)
+def create_or_update_llm_metadata_endpoint(
+    comment_id: int,
+    metadata_in: LLMCommentMetadataCreate,
+    session: Session = Depends(get_session)
+):
+    """LLMコメントのメタデータを作成または更新"""
+    try:
+        if comment_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無効なコメントIDです"
+            )
+
+        # コメント存在確認
+        comment = crud_comment.get_comment_by_id(session, comment_id)
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"コメントID {comment_id} が見つかりません"
+            )
+
+        # LLMコメントであることを確認
+        if comment.author.lower() != LLM_AUTHOR_LOWER:
+            logger.warning(f"Attempt to add LLM metadata to non-LLM comment: {comment_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="LLMコメントのみメタデータを追加できます"
+            )
+
+        logger.info(f"Creating/updating LLM metadata for comment {comment_id}")
+        metadata = crud_llm_metadata.update_llm_metadata_deletion_reason(
+            session, comment_id, metadata_in.deletion_reason or ""
+        ) if metadata_in.deletion_reason else crud_llm_metadata.create_llm_comment_metadata(
+            session, comment_id, metadata_in
+        )
+        
+        logger.info(f"LLM metadata saved: comment_id={comment_id}")
+        return {
+            "id": metadata.id,
+            "comment_id": metadata.comment_id,
+            "suggestion_reason": metadata.suggestion_reason,
+            "deletion_reason": metadata.deletion_reason,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating LLM metadata for comment {comment_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="LLMメタデータ作成中にエラーが発生しました"
         )

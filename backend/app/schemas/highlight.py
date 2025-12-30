@@ -11,7 +11,8 @@ class HighlightBase(BaseModel):
     text: Optional[str] = None
 
 class HighlightCreate(HighlightBase):
-    pass
+    # LLM生成ハイライト用メタデータ
+    suggestion_reason: Optional[str] = None
 
 class HighlightUpdate(BaseModel):
     memo: Optional[str] = None
