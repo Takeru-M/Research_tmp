@@ -8,7 +8,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { RootState } from '@/redux/store';
-import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList } from '../redux/features/editor/editorTypes';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
@@ -31,6 +31,7 @@ import {
   HighlightCreateResponse,
   UpdateCompletionStageResponse,
 } from '@/types/Responses/Openai';
+import { DocumentFormattedTextRead } from '@/types/Responses/DocumentFormattedText';
 import { groupTextItemsToLines, GroupedLine } from '../utils/pdfTextGrouper';
 
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -49,7 +50,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
   const [pageTextItems, setPageTextItems] = useState<{ [n:number]:TextItem[] }>({});
-  const [dividedMeetingTexts, setDividedMeetingTexts] = useState<DividedMeetingTexts | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [groupedTextLines, setGroupedTextLines] = useState<GroupedLine[]>([]);
 
@@ -732,8 +732,31 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         const firstResponseData = parseJSONResponse(formatDataResponse.analysis);
-        setDividedMeetingTexts(firstResponseData);
-        console.log(firstResponseData);
+
+        // フォーマット済みテキストをDBに保存
+        const documentId = getDocumentIdFromCookie();
+        if (!documentId) {
+          console.error('[handleCompletion] Document ID not found');
+          setErrorMessage(t('Error.document-id-missing'));
+          return;
+        }
+
+        const { error: saveFormattedTextError } = await apiClient(
+          `/documents/${documentId}/formatted-text`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session?.accessToken}` },
+            body: {
+              document_id: documentId,
+              formatted_data: firstResponseData,
+            },
+          }
+        );
+
+        if (saveFormattedTextError) {
+          console.error('[handleCompletion] Failed to save formatted text:', saveFormattedTextError);
+          // エラーが発生しても処理を続行（警告のみ）
+        }
 
         const userInput = {
           "mt_text": formatDataResponse.analysis,
@@ -815,7 +838,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         }
 
-        for (const [index, uhf] of unhighlighted_feedback.entries()) {
+        for (const uhf of unhighlighted_feedback) {
           if (uhf.unhighlighted_text && uhf.suggestion) {
             const foundRects = findTextInPdf(uhf.unhighlighted_text);
 
@@ -896,7 +919,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         }
 
-        const documentId = getDocumentIdFromCookie();
         if (documentId) {
           const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
             `/documents/${documentId}/update-completion-stage/`,
@@ -962,8 +984,30 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         }
 
+        // DBからフォーマット済みテキストを取得
+        const documentId = getDocumentIdFromCookie();
+        if (!documentId) {
+          console.error('[handleCompletion] Document ID not found');
+          setErrorMessage(t('Error.document-id-missing'));
+          return;
+        }
+
+        const { data: formattedTextData, error: formattedTextError } = await apiClient<DocumentFormattedTextRead>(
+          `/documents/${documentId}/formatted-text`,
+          {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${session?.accessToken}` },
+          }
+        );
+
+        if (formattedTextError || !formattedTextData) {
+          console.error('[handleCompletion] Failed to fetch formatted text:', formattedTextError);
+          setErrorMessage(t('Error.analysis-failed'));
+          return;
+        }
+
         const userInput = {
-          "mt_text": dividedMeetingTexts,
+          "mt_text": formattedTextData.formatted_data,
           "highlights": highlightCommentsList,
         }
 
@@ -989,6 +1033,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         }
 
         const responseData = parseJSONResponse(deliberationResponse.analysis);
+        console.log(responseData);
 
         // suggestions を安全に配列化（未定義/オブジェクトでも配列へ）
         const rawSuggestions = (responseData as any)?.suggestions;
@@ -1019,7 +1064,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(s.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: s.suggestion,
-                  suggestion_reason: s.suggestion_reason,  // LLM示唆の理由を保存
+                  suggestion_reason: s.suggestion_reason,
                 }
               }
             );
@@ -1052,7 +1097,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           }
         }
 
-        const documentId = getDocumentIdFromCookie();
         if (documentId) {
           const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
             `/documents/${documentId}/update-completion-stage/`,
@@ -1097,7 +1141,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         dispatch(stopLoading());
       }
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, completionStage, dividedMeetingTexts, fileId, getUserId, session?.accessToken]);
+  }, [highlights, comments, dispatch, findTextInPdf, t, completionStage, fileId, getUserId, session?.accessToken, groupedTextLines]);
 
   const handleCompletionforExport = useCallback(async () => {
     dispatch(startLoading(t('PdfViewer.exporting')));
@@ -1288,9 +1332,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       let apiEndpoint: string;
 
       if (completionStage === STAGE.GIVE_DELIBERATION_TIPS) {
-        apiEndpoint = '/openai/option-dialogue/';
+        apiEndpoint = '/openai/option-dialogue';
       } else if (completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) {
-        apiEndpoint = '/openai/deliberation-dialogue/';
+        apiEndpoint = '/openai/deliberation-dialogue';
       } else {
         console.error('[handleDialogue] Unsupported completion stage:', completionStage);
         setErrorMessage(t('Error.dialogue-failed'));
@@ -1302,8 +1346,35 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         return;
       }
 
+      // DBからフォーマット済みテキストを取得
+      const documentId = getDocumentIdFromCookie();
+      if (!documentId) {
+        console.error('[handleDialogue] Document ID not found');
+        setErrorMessage(t('Error.document-id-missing'));
+        return;
+      }
+
+      const { data: formattedTextData, error: formattedTextError } = await apiClient<DocumentFormattedTextRead>(
+        `/documents/${documentId}/formatted-text`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+        }
+      );
+
+      if (formattedTextError || !formattedTextData) {
+        console.error('[handleDialogue] Failed to fetch formatted text:', formattedTextError);
+        setErrorMessage(t('Error.dialogue-failed'));
+        return;
+      }
+
+      // formatted_dataをJSON文字列に変換
+      const pdfTextData = typeof formattedTextData.formatted_data === 'string'
+        ? formattedTextData.formatted_data
+        : JSON.stringify(formattedTextData.formatted_data);
+
       const userInput = {
-        pdf_text: pdfTextContent,
+        pdf_text: pdfTextData,
         selected_threads: selectedThreads,
       };
 
@@ -1413,7 +1484,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     } finally {
       dispatch(stopLoading());
     }
-  }, [selectedRootCommentIds, comments, highlights, pdfTextContent, completionStage, dispatch, t, getUserId]);
+  }, [selectedRootCommentIds, comments, highlights, completionStage, dispatch, t, getUserId, session?.accessToken]);
 
   return (
     <>

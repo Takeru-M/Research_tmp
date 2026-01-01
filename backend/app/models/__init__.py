@@ -9,6 +9,7 @@ from .highlights import Highlight
 from .highlight_rects import HighlightRect
 from .comments import Comment
 from .llm_comment_metadata import LLMCommentMetadata
+from .document_formatted_text import DocumentFormattedText
 
 __all__ = [
   "User",
@@ -17,5 +18,6 @@ __all__ = [
   "Highlight",
   "HighlightRect",
   "Comment",
-  "LLMCommentMetadata"
+  "LLMCommentMetadata",
+  "DocumentFormattedText"
 ]

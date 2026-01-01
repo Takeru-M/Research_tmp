@@ -80,12 +80,12 @@ export interface EditorState {
   activeScrollTarget: ScrollTarget | null;
   pdfScale: number;
   responses: Record<string, string>;
-  dividedMeetingTexts?: DividedMeetingTexts;
   documentName?: string | null;
   completionStage: number;
   selectedRootCommentIds: string[];
   hasSoftDeletedLLMComment: boolean;
   lastLLMCommentRestoreTime: number | null;
+  lastSoftDeleteFlagCheckTime: number | null;
 }
 
 export type Comment = {
@@ -126,13 +126,6 @@ export type HighlightCommentsList = {
     comment: string;
   }[];
 }[]
-
-export type DividedMeetingText = {
-  id: number;
-  text: string;
-}
-
-export type DividedMeetingTexts = DividedMeetingText[];
 
 export type Document = {
   id: number;
