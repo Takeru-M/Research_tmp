@@ -70,7 +70,7 @@ const editorSlice = createSlice({
       state,
       action: PayloadAction<{
         highlight: Highlight;
-        initialComment?: { id?: string; author: string; text: string; createdAt?: string };
+        initialComment?: { id?: string; author: string; text: string; createdAt?: string; purpose?: number | null };
       }>
     ) {
       const { highlight, initialComment } = action.payload;
@@ -91,6 +91,7 @@ const editorSlice = createSlice({
           author: initialComment.author,
           text: initialComment.text,
           created_at: initialComment.createdAt ?? new Date().toISOString(),
+          purpose: initialComment.purpose ?? null,
           edited_at: null,
           deleted: false,
         };

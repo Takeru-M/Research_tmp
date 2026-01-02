@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship, Column
-from sqlalchemy import String, Text, ForeignKey
+from sqlalchemy import String, Text, ForeignKey, Integer
 
 class Comment(SQLModel, table=True):
     __tablename__ = "comments"
@@ -31,6 +31,12 @@ class Comment(SQLModel, table=True):
     )
     text: str = Field(
         sa_column=Column(Text(), nullable=False)
+    )
+
+    # コメントの返信目的（思考プロセス/他選択肢/吟味）
+    purpose: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True)
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)

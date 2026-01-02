@@ -2,6 +2,13 @@ LLM_AUTHOR = "LLM"
 # LLMからのコメントかどうかを判定するためのauthorの小文字表記
 LLM_AUTHOR_LOWER = "llm"
 
+# コメント返信目的（ステージに対応）
+COMMENT_PURPOSE = {
+  "THINKING_PROCESS": 1,  # 思考プロセス
+  "OTHER_OPTIONS": 2,     # 他選択肢
+  "DELIBERATION": 3,      # 吟味
+}
+
 # LLMに要求する出力形式
 JSON_SAMPLE = {
     "responses": [

@@ -12,7 +12,7 @@ from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentRead, C
 from app.schemas.document_file import DocumentFileRead
 from app.schemas.document_formatted_text import DocumentFormattedTextCreate, DocumentFormattedTextRead, DocumentFormattedTextUpdate
 from app.api.deps import get_current_user
-from app.models import User, DocumentFile, Highlight, HighlightRect, Comment
+from app.models import User, DocumentFile, Highlight, HighlightRect, Comment, DocumentFormattedText, LLMCommentMetadata
 from app.services.pdf_export_service import PDFExportService
 from app.utils.s3 import fetch_pdf_bytes, delete_s3_files
 
@@ -447,6 +447,11 @@ def delete_document(
                     if all_comment_ids:
                         logger.info(f"[DELETE /documents/{document_id}] Found {len(all_comment_ids)} comments to delete")
                         
+                        # LLMコメントメタデータを削除（コメント削除前）
+                        logger.info(f"[DELETE /documents/{document_id}] Deleting LLM comment metadata")
+                        delete_metadata_stmt = delete(LLMCommentMetadata).where(LLMCommentMetadata.comment_id.in_(all_comment_ids))
+                        session.exec(delete_metadata_stmt)
+                        
                         max_iterations = 100
                         iteration = 0
                         
@@ -490,6 +495,11 @@ def delete_document(
                     logger.info(f"[DELETE /documents/{document_id}] Deleting highlights")
                     delete_highlights_stmt = delete(Highlight).where(Highlight.id.in_(highlight_ids))
                     session.exec(delete_highlights_stmt)
+            
+            # ドキュメントのフォーマット済みテキストを削除
+            logger.info(f"[DELETE /documents/{document_id}] Deleting formatted text")
+            delete_formatted_text_stmt = delete(DocumentFormattedText).where(DocumentFormattedText.document_id == document_id)
+            session.exec(delete_formatted_text_stmt)
             
             session.commit()
             logger.info(f"[DELETE /documents/{document_id}] Related data deleted successfully")

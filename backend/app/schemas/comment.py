@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class CommentBase(BaseModel):
     text: str
     author: str
+    purpose: Optional[int] = None
 
 class CommentCreate(CommentBase):
     highlight_id: Optional[int] = None
@@ -14,6 +15,7 @@ class CommentCreate(CommentBase):
 
 class CommentUpdate(BaseModel):
     text: str
+    purpose: Optional[int] = None
 
 class CommentRead(CommentBase):
     id: int
@@ -21,6 +23,7 @@ class CommentRead(CommentBase):
     parent_id: Optional[int] = None
     author: str
     text: str
+    purpose: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None

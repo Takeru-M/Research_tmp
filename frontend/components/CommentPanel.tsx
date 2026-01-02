@@ -16,7 +16,7 @@ import { Comment } from "@/redux/features/editor/editorTypes";
 import { useTranslation } from "react-i18next";
 import { useSession } from "next-auth/react";
 import styles from "../styles/CommentPanel.module.css";
-import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE } from "@/utils/constants";
+import { COLLAPSE_THRESHOLD, ROOTS_COLLAPSE_THRESHOLD, STAGE, COMMENT_PURPOSE, COMMENT_PURPOSE_LABELS, COMMENT_PURPOSE_STYLES } from "@/utils/constants";
 import { apiClient } from "@/utils/apiClient";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { logUserAction } from "@/utils/logger";
@@ -25,6 +25,20 @@ import { DeleteReasonModal } from './DeleteReasonModal';
 // 動的なパディングを計算するヘルパー関数
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
   return (typeof viewerHeight !== 'number') ? 500 : viewerHeight;
+};
+
+const resolvePurposeForStage = (stage: number | null | undefined): number | null => {
+  if (!stage) return null;
+  switch (stage) {
+    case STAGE.GIVE_OPTION_TIPS:
+      return COMMENT_PURPOSE.THINKING_PROCESS;
+    case STAGE.GIVE_DELIBERATION_TIPS:
+      return COMMENT_PURPOSE.OTHER_OPTIONS;
+    case STAGE.GIVE_MORE_DELIBERATION_TIPS:
+      return COMMENT_PURPOSE.DELIBERATION;
+    default:
+      return null;
+  }
 };
 
 // CommentHeader コンポーネント
@@ -76,6 +90,14 @@ const CommentHeader: React.FC<{
     return date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) + ' ' + date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   }, [comment.created_at]);
 
+  const purposeBadge = useMemo(() => {
+    if (!comment.purpose) return null;
+    const label = COMMENT_PURPOSE_LABELS[comment.purpose];
+    const style = COMMENT_PURPOSE_STYLES[comment.purpose];
+    if (!label || !style) return null;
+    return { label, style };
+  }, [comment.purpose]);
+
   const showMenu = !isExportStage;
 
   return (
@@ -88,6 +110,18 @@ const CommentHeader: React.FC<{
 
         {/* ユーザー情報と時刻 */}
         <div className={styles.commentUserInfo}>
+          {purposeBadge && (
+            <span
+              className={styles.purposeBadge}
+              style={{
+                color: purposeBadge.style.fg,
+                backgroundColor: purposeBadge.style.bg,
+                borderColor: purposeBadge.style.border,
+              }}
+            >
+              {purposeBadge.label}
+            </span>
+          )}
           <strong className={styles.commentAuthor}>{displayAuthor}</strong>
           <small className={styles.commentTime}>
             {time}
@@ -544,6 +578,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
     try {
       const userName = session?.user?.name || t("CommentPanel.comment-author-user");
+      const purpose = resolvePurposeForStage(completionStage);
 
       const { data, error } = await apiClient<Comment>('/comments/', {
         method: 'POST',
@@ -553,6 +588,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           parent_id: parseInt(parentId, 10),
           author: userName,
           text: replyText.trim(),
+          purpose,
         },
       });
 
@@ -589,6 +625,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           highlightId: parentComment.highlightId,
           author: userName,
           text: replyText.trim(),
+          purpose: savedComment.purpose ?? purpose,
           created_at: savedComment.created_at,
           edited_at: null,
           deleted: false,

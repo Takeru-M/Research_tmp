@@ -17,10 +17,10 @@ import LoadingOverlay from './LoadingOverlay';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { STAGE, HIGHLIGHT_COLOR } from '@/utils/constants';
+import { STAGE, HIGHLIGHT_COLOR, COMMENT_PURPOSE } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
-import { logUserAction } from '@/utils/logger'; // ← logLLMAnalysis はインポートしない
+import { logUserAction } from '@/utils/logger';
 import styles from '../styles/PdfViewer.module.css';
 import {
   FormatDataResponse,
@@ -807,7 +807,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(hf.id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: hf.suggestion,
-                  suggestion_reason: hf.suggestion_reason,  // LLM示唆の理由を保存
+                  suggestion_reason: hf.suggestion_reason,
+                  purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
                 }
               }
             );
@@ -831,6 +832,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: hf.id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: hf.suggestion,
+                purpose: commentResponse.purpose ?? COMMENT_PURPOSE.OTHER_OPTIONS,
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -867,7 +869,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                     created_by: userName,
                     memo: uhf.suggestion,
                     text: uhf.unhighlighted_text,
-                    suggestion_reason: uhf.suggestion_reason,  // LLM示唆の理由を保存
+                    suggestion_reason: uhf.suggestion_reason,
+                    purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
                     rects: foundRects.map(rect => ({
                       page_num: rect.pageNum,
                       x1: rect.x1,
@@ -909,6 +912,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: null,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: uhf.suggestion,
+                purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
                 created_at: highlightResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -1046,14 +1050,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         // ループ見出しにカンマ演算子を使わない
         for (const s of suggestionsArr) {
           if (s.suggestion) {
-            const parentCommentExists = comments.some(c => c.id === s.id);
-            if (!parentCommentExists) {
-              console.warn('[handleCompletion] Parent comment ID not found:', s.id);
-              continue;
-            }
-
-            console.log('[handleCompletion] Saving comment with parent_id:', s.id, 'highlight_id:', s.highlight_id);
-
             const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
               '/comments/',
               {
@@ -1065,6 +1061,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   author: t("CommentPanel.comment-author-LLM"),
                   text: s.suggestion,
                   suggestion_reason: s.suggestion_reason,
+                  purpose: COMMENT_PURPOSE.DELIBERATION,
                 }
               }
             );
@@ -1089,6 +1086,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: s.id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: s.suggestion,
+                purpose: commentResponse.purpose ?? COMMENT_PURPOSE.DELIBERATION,
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -1385,6 +1383,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           method: 'POST',
           body: {
             userInput,
+            purpose: completionStage === STAGE.GIVE_DELIBERATION_TIPS
+              ? COMMENT_PURPOSE.OTHER_OPTIONS
+              : COMMENT_PURPOSE.DELIBERATION,
           }
         }
       );
@@ -1431,6 +1432,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(dr.root_comment_id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: dr.response_text,
+                  purpose: completionStage === STAGE.GIVE_DELIBERATION_TIPS
+                    ? COMMENT_PURPOSE.OTHER_OPTIONS
+                    : COMMENT_PURPOSE.DELIBERATION,
                 }
               }
             );
@@ -1453,6 +1457,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: dr.root_comment_id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: dr.response_text,
+                purpose: commentResponse.purpose ?? (completionStage === STAGE.GIVE_DELIBERATION_TIPS
+                  ? COMMENT_PURPOSE.OTHER_OPTIONS
+                  : COMMENT_PURPOSE.DELIBERATION),
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,

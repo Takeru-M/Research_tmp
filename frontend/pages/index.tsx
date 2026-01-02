@@ -33,7 +33,7 @@ import CommentPanel from '../components/CommentPanel';
 import styles from '../styles/Index.module.css';
 import "../lang/config";
 import { useTranslation } from "react-i18next";
-import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
+import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH, COMMENT_PURPOSE, STAGE } from '@/utils/constants';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import { useSelector as useReduxSelector } from 'react-redux';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -63,6 +63,7 @@ const EditorPageContent: React.FC = () => {
   const activeHighlightMemo = useSelector(selectActiveHighlightMemo);
   const allComments = useSelector(selectAllComments);
   const fileId = useSelector(selectFileId);
+  const completionStage = useSelector((state: RootState) => state.editor.completionStage);
 
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
@@ -185,12 +186,13 @@ const EditorPageContent: React.FC = () => {
         
         const list = Array.isArray(item.comments) ? item.comments : [];
         
-        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
+        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; purpose?: number | null; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
           console.log('[fetchHighlightsAndComments] Converting comment:', {
             id: c.id,
             parent_id: c.parent_id,
             author: c.author,
             text: c.text.substring(0, 30),
+            purpose: c.purpose,
           });
           
           return {
@@ -202,6 +204,7 @@ const EditorPageContent: React.FC = () => {
             author: c.author || getUserName(),
             text: c.text,
             created_at: c.created_at,
+            purpose: c.purpose ?? null,
             edited_at: c.updated_at || null,
             deleted: Boolean(c.deleted_at),
             deleted_at: c.deleted_at || null,
@@ -705,6 +708,19 @@ const EditorPageContent: React.FC = () => {
 
           const userName = getUserName();
 
+          const purpose = (() => {
+            switch (completionStage) {
+              case STAGE.GIVE_OPTION_TIPS:
+                return COMMENT_PURPOSE.THINKING_PROCESS;
+              case STAGE.GIVE_DELIBERATION_TIPS:
+                return COMMENT_PURPOSE.OTHER_OPTIONS;
+              case STAGE.GIVE_MORE_DELIBERATION_TIPS:
+                return COMMENT_PURPOSE.DELIBERATION;
+              default:
+                return null;
+            }
+          })();
+
           const { data: response, error } = await apiClient<CreateHighlightResponse>('/highlights/', {
             method: 'POST',
             headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -712,6 +728,7 @@ const EditorPageContent: React.FC = () => {
               document_file_id: fileId,
               created_by: userName,
               memo: memo.trim(),
+              purpose,
               text: pendingHighlight.text || '',
               rects: pendingHighlight.rects.map(rect => ({
                 page_num: rect.pageNum,
@@ -774,6 +791,7 @@ const EditorPageContent: React.FC = () => {
             author: userName,
             text: memo.trim(),
             created_at: response.created_at,
+            purpose,
             edited_at: null,
             deleted: false,
           };
