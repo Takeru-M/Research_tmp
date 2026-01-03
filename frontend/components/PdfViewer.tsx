@@ -376,6 +376,34 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     });
   },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, llmAuthorName]);
 
+  // 選択中ハイライトのプレビューを描画（キャンセル時は選択メニューが閉じられるため非表示）
+  const renderPendingHighlight = useCallback((page: number) => {
+    if (!selectionMenu.visible || !selectionMenu.pendingHighlight || selectionMenu.pendingHighlight.type !== 'pdf') return null;
+    if (!pageData[page] || !pageScales[page]) return null;
+
+    const scale = pageScales[page];
+    const pendingRects = selectionMenu.pendingHighlight.rects.filter(r => r.pageNum === page);
+    if (pendingRects.length === 0) return null;
+
+    return pendingRects.map((rect, idx) => (
+      <div
+        key={`pending-${selectionMenu.pendingHighlight!.id}-${idx}`}
+        className={styles.highlightOverlay}
+        style={{
+          left: `${rect.x1 * scale}px`,
+          top: `${rect.y1 * scale}px`,
+          width: `${(rect.x2 - rect.x1) * scale}px`,
+          height: `${(rect.y2 - rect.y1) * scale}px`,
+          backgroundColor: 'rgba(255, 235, 59, 0.35)',
+          border: `2px dashed ${HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          pointerEvents: 'none',
+          position: 'absolute',
+        }}
+      />
+    ));
+  }, [selectionMenu, pageData, pageScales]);
+
   // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {
     const el =
@@ -1615,6 +1643,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   scale={pdfScale}
                 />
                 {renderHighlightVisuals(i + 1)}
+                {renderPendingHighlight(i + 1)}
                 {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
                   <FabricShapeLayer
                     pageNumber={i + 1}
