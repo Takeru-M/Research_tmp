@@ -3,18 +3,20 @@ import React, { ChangeEvent, PropsWithChildren, useCallback, useState, useEffect
 import styles from '../styles/Layout.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
 import { setPdfScale, clearAllState, setHasSoftDeletedLLMComment, triggerLLMCommentRefresh, triggerSoftDeleteFlagCheck } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
 import { apiClient } from '@/utils/apiClient';
+import { useLogout } from '@/hooks/useLogout';
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { logout } = useLogout();
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const documentName = useSelector((state: RootState) => state.editor.documentName);
@@ -46,9 +48,9 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     dispatch(setPdfScale(newScale));
   }, [dispatch]);
 
-  const handleLogout = useCallback(() => {
-    signOut({ callbackUrl: '/login' });
-  }, []);
+  const handleLogout = useCallback(async () => {
+    await logout();
+  }, [logout]);
 
   const handleBackToDocuments = useCallback(() => {
     dispatch(clearAllState());

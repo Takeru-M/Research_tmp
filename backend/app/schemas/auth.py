@@ -16,6 +16,7 @@ class User(BaseModel):
 # JWTトークンのレスポンススキーマ
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     user_id: str
     name: str
     email: str
