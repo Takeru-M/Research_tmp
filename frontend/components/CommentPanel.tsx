@@ -30,11 +30,11 @@ const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
 const resolvePurposeForStage = (stage: number | null | undefined): number | null => {
   if (!stage) return null;
   switch (stage) {
-    case STAGE.GIVE_OPTION_TIPS:
+    case STAGE.THINKING_PROCESS_SELF:
       return COMMENT_PURPOSE.THINKING_PROCESS;
-    case STAGE.GIVE_DELIBERATION_TIPS:
+    case STAGE.THINKING_OPTION_SELF || STAGE.THINKING_OPTION_LLM:
       return COMMENT_PURPOSE.OTHER_OPTIONS;
-    case STAGE.GIVE_MORE_DELIBERATION_TIPS:
+    case STAGE.THINKING_DELIBERATION_SELF || STAGE.THINKING_DELIBERATION_LLM:
       return COMMENT_PURPOSE.DELIBERATION;
     default:
       return null;
@@ -78,8 +78,8 @@ const CommentHeader: React.FC<{
   const isExportStage = completionStage === STAGE.EXPORT;
 
   const showSelectButton = isRoot && (
-    completionStage === STAGE.GIVE_DELIBERATION_TIPS ||
-    completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS
+    completionStage === STAGE.THINKING_OPTION_LLM ||
+    completionStage === STAGE.THINKING_DELIBERATION_LLM
   );
 
   const displayAuthor = comment.author || currentUserName || t("CommentPanel.comment-author-user");

@@ -2,7 +2,17 @@
   "main-title": "System",
   "app-description": "File Editor Application",
   "header": {
-    "back-to-document-list": "Back to Document List"
+    "back-to-document-list": "Back to List",
+    "restore-btn-ttl": "Restore Deleted LLM Comments",
+    "restoring-llm-comments": "Restoring Deleted LLM Comments...",
+    "stage-description": {
+      "thinking_process_self": "Expressing Thinking Process",
+      "thinking_option_self": "Considering Other Options",
+      "thinking_option_llm": "Considering Other Options with LLM Suggestions",
+      "thinking_deliberation_self": "Deliberating and Making Decisions",
+      "thinking_deliberation_llm": "Deliberating and Making Decisions with LLM Suggestions",
+      "export": "Activity Completed"
+    }
   },
   "Utils": {
     "edit": "Edit",

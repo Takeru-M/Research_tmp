@@ -17,6 +17,7 @@
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
+  overflow: visible;
 }
 
 .title {
@@ -63,6 +64,8 @@
   padding: 8px;
   position: relative;
   overflow-x: visible;
+  /* ドロップダウンメニューが外に表示できるよう設定 */
+  overflow: visible;
 }
 
 .documentList {
@@ -79,7 +82,7 @@
 }
 
 .documentItem.menuOpen {
-  z-index: 100;
+  z-index: 9998;
 }
 
 .documentItemInner {
@@ -178,7 +181,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  z-index: 9999;
   min-width: 120px;
 }
 

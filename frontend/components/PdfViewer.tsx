@@ -305,10 +305,21 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const childComments = comments.filter(c => rootComments.some(rc => rc.id === c.parentId));
       const allRelatedComments = [...rootComments, ...childComments];
       
-      const sortedComments = [...allRelatedComments].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      // コメントを作成日時で降順ソート（最新が先頭）
+      // created_atが文字列、数値、Dateオブジェクトのいずれでも正しく動作するようにする
+      const sortedComments = [...allRelatedComments].sort((a, b) => {
+        const timeA = typeof a.created_at === 'string' || typeof a.created_at === 'number' 
+          ? new Date(a.created_at).getTime() 
+          : 0;
+        const timeB = typeof b.created_at === 'string' || typeof b.created_at === 'number'
+          ? new Date(b.created_at).getTime() 
+          : 0;
+        return timeB - timeA; // 降順（新しい順）
+      });
       const latestComment = sortedComments[0];
+
+      // スレッド内にLLMコメントが存在するかチェック
+      const hasLLMComment = allRelatedComments.some(c => c.author === llmAuthorName);
 
       // ハイライトの色を決定するロジック
       let baseBg: string;
@@ -317,32 +328,32 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       let activeBorderColor: string;
 
       if (!latestComment) {
-        // コメントがない場合：ユーザーハイライト（黄色）
+        // ケース1: コメントがない場合 → 黄色（ユーザーハイライト）
         baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
         activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
         baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
         activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
       } else if (latestComment.author === llmAuthorName) {
-        // 最新コメントがLLM：青色
+        // ケース2: 最新コメントがLLM → 青色
+        // （LLMが示唆を出した、またはユーザーコメントに対してLLMが返信した場合）
         baseBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE;
         activeBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE;
         baseBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE_BORDER;
         activeBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE_BORDER;
+      } else if (hasLLMComment) {
+        // ケース3: 最新コメントがユーザー && スレッド内にLLMコメントが存在 → 緑色
+        // （LLMの示唆に対してユーザーが返信した場合）
+        baseBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE;
+        activeBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE;
+        baseBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE_BORDER;
+        activeBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE_BORDER;
       } else {
-        // 最新コメントがユーザー かつ スレッド内にLLMコメントが存在：緑色
-        const hasLLMComment = allRelatedComments.some(c => c.author === llmAuthorName);
-        if (hasLLMComment) {
-          baseBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE;
-          activeBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE;
-          baseBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE_BORDER;
-          activeBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE_BORDER;
-        } else {
-          // ユーザーハイライト（黄色）
-          baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
-          activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
-          baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
-          activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
-        }
+        // ケース4: 最新コメントがユーザー && LLMコメントなし → 黄色
+        // （ユーザーのみのコメントスレッド）
+        baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
+        activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
+        baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
+        activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
       }
 
       const isActive = effectiveActiveHighlightId === h.id;
@@ -685,7 +696,59 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    if (completionStage == STAGE.GIVE_OPTION_TIPS){
+    if ((completionStage != STAGE.THINKING_OPTION_SELF) && (completionStage != STAGE.THINKING_DELIBERATION_SELF)) {
+      try {
+        const documentId = getDocumentIdFromCookie();
+        if (documentId) {
+          // 次のステージを計算
+          let nextStage = completionStage;
+          if (completionStage === STAGE.THINKING_PROCESS_SELF) {
+            nextStage = STAGE.THINKING_OPTION_SELF;
+          } else if (completionStage === STAGE.THINKING_OPTION_LLM) {
+            nextStage = STAGE.THINKING_DELIBERATION_SELF;
+          }
+
+          const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
+            `/documents/${documentId}/update-completion-stage/`,
+            {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${session?.accessToken}` },
+              body: {
+                completion_stage: nextStage,
+              }
+            }
+          );
+
+          if (updateError) {
+            console.error('[handleCompletion] Stage update error:', updateError);
+            setErrorMessage(t('Error.update-document-failed'));
+            logUserAction('analysis_failed', {
+              stage: `update_${completionStage}_to_${nextStage}_stage_error`,
+              reason: updateError,
+              timestamp: new Date().toISOString(),
+            }, getUserId());
+            return;
+          }
+
+          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? nextStage;
+          const stageVal = Number(stageValRaw);
+          console.log('[handleCompletion] Completion stage updated from', completionStage, 'to', stageVal);
+          dispatch(setCompletionStage(Number.isNaN(stageVal) ? nextStage : stageVal));
+        }
+      } catch (error) {
+        console.error('[handleCompletion] Unexpected error during stage update:', error);
+        setErrorMessage(t('Error.unexpected-error'));
+        logUserAction('analysis_failed', {
+          stage: `update_${completionStage}_stage_unexpected_error`,
+          reason: error instanceof Error ? error.message : 'unknown',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return;
+      } finally {
+        dispatch(stopLoading());
+      }
+    }
+    else if (completionStage == STAGE.THINKING_OPTION_SELF){
       try {
         // 全てのハイライトに対して、紐づくコメント（スレッド）を構築
         const highlightCommentThreads: HighlightCommentThread[] = [];
@@ -942,7 +1005,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               method: 'PATCH',
               headers: { Authorization: `Bearer ${session?.accessToken}` },
               body: {
-                completion_stage: STAGE.GIVE_DELIBERATION_TIPS,
+                completion_stage: STAGE.THINKING_OPTION_LLM,
               }
             }
           );
@@ -958,9 +1021,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             return;
           }
 
-          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
+          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.THINKING_OPTION_LLM;
           const stageVal = Number(stageValRaw);
-          dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_DELIBERATION_TIPS : stageVal));
+          dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.THINKING_OPTION_LLM: stageVal));
           logUserAction('analysis_completed', {
             newCompletionStage: stageVal,
             timestamp: new Date().toISOString(),
@@ -978,7 +1041,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         dispatch(stopLoading());
       }
     }
-    else if (completionStage == STAGE.GIVE_DELIBERATION_TIPS){
+    else if (completionStage == STAGE.THINKING_DELIBERATION_SELF){
       try {
         // 全てのハイライトに対して、紐づくコメント（スレッド）を構築
         const highlightCommentThreads: HighlightCommentThread[] = [];
@@ -1055,10 +1118,8 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           ? responseData.suggestions
           : [];
 
-        console.log("AAA", suggestions);
         // 各suggestion に対してコメントを作成
         for (const s of suggestions) {
-          console.log("BBB");
           if (s.suggestion) {
             // ハイライトIDに対応するルートコメント（parent_id=null）を取得
             const rootComment = comments.find(c =>
@@ -1118,7 +1179,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             );
           }
         }
-        console.log("END");
 
         if (documentId) {
           const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
@@ -1127,7 +1187,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               method: 'PATCH',
               headers: { Authorization: `Bearer ${session?.accessToken}` },
               body: {
-                completion_stage: STAGE.GIVE_MORE_DELIBERATION_TIPS,
+                completion_stage: STAGE.THINKING_DELIBERATION_LLM,
               }
             }
           );
@@ -1143,10 +1203,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             return;
           }
 
-          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_MORE_DELIBERATION_TIPS;
+          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.THINKING_DELIBERATION_LLM;
           const stageVal = Number(stageValRaw);
           console.log('[handleCompletion] Completion stage updated to', stageVal);
-          dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
+          dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.THINKING_DELIBERATION_LLM : stageVal));
           logUserAction('deliberation_analysis_completed', {
             suggestionCount: suggestions.length,
             timestamp: new Date().toISOString(),
@@ -1354,9 +1414,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       let apiEndpoint: string;
 
-      if (completionStage === STAGE.GIVE_DELIBERATION_TIPS) {
+      if (completionStage === STAGE.THINKING_OPTION_LLM) {
         apiEndpoint = '/openai/option-dialogue';
-      } else if (completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) {
+      } else if (completionStage === STAGE.THINKING_DELIBERATION_LLM) {
         apiEndpoint = '/openai/deliberation-dialogue';
       } else {
         console.error('[handleDialogue] Unsupported completion stage:', completionStage);
@@ -1408,7 +1468,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           method: 'POST',
           body: {
             userInput,
-            purpose: completionStage === STAGE.GIVE_DELIBERATION_TIPS
+            purpose: completionStage === STAGE.THINKING_DELIBERATION_LLM
               ? COMMENT_PURPOSE.OTHER_OPTIONS
               : COMMENT_PURPOSE.DELIBERATION,
           }
@@ -1435,7 +1495,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       if (dialogueResponses.length > 0) {
         const analysisType =
-          completionStage === STAGE.GIVE_DELIBERATION_TIPS
+          completionStage === STAGE.THINKING_DELIBERATION_LLM
             ? 'option_dialogue'
             : 'deliberation_dialogue';
 
@@ -1457,7 +1517,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(dr.root_comment_id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: dr.response_text,
-                  purpose: completionStage === STAGE.GIVE_DELIBERATION_TIPS
+                  purpose: completionStage === STAGE.THINKING_DELIBERATION_LLM
                     ? COMMENT_PURPOSE.OTHER_OPTIONS
                     : COMMENT_PURPOSE.DELIBERATION,
                 }
@@ -1482,7 +1542,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: dr.root_comment_id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: dr.response_text,
-                purpose: commentResponse.purpose ?? (completionStage === STAGE.GIVE_DELIBERATION_TIPS
+                purpose: commentResponse.purpose ?? (completionStage === STAGE.THINKING_DELIBERATION_LLM
                   ? COMMENT_PURPOSE.OTHER_OPTIONS
                   : COMMENT_PURPOSE.DELIBERATION),
                 created_at: commentResponse.created_at,
@@ -1590,27 +1650,34 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
         )}
         <div style={{textAlign:'center', padding: '20px 0'}}>
-          {completionStage !== STAGE.EXPORT && completionStage !== STAGE.GIVE_MORE_DELIBERATION_TIPS && (
+          {completionStage !== STAGE.EXPORT && (
             <>
-              <button
-                onClick={handleCompletion}
-                disabled={isLoading}
-                style={{
-                    padding: '10px 20px',
-                    fontSize: '16px',
-                    backgroundColor: isLoading ? '#cccccc' : '#4CAF50',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: isLoading ? 'not-allowed' : 'pointer',
-                    opacity: isLoading ? 0.6 : 1,
-                    marginRight: (selectedRootCommentIds.length > 0) ? '10px' : '0',
-                }}
-              >
-                {t("PdfViewer.complete")}
-              </button>
+              {completionStage !== STAGE.THINKING_DELIBERATION_LLM && (
+                <button
+                  onClick={handleCompletion}
+                  disabled={isLoading}
+                  style={{
+                      padding: '10px 20px',
+                      fontSize: '16px',
+                      backgroundColor: isLoading ? '#cccccc' : '#4CAF50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      opacity: isLoading ? 0.6 : 1,
+                      marginRight:
+                        selectedRootCommentIds.length > 0 &&
+                        (completionStage === STAGE.THINKING_OPTION_LLM || completionStage === STAGE.THINKING_DELIBERATION_LLM)
+                          ? '10px'
+                          : '0',
+                  }}
+                >
+                  {t("PdfViewer.complete")}
+                </button>
+              )}
 
-              {selectedRootCommentIds.length > 0 && (
+              {selectedRootCommentIds.length > 0 &&
+              (completionStage === STAGE.THINKING_OPTION_LLM || completionStage === STAGE.THINKING_DELIBERATION_LLM) && (
                 <button
                   onClick={handleDialogue}
                   disabled={isLoading}
@@ -1632,7 +1699,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             </>
           )}
 
-          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS || completionStage === STAGE.EXPORT) && (
+          {(completionStage === STAGE.THINKING_DELIBERATION_LLM || completionStage === STAGE.EXPORT) && (
             <button
               onClick={handleCompletionforExport}
               disabled={isLoading}
@@ -1647,7 +1714,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   opacity: isLoading ? 0.6 : 1,
               }}
             >
-              {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
+              {(completionStage === STAGE.THINKING_DELIBERATION_LLM) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
             </button>
           )}
         </div>

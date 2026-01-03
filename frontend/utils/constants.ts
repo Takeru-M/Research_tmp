@@ -32,17 +32,19 @@ export const HANDLE_WIDTH = 8;
 
 // ステージの種類
 export const STAGE = {
-  GIVE_OPTION_TIPS: 1,
-  GIVE_DELIBERATION_TIPS: 2,
-  GIVE_MORE_DELIBERATION_TIPS: 3,
-  EXPORT: 4,
+  THINKING_PROCESS_SELF: 1,
+  THINKING_OPTION_SELF: 2,
+  THINKING_OPTION_LLM: 3,
+  THINKING_DELIBERATION_SELF: 4,
+  THINKING_DELIBERATION_LLM: 5,
+  EXPORT: 6,
 }
 
 // コメント返信目的（ステージに応じて付与）
 export const COMMENT_PURPOSE = {
-  THINKING_PROCESS: 1,     // 思考プロセス
-  OTHER_OPTIONS: 2,        // 他選択肢
-  DELIBERATION: 3,         // 吟味
+  THINKING_PROCESS: 1,
+  OTHER_OPTIONS: 2,
+  DELIBERATION: 3,
 } as const;
 
 export const COMMENT_PURPOSE_LABELS: Record<number, string> = {

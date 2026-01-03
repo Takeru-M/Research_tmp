@@ -710,11 +710,11 @@ const EditorPageContent: React.FC = () => {
 
           const purpose = (() => {
             switch (completionStage) {
-              case STAGE.GIVE_OPTION_TIPS:
+              case STAGE.THINKING_OPTION_LLM:
                 return COMMENT_PURPOSE.THINKING_PROCESS;
-              case STAGE.GIVE_DELIBERATION_TIPS:
+              case STAGE.THINKING_DELIBERATION_LLM:
                 return COMMENT_PURPOSE.OTHER_OPTIONS;
-              case STAGE.GIVE_MORE_DELIBERATION_TIPS:
+              case STAGE._SELF:
                 return COMMENT_PURPOSE.DELIBERATION;
               default:
                 return null;

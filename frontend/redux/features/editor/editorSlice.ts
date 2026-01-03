@@ -21,7 +21,7 @@ const initialState: EditorState = {
   pdfScale: 1.0,
   responses: {} as Record<string, string>,
   documentName: null,
-  completionStage: STAGE.GIVE_OPTION_TIPS,
+  completionStage: STAGE.THINKING_OPTION_LLM,
   selectedRootCommentIds: [] as string[],
   hasSoftDeletedLLMComment: false,
   lastLLMCommentRestoreTime: null,
@@ -277,7 +277,7 @@ const editorSlice = createSlice({
       state.pdfScale = 1.0;
       state.responses = {};
       state.documentName = null;
-      state.completionStage = STAGE.GIVE_OPTION_TIPS;
+      state.completionStage = STAGE.THINKING_OPTION_LLM;
       state.selectedRootCommentIds = [];
       state.hasSoftDeletedLLMComment = false;
       state.lastLLMCommentRestoreTime = null;

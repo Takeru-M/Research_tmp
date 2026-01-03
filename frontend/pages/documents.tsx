@@ -120,7 +120,7 @@ const Documents: React.FC = () => {
       headers: { Authorization: `Bearer ${session?.accessToken}`},
       body: {
         document_name: newDocumentName,
-        stage: STAGE.GIVE_OPTION_TIPS,
+        stage: STAGE.THINKING_PROCESS_SELF,
       },
     });
 
@@ -157,7 +157,7 @@ const Documents: React.FC = () => {
     setNewDocumentName('');
 
     Cookies.set('documentId', newDocument.id.toString(), { sameSite: 'lax', secure: true });
-    Cookies.set('completionStage', STAGE.GIVE_OPTION_TIPS.toString(), { sameSite: 'lax', secure: true });
+    Cookies.set('completionStage', STAGE.THINKING_OPTION_LLM.toString(), { sameSite: 'lax', secure: true });
     dispatch(setDocumentName(newDocument.document_name));
     
     setCreating(false);
