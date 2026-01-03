@@ -23,7 +23,7 @@ export interface CommentResponse {
   parent_id: number | null;
   author: string;
   text: string;
-   purpose?: number | null;
+  purpose?: number | null;
   created_at: string;
   updated_at: string | null;
   deleted_at: string | null;

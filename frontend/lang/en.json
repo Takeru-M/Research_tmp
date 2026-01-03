@@ -103,6 +103,7 @@
     "enter-memo": "Please enter a memo",
     "file-format-error": "This file format cannot be previewed",
     "upload-failed": "Upload failed",
+    "file-text-save-failed": "Failed to save file text information. Please try again.",
     "file-id-missing": "File ID is not set. Please wait for the PDF to load completely and try again.",
     "document-id-missing": "Document ID not found. Please create a document first.",
     "file-fetch-failed": "Failed to load the file. Please try again.",

@@ -105,6 +105,7 @@
     "enter-memo": "メモを入力してください",
     "file-format-error": "このファイル形式はプレビューできません",
     "upload-failed": "アップロードに失敗しました",
+    "file-text-save-failed": "ファイルのテキスト情報の保存に失敗しました。もう一度お試しください。",
     "file-id-missing": "ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。",
     "document-id-missing": "ドキュメントIDが見つかりません。先にドキュメントを作成してください。",
     "file-fetch-failed": "ファイルの読み込みに失敗しました。もう一度お試しください。",

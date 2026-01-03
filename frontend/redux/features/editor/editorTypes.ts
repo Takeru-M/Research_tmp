@@ -112,22 +112,6 @@ export type HighlightInfo = {
   type: 'pdf' | string;
 }
 
-export type HighlightCommentList = {
-  id: string;
-  highlightId: string;
-  highlight: string;
-  comment: string;
-}[]
-
-export type HighlightCommentsList = {
-  id: string;
-  highlightId: string;
-  highlight: string;
-  comments: {
-    comment: string;
-  }[];
-}[]
-
 export type Document = {
   id: number;
   document_name: string;

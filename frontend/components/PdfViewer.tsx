@@ -8,7 +8,8 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { RootState } from '@/redux/store';
-import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList } from '../redux/features/editor/editorTypes';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
+import { OptionAnalyzeRequest, DeliberationAnalyzeRequest, HighlightCommentThread, HighlightComment } from '@/types/Requests/OpenaiAnalyze';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
@@ -686,24 +687,21 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
     if (completionStage == STAGE.GIVE_OPTION_TIPS){
       try {
-        const highlightCommentList: HighlightCommentList = [];
+        // 全てのハイライトに対して、紐づくコメント（スレッド）を構築
+        const highlightCommentThreads: HighlightCommentThread[] = [];
         for (const h of highlights) {
-          const related = comments.filter(c => c.highlightId === h.id);
-          if (related.length > 0) {
-            for (const c of related) {
-              highlightCommentList.push({
-                id: c.id,
-                highlightId: h.id,
-                highlight: h.text.trim(),
-                comment: c.text.trim(),
-              });
-            }
-          } else {
-            highlightCommentList.push({
-              id: "",
+          const relatedComments = comments.filter(c => c.highlightId === h.id);
+          if (relatedComments.length > 0) {
+            highlightCommentThreads.push({
+              id: h.id,
               highlightId: h.id,
               highlight: h.text.trim(),
-              comment: "(none)",
+              comments: relatedComments.map(c => ({
+                id: c.id,
+                parentId: c.parentId,
+                author: c.author,
+                text: c.text.trim(),
+              })),
             });
           }
         }
@@ -755,12 +753,13 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
         if (saveFormattedTextError) {
           console.error('[handleCompletion] Failed to save formatted text:', saveFormattedTextError);
-          // エラーが発生しても処理を続行（警告のみ）
+          setErrorMessage(t('Error.file-text-save-failed'));
+          return;
         }
 
-        const userInput = {
-          "mt_text": formatDataResponse.analysis,
-          "highlights": highlightCommentList,
+        const userInput: OptionAnalyzeRequest = {
+          mt_text: formatDataResponse.analysis,
+          highlights: highlightCommentThreads,
         }
 
         const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<OptionAnalyzeResponse>(
@@ -797,6 +796,19 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         // 以降の処理も配列に対してのみ実行
         for (const hf of highlight_feedback) {
           if (hf.intervention_needed) {
+            // ハイライトIDに対応するルートコメント（parent_id=null）を取得
+            const rootComment = comments.find(c => 
+              c.highlightId === hf.highlight_id && c.parentId === null
+            );
+
+            if (!rootComment) {
+              console.error(
+                `[handleCompletion] No root comment found for highlight_id: ${hf.highlight_id}. ` +
+                `Cannot create LLM response comment.`
+              );
+              continue; // このフィードバックはスキップ
+            }
+
             const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
               '/comments/',
               {
@@ -804,7 +816,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
                 body: {
                   highlight_id: parseInt(hf.highlight_id, 10),
-                  parent_id: parseInt(hf.id, 10),
+                  parent_id: rootComment.id,
                   author: t("CommentPanel.comment-author-LLM"),
                   text: hf.suggestion,
                   suggestion_reason: hf.suggestion_reason,
@@ -832,7 +844,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: hf.id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: hf.suggestion,
-                purpose: commentResponse.purpose ?? COMMENT_PURPOSE.OTHER_OPTIONS,
+                purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -968,23 +980,22 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }
     else if (completionStage == STAGE.GIVE_DELIBERATION_TIPS){
       try {
-        const highlightCommentsList: HighlightCommentsList = [];
+        // 全てのハイライトに対して、紐づくコメント（スレッド）を構築
+        const highlightCommentThreads: HighlightCommentThread[] = [];
         for (const h of highlights) {
-          const related = comments.filter(c => c.highlightId === h.id);
-
-          if (related.length > 0) {
-            const lastComment = related[related.length - 1];
-
-            if (lastComment && lastComment.author === t("CommentPanel.comment-author-LLM")) {
-              highlightCommentsList.push({
-                id: lastComment.id,
-                highlightId: h.id,
-                highlight: h.text.trim(),
-                comments: related.map(c => ({
-                  comment: c.text,
-                })),
-              });
-            }
+          const relatedComments = comments.filter(c => c.highlightId === h.id);
+          if (relatedComments.length > 0) {
+            highlightCommentThreads.push({
+              id: h.id,
+              highlightId: h.id,
+              highlight: h.text.trim(),
+              comments: relatedComments.map(c => ({
+                id: c.id,
+                parentId: c.parentId,
+                author: c.author,
+                text: c.text.trim(),
+              })),
+            });
           }
         }
 
@@ -1010,9 +1021,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           return;
         }
 
-        const userInput = {
-          "mt_text": formattedTextData.formatted_data,
-          "highlights": highlightCommentsList,
+        const userInput: DeliberationAnalyzeRequest = {
+          mt_text: formattedTextData.formatted_data,
+          highlights: highlightCommentThreads,
         }
 
         const { data: deliberationResponse, error: deliberationError } = await apiClient<DeliberationAnalyzeResponse>(
@@ -1039,17 +1050,30 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const responseData = parseJSONResponse(deliberationResponse.analysis);
         console.log(responseData);
 
-        // suggestions を安全に配列化（未定義/オブジェクトでも配列へ）
-        const rawSuggestions = (responseData as any)?.suggestions;
-        const suggestionsArr: any[] = Array.isArray(rawSuggestions)
-          ? rawSuggestions
-          : (rawSuggestions && typeof rawSuggestions === 'object')
-            ? Object.values(rawSuggestions)
-            : [];
+        // suggestions を配列として取得（option-analyze と同じ構造）
+        const suggestions = Array.isArray(responseData?.suggestions)
+          ? responseData.suggestions
+          : [];
 
-        // ループ見出しにカンマ演算子を使わない
-        for (const s of suggestionsArr) {
+        console.log("AAA", suggestions);
+        // 各suggestion に対してコメントを作成
+        for (const s of suggestions) {
+          console.log("BBB");
           if (s.suggestion) {
+            // ハイライトIDに対応するルートコメント（parent_id=null）を取得
+            const rootComment = comments.find(c =>
+              c.highlightId === s.highlight_id && c.parentId === null
+            );
+            console.log(rootComment);
+
+            if (!rootComment) {
+              console.error(
+                `[handleCompletion] No root comment found for highlight_id: ${s.highlight_id}. ` +
+                `Cannot create LLM response comment.`
+              );
+              continue;
+            }
+
             const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
               '/comments/',
               {
@@ -1057,7 +1081,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 headers: { Authorization: `Bearer ${session?.accessToken}` },
                 body: {
                   highlight_id: parseInt(s.highlight_id, 10),
-                  parent_id: parseInt(s.id, 10),
+                  parent_id: rootComment.id,
                   author: t("CommentPanel.comment-author-LLM"),
                   text: s.suggestion,
                   suggestion_reason: s.suggestion_reason,
@@ -1083,10 +1107,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               addComment({
                 id: commentResponse.id.toString(),
                 highlightId: s.highlight_id,
-                parentId: s.id,
+                parentId: rootComment.id.toString(),
                 author: t("CommentPanel.comment-author-LLM"),
                 text: s.suggestion,
-                purpose: commentResponse.purpose ?? COMMENT_PURPOSE.DELIBERATION,
+                purpose: COMMENT_PURPOSE.DELIBERATION,
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -1094,6 +1118,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             );
           }
         }
+        console.log("END");
 
         if (documentId) {
           const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
@@ -1123,7 +1148,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           console.log('[handleCompletion] Completion stage updated to', stageVal);
           dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
           logUserAction('deliberation_analysis_completed', {
-            suggestionCount: suggestionsArr.length,
+            suggestionCount: suggestions.length,
             timestamp: new Date().toISOString(),
           }, getUserId());
         }
