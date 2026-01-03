@@ -157,8 +157,8 @@ const Documents: React.FC = () => {
     setNewDocumentName('');
 
     Cookies.set('documentId', newDocument.id.toString(), { sameSite: 'lax', secure: true });
-    Cookies.set('completionStage', STAGE.THINKING_OPTION_LLM.toString(), { sameSite: 'lax', secure: true });
     dispatch(setDocumentName(newDocument.document_name));
+    dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
     
     setCreating(false);
     logUserAction('document_created', {
