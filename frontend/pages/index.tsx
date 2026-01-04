@@ -10,7 +10,6 @@ import {
   setComments,
   setCompletionStage,
   setFileId,
-  setHasSoftDeletedLLMComment,
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -79,11 +78,6 @@ const EditorPageContent: React.FC = () => {
   const getUserName = useCallback(() => {
     return session?.user?.name || t("CommentPanel.comment-author-user");
   }, [session, t]);
-
-  const getDocumentIdFromCookie = (): number | null => {
-    const match = document.cookie.match(/(?:^|; )documentId=(\d+)/);
-    return match ? parseInt(match[1], 10) : null;
-  };
 
   // ハイライトとコメントを取得
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
@@ -357,7 +351,10 @@ const EditorPageContent: React.FC = () => {
   }, [dispatch, session?.accessToken, t, getUserId]);
 
   useEffect(() => {
-    const documentId = getDocumentIdFromCookie();
+    // router.isReady が false の場合は処理を実行しない（クエリ文字列の準備待ち）
+    if (!router.isReady) return;
+    
+    const documentId = session?.preferredDocumentId;
     const isNewDocument = router.query.new === 'true';
 
     if (documentId && !isNewDocument) {
@@ -377,14 +374,14 @@ const EditorPageContent: React.FC = () => {
       fetchDocumentInfo(documentId);
       console.log('New document created.');
     } else {
-      console.warn('No document ID found in cookies');
+      console.warn('No document ID found in session');
       logUserAction('editor_load_failed', {
-        reason: 'no_document_id',
+        reason: 'no_document_id_in_session',
         timestamp: new Date().toISOString(),
       }, getUserId());
       router.push('/documents');
     }
-  }, [fetchDocumentInfo, fetchDocumentFile, router, getUserId]);
+  }, [session?.preferredDocumentId, router.isReady, router.query.new, router, fetchDocumentInfo, fetchDocumentFile, getUserId]);
 
   // LLMコメント復元トリガーを監視して再フェッチ
   const lastLLMCommentRestoreTime = useSelector((state: RootState) => state.editor.lastLLMCommentRestoreTime);
@@ -452,9 +449,9 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      const document_id = getDocumentIdFromCookie();
+      const document_id = session?.preferredDocumentId;
       if (!document_id) {
-        console.error('[uploadPdfToS3AndSave] Document ID not found');
+        console.error('[uploadPdfToS3AndSave] Document ID not found in session');
         setErrorMessage(t('Error.document-id-missing'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -506,7 +503,7 @@ const EditorPageContent: React.FC = () => {
     } finally {
       dispatch(stopLoading());
     }
-  }, [dispatch, t, isFileUploaded, session?.accessToken, getUserId]);
+  }, [dispatch, t, isFileUploaded, session?.accessToken, session?.preferredDocumentId, getUserId]);
 
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
@@ -824,7 +821,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken]
+    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken, completionStage]
   );
 
   // === Highlight Click ===
@@ -852,6 +849,7 @@ const EditorPageContent: React.FC = () => {
           file={pdfFile}
           highlights={pdfHighlights}
           comments={allComments}
+          documentId={session?.preferredDocumentId}
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
           onRenderSuccess={handlePdfRenderComplete}
@@ -923,7 +921,7 @@ const EditorPageContent: React.FC = () => {
 };
 
 const IndexPage: React.FC = () => {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
 
   const isAuthenticated = status === 'authenticated';

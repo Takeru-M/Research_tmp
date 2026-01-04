@@ -42,6 +42,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   file,
   highlights,
   comments,
+  documentId,
   onRequestAddHighlight,
   onHighlightClick,
   onRenderSuccess,
@@ -79,11 +80,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   }, [activeCommentId, comments]);
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
-
-  const getDocumentIdFromCookie = (): number | null => {
-    const match = document.cookie.match(/(?:^|; )documentId=(\d+)/);
-    return match ? parseInt(match[1], 10) : null;
-  };
 
   // ユーザーIDを取得するヘルパー関数を追加
   const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
@@ -726,7 +722,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
     if ((completionStage != STAGE.THINKING_OPTION_SELF) && (completionStage != STAGE.THINKING_DELIBERATION_SELF)) {
       try {
-        const documentId = getDocumentIdFromCookie();
         if (documentId) {
           // 次のステージを計算
           let nextStage = completionStage;
@@ -823,7 +818,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         const firstResponseData = parseJSONResponse(formatDataResponse.analysis);
 
         // フォーマット済みテキストをDBに保存
-        const documentId = getDocumentIdFromCookie();
         if (!documentId) {
           console.error('[handleCompletion] Document ID not found');
           setErrorMessage(t('Error.document-id-missing'));
@@ -949,7 +943,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
             if (foundRects.length > 0) {
               const userName = t("CommentPanel.comment-author-LLM");
-              const documentId = getDocumentIdFromCookie();
 
               if (!documentId) {
                 console.error('[handleCompletion] Document ID not found');
@@ -1252,7 +1245,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         dispatch(stopLoading());
       }
     }
-  }, [highlights, comments, dispatch, findTextInPdf, t, completionStage, fileId, getUserId, session?.accessToken, groupedTextLines]);
+  }, [highlights, comments, dispatch, findTextInPdf, t, completionStage, fileId, getUserId, session?.accessToken, groupedTextLines, documentId]);
 
   const handleCompletionforExport = useCallback(async () => {
     dispatch(startLoading(t('PdfViewer.exporting')));
@@ -1261,7 +1254,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }, getUserId());
 
     try {
-      const documentId = getDocumentIdFromCookie();
       if (!documentId) {
         console.error('[handleCompletionforExport] Document ID not found');
         setErrorMessage(t('Error.document-id-missing'));
@@ -1376,7 +1368,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.log(`[Export][Frontend] End at ${new Date().toISOString()}`);
       dispatch(stopLoading());
     }
-  }, [dispatch, fileId, t, getUserId, session?.accessToken, router]);
+  }, [dispatch, fileId, t, getUserId, session?.accessToken, router, documentId]);
 
   const handleDialogue = useCallback(async () => {
     if (selectedRootCommentIds.length === 0) {
@@ -1604,7 +1596,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     } finally {
       dispatch(stopLoading());
     }
-  }, [selectedRootCommentIds, comments, highlights, completionStage, dispatch, t, getUserId, session?.accessToken]);
+  }, [selectedRootCommentIds, comments, highlights, completionStage, dispatch, t, getUserId, session?.accessToken, documentId]);
 
   return (
     <>

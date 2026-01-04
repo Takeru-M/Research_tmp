@@ -5,8 +5,9 @@ from datetime import timedelta
 from sqlmodel import Session
 from app.crud.user import create_user, authenticate_user_by_email
 from app.core.security import create_access_token, create_refresh_token, get_password_hash
-from app.schemas.auth import Token, UserSignupSchema, LoginRequest
+from app.schemas.auth import Token, UserSignupSchema, LoginRequest, SelectDocumentRequest
 from app.api.deps import get_db, get_current_user
+from app.models import User
 from app.utils.validators import (
     validate_email,
     validate_username,
@@ -97,7 +98,8 @@ def signup(
             refresh_token=refresh_token,
             user_id=str(db_user.id),
             name=db_user.name,
-            email=db_user.email
+            email=db_user.email,
+            preferred_document_id=None
         )
     except Exception as e:
         logger.error(f"Error creating tokens: {str(e)}")
@@ -179,7 +181,8 @@ def login_for_access_token(
             refresh_token=refresh_token,
             user_id=str(user.id),
             name=user.name,
-            email=user.email
+            email=user.email,
+            preferred_document_id=None
         )
     except HTTPException:
         # 既に定義されたHTTPExceptionはそのまま再送出
@@ -269,4 +272,60 @@ def logout(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ログアウト処理中にエラーが発生しました"
+        )
+
+
+@router.post("/select-document", response_model=Token)
+def select_document(
+    select_req: SelectDocumentRequest,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    response: Response = None
+):
+    """ドキュメントを選択し、新しいトークンを生成（preferred_document_id を含む）"""
+    from app.crud import document as crud_document
+    
+    logger.info(f"[POST /auth/select-document] User {current_user.id} selecting document {select_req.document_id}")
+    
+    try:
+        # ドキュメントの所有権確認
+        document = crud_document.get_document(session, select_req.document_id)
+        if not document or document.user_id != current_user.id:
+            logger.warning(f"[POST /auth/select-document] Unauthorized access to document {select_req.document_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="このドキュメントにアクセスする権限がありません"
+            )
+        
+        # 新しいトークンを生成（preferred_document_id を含む）
+        access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")))
+        
+        access_token = create_access_token(
+            data={
+                "user_id": current_user.id,
+                "name": current_user.name,
+                "email": current_user.email,
+                "preferred_document_id": select_req.document_id,
+            },
+            expires_delta=access_token_expires
+        )
+        
+        # リフレッシュトークンは変更しない（既存のものをそのまま使用）
+        logger.info(f"[POST /auth/select-document] New token generated with preferred_document_id={select_req.document_id}")
+        
+        return Token(
+            access_token=access_token,
+            refresh_token="",  # リフレッシュトークンは変更しない
+            user_id=str(current_user.id),
+            name=current_user.name,
+            email=current_user.email,
+            preferred_document_id=select_req.document_id
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[POST /auth/select-document] Error selecting document: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ドキュメント選択処理中にエラーが発生しました"
         )

@@ -2,14 +2,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
-import { signIn, signOut } from 'next-auth/react';
 import { STAGE } from '../utils/constants';
 import type { Document } from '../redux/features/editor/editorTypes';
-import Cookies from 'js-cookie';
+import { setPreferredDocumentId, setCompletionStage } from '../redux/features/editor/editorSlice';
+import { apiClient } from '@/utils/apiClient';
 import { useTranslation } from 'react-i18next';
+import { FastApiAuthResponse } from '@/types/Responses/Auth';
 import { clearAllState } from '../redux/features/editor/editorSlice';
 import { setDocumentName } from '../redux/features/editor/editorSlice';
-import { apiClient } from '../utils/apiClient';
 import { logUserAction } from '../utils/logger';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import styles from '../styles/Documents.module.css';
@@ -26,7 +26,7 @@ const Documents: React.FC = () => {
   const [editedName, setEditedName] = useState('');
   const router = useRouter();
   const dispatch = useDispatch();
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
 
   // ユーザーIDを取得するヘルパー関数
   const getUserId = useCallback(() => {
@@ -93,15 +93,54 @@ const Documents: React.FC = () => {
     }
   }, [openMenuId]);
 
-  const handleSelectDocument = (documentId: number, documentName: string) => {
-    Cookies.set('documentId', documentId.toString(), { expires: 7, sameSite: 'lax', secure: true });
-    dispatch(setDocumentName(documentName));
-    logUserAction('document_selected', {
-      documentId,
-      documentName,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
-    router.push('/');
+  const handleSelectDocument = async (documentId: number, documentName: string) => {
+    try {
+      // バックエンドのドキュメント選択エンドポイントを呼び出して新しいトークンを取得
+      const { data, error } = await apiClient<FastApiAuthResponse>('/auth/select-document/', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
+        body: { document_id: documentId },
+      });
+
+      if (error || !data) {
+        console.error('[handleSelectDocument] Error:', error);
+        logUserAction('document_selection_failed', {
+          documentId,
+          reason: error,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return;
+      }
+
+      // Redux に preferredDocumentId を設定
+      dispatch(setPreferredDocumentId(documentId));
+      dispatch(setDocumentName(documentName));
+      
+      logUserAction('document_selected', {
+        documentId,
+        documentName,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+      
+      // NextAuth のセッションを更新
+      if (updateSession) {
+        const updateResult = await updateSession({
+          accessToken: data.access_token,
+          preferredDocumentId: documentId,
+        });
+        console.log('[handleSelectDocument] Session update result:', updateResult);
+      }
+      
+      // セッション更新完了後に遷移
+      router.push('/');
+    } catch (error) {
+      console.error('[handleSelectDocument] Error:', error);
+      logUserAction('document_selection_error', {
+        documentId,
+        reason: error instanceof Error ? error.message : 'unknown',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+    }
   };
 
   const handleCreateDocument = async () => {
@@ -156,17 +195,56 @@ const Documents: React.FC = () => {
     setDocuments([...documents, newDocument]);
     setNewDocumentName('');
 
-    Cookies.set('documentId', newDocument.id.toString(), { sameSite: 'lax', secure: true });
-    dispatch(setDocumentName(newDocument.document_name));
-    dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
-    
-    setCreating(false);
-    logUserAction('document_created', {
-      documentId: newDocument.id,
-      documentName: newDocument.document_name,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
-    router.push('/?new=true');
+    try {
+      // 新規作成したドキュメントを選択するため、select-documentエンドポイントを呼び出す
+      const { data: selectData, error: selectError } = await apiClient<FastApiAuthResponse>('/auth/select-document/', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
+        body: { document_id: newDocument.id },
+      });
+
+      if (selectError || !selectData) {
+        console.error('[handleCreateDocument] Error selecting new document:', selectError);
+        // エラーでもReduxには設定しておく
+        dispatch(setDocumentName(newDocument.document_name));
+        dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
+        dispatch(setPreferredDocumentId(newDocument.id));
+        setCreating(false);
+        router.push('/?new=true');
+        return;
+      }
+
+      // Redux に設定
+      dispatch(setDocumentName(newDocument.document_name));
+      dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
+      dispatch(setPreferredDocumentId(newDocument.id));
+      
+      logUserAction('document_created', {
+        documentId: newDocument.id,
+        documentName: newDocument.document_name,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+
+      // NextAuth のセッションを更新してから遷移
+      // updateSession() が Promise を返すので await で完了を待つ
+      if (updateSession) {
+        const updateResult = await updateSession({
+          accessToken: selectData.access_token,
+          preferredDocumentId: newDocument.id,
+        });
+        // updateResult が false の場合はセッション更新に失敗したが、Reduxは更新済みなので遷移
+        console.log('[handleCreateDocument] Session update result:', updateResult);
+      }
+
+      setCreating(false);
+
+      // セッション更新完了後に遷移
+      router.push('/?new=true');
+    } catch (error) {
+      console.error('[handleCreateDocument] Error:', error);
+      setErrorMessage(t('Error.create-document-failed'));
+      setCreating(false);
+    }
   };
 
   const handleToggleMenu = (e: React.MouseEvent, documentId: number) => {

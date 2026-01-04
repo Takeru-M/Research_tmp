@@ -82,6 +82,7 @@ export interface EditorState {
   responses: Record<string, string>;
   documentName?: string | null;
   completionStage: number;
+  preferredDocumentId?: number | null;
   selectedRootCommentIds: string[];
   hasSoftDeletedLLMComment: boolean;
   lastLLMCommentRestoreTime: number | null;

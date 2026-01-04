@@ -22,6 +22,7 @@ const initialState: EditorState = {
   responses: {} as Record<string, string>,
   documentName: null,
   completionStage: STAGE.THINKING_OPTION_LLM,
+  preferredDocumentId: null,
   selectedRootCommentIds: [] as string[],
   hasSoftDeletedLLMComment: false,
   lastLLMCommentRestoreTime: null,
@@ -297,6 +298,10 @@ const editorSlice = createSlice({
       state.completionStage = action.payload;
     },
 
+    setPreferredDocumentId(state, action: PayloadAction<number | null>) {
+      state.preferredDocumentId = action.payload;
+    },
+
     setHasSoftDeletedLLMComment: (state, action: PayloadAction<boolean>) => {
       state.hasSoftDeletedLLMComment = action.payload;
     },
@@ -334,6 +339,7 @@ export const {
   addLLMResponse,
   setDocumentName,
   setCompletionStage,
+  setPreferredDocumentId,
   setHasSoftDeletedLLMComment,
   toggleSelectRootComment,
   clearSelectedRootComments,

@@ -5,6 +5,7 @@ import { FastApiAuthResponse } from "@/types/Responses/Auth";
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
+    preferredDocumentId?: number | null;
     user: {
       id?: string;
       name?: string;
@@ -18,6 +19,7 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     id?: string;
     accessTokenExpires?: number;
+    preferredDocumentId?: number | null;
   }
 }
 
@@ -65,6 +67,7 @@ async function refreshAccessToken(token: any) {
       id: String(data.user_id),
       name: data.name || data.email,
       email: data.email,
+      preferredDocumentId: data.preferred_document_id || null,
       accessTokenExpires,
     };
   } catch (error) {
@@ -154,6 +157,7 @@ export const authOptions: NextAuthOptions = {
             email: data.email,
             accessToken: data.access_token,
             accessTokenExpires,
+            preferredDocumentId: data.preferred_document_id || null,
           };
         } catch (error) {
           console.error("Authorization error:", error);
@@ -164,7 +168,7 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       // 初回ログイン時（userが存在する場合）
       if (user) {
         token.accessToken = (user as any).accessToken;
@@ -172,6 +176,20 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
         token.email = user.email;
         token.accessTokenExpires = (user as any).accessTokenExpires;
+        token.preferredDocumentId = (user as any).preferredDocumentId || null;
+        return token;
+      }
+
+      // クライアントからの updateSession を反映
+      if (trigger === "update" && session) {
+        token.accessToken = session.accessToken || token.accessToken;
+        token.preferredDocumentId =
+          typeof session.preferredDocumentId !== "undefined"
+            ? session.preferredDocumentId
+            : token.preferredDocumentId;
+        token.id = session.user?.id || token.id;
+        token.name = session.user?.name || token.name;
+        token.email = session.user?.email || token.email;
         return token;
       }
 
@@ -208,6 +226,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = (token.id as string) || undefined;
         session.user.name = (token.name as string) || undefined;
         session.user.email = (token.email as string) || undefined;
+        session.preferredDocumentId = (token.preferredDocumentId as number | null) || null;
       }
       return session;
     },
