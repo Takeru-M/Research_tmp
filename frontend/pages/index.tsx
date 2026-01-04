@@ -10,6 +10,7 @@ import {
   setComments,
   setCompletionStage,
   setFileId,
+  setDocumentName,
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -329,6 +330,11 @@ const EditorPageContent: React.FC = () => {
       }
 
       const stage = res?.completion_stage ?? res?.stage ?? null;
+
+      // ヘッダー表示用のドキュメント名をReduxに保持
+      if (res?.document_name) {
+        dispatch(setDocumentName(res.document_name));
+      }
 
       if (stage !== null && !Number.isNaN(stage)) {
         dispatch(setCompletionStage(stage));
