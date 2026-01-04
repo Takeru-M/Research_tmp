@@ -6,6 +6,7 @@ class CommentBase(BaseModel):
     text: str
     author: str
     purpose: Optional[int] = None
+    completion_stage: Optional[int] = None
 
 class CommentCreate(CommentBase):
     highlight_id: Optional[int] = None
@@ -24,6 +25,7 @@ class CommentRead(CommentBase):
     author: str
     text: str
     purpose: Optional[int] = None
+    completion_stage: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None

@@ -1,15 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
+import { useTranslation } from 'react-i18next';
 import { STAGE } from '../utils/constants';
 import type { Document } from '../redux/features/editor/editorTypes';
-import { setPreferredDocumentId, setCompletionStage } from '../redux/features/editor/editorSlice';
+import {
+  clearAllState,
+  setCompletionStage,
+  setDocumentName,
+  setPreferredDocumentId,
+} from '../redux/features/editor/editorSlice';
 import { apiClient } from '@/utils/apiClient';
-import { useTranslation } from 'react-i18next';
 import { FastApiAuthResponse } from '@/types/Responses/Auth';
-import { clearAllState } from '../redux/features/editor/editorSlice';
-import { setDocumentName } from '../redux/features/editor/editorSlice';
 import { logUserAction } from '../utils/logger';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import styles from '../styles/Documents.module.css';
@@ -28,62 +31,88 @@ const Documents: React.FC = () => {
   const dispatch = useDispatch();
   const { data: session, status, update: updateSession } = useSession();
 
-  // ユーザーIDを取得するヘルパー関数
-  const getUserId = useCallback(() => {
-    return session?.user?.id || session?.user?.email || 'anonymous';
-  }, [session]);
+  const authHeaders = useMemo(
+    () => (session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined),
+    [session?.accessToken]
+  );
 
-  // ドキュメント一覧の取得
+  const runWithFlag = useCallback(async (
+    setter: React.Dispatch<React.SetStateAction<boolean>>,
+    task: () => Promise<void>
+  ) => {
+    setter(true);
+    try {
+      await task();
+    } finally {
+      setter(false);
+    }
+  }, []);
+
+  const getUserId = useCallback(() => session?.user?.id || session?.user?.email || 'anonymous', [session]);
+
   useEffect(() => {
     if (status !== 'authenticated') return;
 
     const fetchDocuments = async () => {
-      setLoading(true);
-      setErrorMessage(null);
-      dispatch(clearAllState());
+      await runWithFlag(setLoading, async () => {
+        setErrorMessage(null);
+        dispatch(clearAllState());
 
-      logUserAction('documents_fetch_started', {
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+        logUserAction(
+          'documents_fetch_started',
+          {
+            timestamp: new Date().toISOString(),
+          },
+          getUserId()
+        );
 
-      const { data, error, status: httpStatus } = await apiClient<Document[]>('/documents/', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${session?.accessToken}` },
+        const { data, error, status: httpStatus } = await apiClient<Document[]>('/documents/', {
+          method: 'GET',
+          headers: authHeaders,
+        });
+
+        if (error) {
+          console.error('[fetchDocuments] Error:', error, 'Status:', httpStatus);
+          setErrorMessage(t('Error.fetch-documents-failed'));
+          logUserAction(
+            'documents_fetch_failed',
+            {
+              reason: error,
+              status: httpStatus,
+              timestamp: new Date().toISOString(),
+            },
+            getUserId()
+          );
+          return;
+        }
+
+        if (!data) {
+          console.warn('[fetchDocuments] No data received');
+          setErrorMessage(t('Error.fetch-documents-failed'));
+          logUserAction(
+            'documents_fetch_no_data',
+            {
+              timestamp: new Date().toISOString(),
+            },
+            getUserId()
+          );
+          return;
+        }
+
+        setDocuments(data);
+        logUserAction(
+          'documents_loaded',
+          {
+            count: data.length,
+            timestamp: new Date().toISOString(),
+          },
+          getUserId()
+        );
       });
-
-      // 以下から401/403のチェックを削除し、その他のエラーのみ処理
-      if (error) {
-        console.error('[fetchDocuments] Error:', error, 'Status:', httpStatus);
-        setErrorMessage(t('Error.fetch-documents-failed'));
-        logUserAction('documents_fetch_failed', {
-          reason: error,
-          status: httpStatus,
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-        setLoading(false);
-        return;
-      }
-
-      if (!data) {
-        console.warn('[fetchDocuments] No data received');
-        setErrorMessage(t('Error.fetch-documents-failed'));
-        logUserAction('documents_fetch_no_data', {
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-        setLoading(false);
-        return;
-      }
-
-      setDocuments(data);
-      setLoading(false);
-      logUserAction('documents_loaded', {
-        count: data.length,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
     };
 
     fetchDocuments();
-  }, [session, status, dispatch, t, getUserId, router]);
+  }, [authHeaders, status, dispatch, t, getUserId, runWithFlag]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -95,34 +124,39 @@ const Documents: React.FC = () => {
 
   const handleSelectDocument = async (documentId: number, documentName: string) => {
     try {
-      // バックエンドのドキュメント選択エンドポイントを呼び出して新しいトークンを取得
       const { data, error } = await apiClient<FastApiAuthResponse>('/auth/select-document/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session?.accessToken}` },
+        headers: authHeaders,
         body: { document_id: documentId },
       });
 
       if (error || !data) {
         console.error('[handleSelectDocument] Error:', error);
-        logUserAction('document_selection_failed', {
-          documentId,
-          reason: error,
-          timestamp: new Date().toISOString(),
-        }, getUserId());
+        logUserAction(
+          'document_selection_failed',
+          {
+            documentId,
+            reason: error,
+            timestamp: new Date().toISOString(),
+          },
+          getUserId()
+        );
         return;
       }
 
-      // Redux に preferredDocumentId を設定
       dispatch(setPreferredDocumentId(documentId));
       dispatch(setDocumentName(documentName));
-      
-      logUserAction('document_selected', {
-        documentId,
-        documentName,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
-      
-      // NextAuth のセッションを更新
+
+      logUserAction(
+        'document_selected',
+        {
+          documentId,
+          documentName,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
+
       if (updateSession) {
         const updateResult = await updateSession({
           accessToken: data.access_token,
@@ -130,133 +164,142 @@ const Documents: React.FC = () => {
         });
         console.log('[handleSelectDocument] Session update result:', updateResult);
       }
-      
-      // セッション更新完了後に遷移
+
       router.push('/');
     } catch (error) {
       console.error('[handleSelectDocument] Error:', error);
-      logUserAction('document_selection_error', {
-        documentId,
-        reason: error instanceof Error ? error.message : 'unknown',
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      logUserAction(
+        'document_selection_error',
+        {
+          documentId,
+          reason: error instanceof Error ? error.message : 'unknown',
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
     }
   };
 
   const handleCreateDocument = async () => {
     if (!newDocumentName.trim()) return;
-    
-    setCreating(true);
     setErrorMessage(null);
 
-    logUserAction('document_creation_started', {
-      documentName: newDocumentName,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
+    await runWithFlag(setCreating, async () => {
+      logUserAction(
+        'document_creation_started',
+        {
+          documentName: newDocumentName,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
 
-    const { data, error } = await apiClient<Document>('/documents/', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session?.accessToken}`},
-      body: {
-        document_name: newDocumentName,
-        stage: STAGE.THINKING_PROCESS_SELF,
-      },
-    });
-
-    if (error) {
-      console.error('[handleCreateDocument] Error:', error);
-      // 409エラーの場合は重複エラーメッセージを表示
-      if (error.includes('409') || error.includes('同じ名前') || error.includes('already exists')) {
-        setErrorMessage(t('Error.duplicate-document-name'));
-      } else {
-        setErrorMessage(t('Error.create-document-failed'));
-      }
-      logUserAction('document_creation_failed', {
-        documentName: newDocumentName,
-        reason: error,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
-      setCreating(false);
-      return;
-    }
-
-    if (!data) {
-      console.warn('[handleCreateDocument] No data received');
-      setErrorMessage(t('Error.create-document-failed'));
-      logUserAction('document_creation_no_data', {
-        documentName: newDocumentName,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
-      setCreating(false);
-      return;
-    }
-
-    const newDocument: Document = data;
-    setDocuments([...documents, newDocument]);
-    setNewDocumentName('');
-
-    try {
-      // 新規作成したドキュメントを選択するため、select-documentエンドポイントを呼び出す
-      const { data: selectData, error: selectError } = await apiClient<FastApiAuthResponse>('/auth/select-document/', {
+      const { data, error } = await apiClient<Document>('/documents/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session?.accessToken}` },
-        body: { document_id: newDocument.id },
+        headers: authHeaders,
+        body: {
+          document_name: newDocumentName,
+          stage: STAGE.THINKING_PROCESS_SELF,
+        },
       });
 
-      if (selectError || !selectData) {
-        console.error('[handleCreateDocument] Error selecting new document:', selectError);
-        // エラーでもReduxには設定しておく
-        dispatch(setDocumentName(newDocument.document_name));
-        dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
-        dispatch(setPreferredDocumentId(newDocument.id));
-        setCreating(false);
-        router.push('/?new=true');
+      if (error) {
+        console.error('[handleCreateDocument] Error:', error);
+        if (error.includes('409') || error.includes('同じ名前') || error.includes('already exists')) {
+          setErrorMessage(t('Error.duplicate-document-name'));
+        } else {
+          setErrorMessage(t('Error.create-document-failed'));
+        }
+        logUserAction(
+          'document_creation_failed',
+          {
+            documentName: newDocumentName,
+            reason: error,
+            timestamp: new Date().toISOString(),
+          },
+          getUserId()
+        );
         return;
       }
 
-      // Redux に設定
-      dispatch(setDocumentName(newDocument.document_name));
-      dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
-      dispatch(setPreferredDocumentId(newDocument.id));
-      
-      logUserAction('document_created', {
-        documentId: newDocument.id,
-        documentName: newDocument.document_name,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
-
-      // NextAuth のセッションを更新してから遷移
-      // updateSession() が Promise を返すので await で完了を待つ
-      if (updateSession) {
-        const updateResult = await updateSession({
-          accessToken: selectData.access_token,
-          preferredDocumentId: newDocument.id,
-        });
-        // updateResult が false の場合はセッション更新に失敗したが、Reduxは更新済みなので遷移
-        console.log('[handleCreateDocument] Session update result:', updateResult);
+      if (!data) {
+        console.warn('[handleCreateDocument] No data received');
+        setErrorMessage(t('Error.create-document-failed'));
+        logUserAction(
+          'document_creation_no_data',
+          {
+            documentName: newDocumentName,
+            timestamp: new Date().toISOString(),
+          },
+          getUserId()
+        );
+        return;
       }
 
-      setCreating(false);
+      const newDocument: Document = data;
+      setDocuments((prev) => [...prev, newDocument]);
+      setNewDocumentName('');
 
-      // セッション更新完了後に遷移
-      router.push('/?new=true');
-    } catch (error) {
-      console.error('[handleCreateDocument] Error:', error);
-      setErrorMessage(t('Error.create-document-failed'));
-      setCreating(false);
-    }
+      try {
+        const { data: selectData, error: selectError } = await apiClient<FastApiAuthResponse>('/auth/select-document/', {
+          method: 'POST',
+          headers: authHeaders,
+          body: { document_id: newDocument.id },
+        });
+
+        if (selectError || !selectData) {
+          console.error('[handleCreateDocument] Error selecting new document:', selectError);
+          dispatch(setDocumentName(newDocument.document_name));
+          dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
+          dispatch(setPreferredDocumentId(newDocument.id));
+          router.push('/?new=true');
+          return;
+        }
+
+        dispatch(setDocumentName(newDocument.document_name));
+        dispatch(setCompletionStage(STAGE.THINKING_OPTION_LLM));
+        dispatch(setPreferredDocumentId(newDocument.id));
+
+        logUserAction(
+          'document_created',
+          {
+            documentId: newDocument.id,
+            documentName: newDocument.document_name,
+            timestamp: new Date().toISOString(),
+          },
+          getUserId()
+        );
+
+        if (updateSession) {
+          const updateResult = await updateSession({
+            accessToken: selectData.access_token,
+            preferredDocumentId: newDocument.id,
+          });
+          console.log('[handleCreateDocument] Session update result:', updateResult);
+        }
+
+        router.push('/?new=true');
+      } catch (error) {
+        console.error('[handleCreateDocument] Error:', error);
+        setErrorMessage(t('Error.create-document-failed'));
+      }
+    });
   };
 
   const handleToggleMenu = (e: React.MouseEvent, documentId: number) => {
     e.stopPropagation();
     const isOpening = openMenuId !== documentId;
     setOpenMenuId(isOpening ? documentId : null);
-    
+
     if (isOpening) {
-      logUserAction('document_menu_opened', {
-        documentId,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      logUserAction(
+        'document_menu_opened',
+        {
+          documentId,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
     }
   };
 
@@ -265,76 +308,100 @@ const Documents: React.FC = () => {
     setEditingDocument(document);
     setEditedName(document.document_name);
     setOpenMenuId(null);
-    logUserAction('document_edit_started', {
-      documentId: document.id,
-      documentName: document.document_name,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
+    logUserAction(
+      'document_edit_started',
+      {
+        documentId: document.id,
+        documentName: document.document_name,
+        timestamp: new Date().toISOString(),
+      },
+      getUserId()
+    );
   };
 
   const handleDeleteClick = async (e: React.MouseEvent, documentId: number) => {
     e.stopPropagation();
-    
-    const document = documents.find(p => p.id === documentId);
-    if (!confirm(t("Document.delete-confirm"))) {
-      logUserAction('document_deletion_cancelled', {
+
+    const document = documents.find((p) => p.id === documentId);
+    if (!confirm(t('Document.delete-confirm'))) {
+      logUserAction(
+        'document_deletion_cancelled',
+        {
+          documentId,
+          documentName: document?.document_name,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
+      return;
+    }
+
+    setErrorMessage(null);
+
+    logUserAction(
+      'document_deletion_started',
+      {
         documentId,
         documentName: document?.document_name,
         timestamp: new Date().toISOString(),
-      }, getUserId());
-      return;
-    }
-    
-    setErrorMessage(null);
-
-    logUserAction('document_deletion_started', {
-      documentId,
-      documentName: document?.document_name,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
+      },
+      getUserId()
+    );
 
     const { error } = await apiClient<null>(`/documents/${documentId}/`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${session?.accessToken}` },
+      headers: authHeaders,
     });
 
     if (error) {
       console.error('[handleDeleteClick] Error:', error);
       setErrorMessage(t('Error.delete-document-failed'));
-      logUserAction('document_deletion_failed', {
-        documentId,
-        documentName: document?.document_name,
-        reason: error,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      logUserAction(
+        'document_deletion_failed',
+        {
+          documentId,
+          documentName: document?.document_name,
+          reason: error,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
       setOpenMenuId(null);
       return;
     }
 
-    setDocuments(documents.filter(p => p.id !== documentId));
+    setDocuments(documents.filter((p) => p.id !== documentId));
     setOpenMenuId(null);
-    logUserAction('document_deleted', {
-      documentId,
-      documentName: document?.document_name,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
+    logUserAction(
+      'document_deleted',
+      {
+        documentId,
+        documentName: document?.document_name,
+        timestamp: new Date().toISOString(),
+      },
+      getUserId()
+    );
   };
 
   const handleSaveEdit = async () => {
     if (!editingDocument || !editedName.trim()) return;
-    
+
     setErrorMessage(null);
 
-    logUserAction('document_update_started', {
-      documentId: editingDocument.id,
-      oldName: editingDocument.document_name,
-      newName: editedName,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
+    logUserAction(
+      'document_update_started',
+      {
+        documentId: editingDocument.id,
+        oldName: editingDocument.document_name,
+        newName: editedName,
+        timestamp: new Date().toISOString(),
+      },
+      getUserId()
+    );
 
     const { data, error } = await apiClient<Document>(`/documents/${editingDocument.id}/`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${session?.accessToken}` },
+      headers: authHeaders,
       body: { document_name: editedName },
     });
 
@@ -345,47 +412,63 @@ const Documents: React.FC = () => {
       } else {
         setErrorMessage(t('Error.update-document-failed'));
       }
-      logUserAction('document_update_failed', {
-        documentId: editingDocument.id,
-        oldName: editingDocument.document_name,
-        newName: editedName,
-        reason: error,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      logUserAction(
+        'document_update_failed',
+        {
+          documentId: editingDocument.id,
+          oldName: editingDocument.document_name,
+          newName: editedName,
+          reason: error,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
       return;
     }
 
     if (!data) {
       console.warn('[handleSaveEdit] No data received');
       setErrorMessage(t('Error.update-document-failed'));
-      logUserAction('document_update_no_data', {
-        documentId: editingDocument.id,
-        oldName: editingDocument.document_name,
-        newName: editedName,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      logUserAction(
+        'document_update_no_data',
+        {
+          documentId: editingDocument.id,
+          oldName: editingDocument.document_name,
+          newName: editedName,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
       return;
     }
 
     const updated: Document = data;
-    setDocuments(documents.map(p => p.id === updated.id ? updated : p));
+    setDocuments(documents.map((p) => (p.id === updated.id ? updated : p)));
     setEditingDocument(null);
     setEditedName('');
-    logUserAction('document_updated', {
-      documentId: updated.id,
-      oldName: editingDocument.document_name,
-      newName: updated.document_name,
-      timestamp: new Date().toISOString(),
-    }, getUserId());
+    logUserAction(
+      'document_updated',
+      {
+        documentId: updated.id,
+        oldName: editingDocument.document_name,
+        newName: updated.document_name,
+        timestamp: new Date().toISOString(),
+      },
+      getUserId()
+    );
   };
 
   const handleCancelEdit = () => {
     if (editingDocument) {
-      logUserAction('document_edit_cancelled', {
-        documentId: editingDocument.id,
-        documentName: editingDocument.document_name,
-        timestamp: new Date().toISOString(),
-      }, getUserId());
+      logUserAction(
+        'document_edit_cancelled',
+        {
+          documentId: editingDocument.id,
+          documentName: editingDocument.document_name,
+          timestamp: new Date().toISOString(),
+        },
+        getUserId()
+      );
     }
     setEditingDocument(null);
     setEditedName('');
@@ -401,25 +484,19 @@ const Documents: React.FC = () => {
     <>
       <div className={styles.container}>
         <div className={styles.contentWrapper}>
-          <h2 className={styles.title}>
-            {t("Document.document-list")}
-          </h2>
+          <h2 className={styles.title}>{t('Document.document-list')}</h2>
 
           {loading ? (
-            <div className={styles.loadingText}>
-              {t("Document.loading-text")}
-            </div>
+            <div className={styles.loadingText}>{t('Document.loading-text')}</div>
           ) : documents.length === 0 ? (
-            <div className={styles.emptyState}>
-              {t("Document.non-document")}
-            </div>
+            <div className={styles.emptyState}>{t('Document.non-document')}</div>
           ) : (
             <div className={styles.documentListContainer}>
               <ul className={styles.documentList}>
                 {documents.map((document, index) => {
                   const isCompleted = document.stage === STAGE.EXPORT || Number(document.stage) === 4;
                   const isMenuOpen = openMenuId === document.id;
-                  
+
                   return (
                     <li
                       key={document.id}
@@ -436,40 +513,32 @@ const Documents: React.FC = () => {
                             {isCompleted ? (
                               <span
                                 className={styles.completeBadge}
-                                aria-label={t("Utils.complete")}
-                                title={t("Utils.complete")}
+                                aria-label={t('Utils.complete')}
+                                title={t('Utils.complete')}
                               >
-                                {t("Utils.complete")}
+                                {t('Utils.complete')}
                               </span>
                             ) : (
-                              <span className={styles.arrowIcon}>
-                                →
-                              </span>
+                              <span className={styles.arrowIcon}>→</span>
                             )}
                           </div>
                         </button>
 
-                        <button
-                          onClick={(e) => handleToggleMenu(e, document.id)}
-                          className={styles.menuButton}
-                        >
+                        <button onClick={(e) => handleToggleMenu(e, document.id)} className={styles.menuButton}>
                           ⋮
                         </button>
                       </div>
 
                       {isMenuOpen && (
                         <div className={styles.dropdownMenu}>
-                          <button
-                            onClick={(e) => handleEditClick(e, document)}
-                            className={styles.menuItem}
-                          >
-                            {t("Utils.edit")}
+                          <button onClick={(e) => handleEditClick(e, document)} className={styles.menuItem}>
+                            {t('Utils.edit')}
                           </button>
                           <button
                             onClick={(e) => handleDeleteClick(e, document.id)}
                             className={`${styles.menuItem} ${styles.delete}`}
                           >
-                            {t("Utils.delete")}
+                            {t('Utils.delete')}
                           </button>
                         </div>
                       )}
@@ -481,14 +550,12 @@ const Documents: React.FC = () => {
           )}
 
           <div className={styles.createSection}>
-            <h3 className={styles.createTitle}>
-              {t("Document.create-new-document")}
-            </h3>
+            <h3 className={styles.createTitle}>{t('Document.create-new-document')}</h3>
             <input
               type="text"
               value={newDocumentName}
-              onChange={e => setNewDocumentName(e.target.value)}
-              placeholder={t("Document.document-name-placeholder")}
+              onChange={(e) => setNewDocumentName(e.target.value)}
+              placeholder={t('Document.document-name-placeholder')}
               className={styles.input}
               disabled={creating}
               onKeyPress={(e) => {
@@ -502,23 +569,15 @@ const Documents: React.FC = () => {
               disabled={creating || !newDocumentName.trim()}
               className={styles.createButton}
             >
-              {creating ? t("Document.loading-text") : t("Document.create-button-text")}
+              {creating ? t('Document.loading-text') : t('Document.create-button-text')}
             </button>
           </div>
         </div>
 
         {editingDocument && (
-          <div
-            className={styles.modalOverlay}
-            onClick={handleCancelEdit}
-          >
-            <div
-              className={styles.modalContent}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className={styles.modalTitle}>
-                {t("Document.edit-name")}
-              </h3>
+          <div className={styles.modalOverlay} onClick={handleCancelEdit}>
+            <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+              <h3 className={styles.modalTitle}>{t('Document.edit-name')}</h3>
               <input
                 type="text"
                 value={editedName}
@@ -527,18 +586,11 @@ const Documents: React.FC = () => {
                 autoFocus
               />
               <div className={styles.modalActions}>
-                <button
-                  onClick={handleCancelEdit}
-                  className={styles.cancelButton}
-                >
-                  {t("Utils.cancel")}
+                <button onClick={handleCancelEdit} className={styles.cancelButton}>
+                  {t('Utils.cancel')}
                 </button>
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={!editedName.trim()}
-                  className={styles.saveButton}
-                >
-                  {t("Utils.save")}
+                <button onClick={handleSaveEdit} disabled={!editedName.trim()} className={styles.saveButton}>
+                  {t('Utils.save')}
                 </button>
               </div>
             </div>
@@ -546,12 +598,7 @@ const Documents: React.FC = () => {
         )}
       </div>
 
-      {errorMessage && (
-        <ErrorDisplay
-          message={errorMessage}
-          onClose={() => setErrorMessage(null)}
-        />
-      )}
+      {errorMessage && <ErrorDisplay message={errorMessage} onClose={() => setErrorMessage(null)} />}
     </>
   );
 };

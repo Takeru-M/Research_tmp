@@ -39,6 +39,12 @@ class Comment(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True)
     )
 
+    # 返信時のステージを保持（フロントの completionStage を保存）
+    completion_stage: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True)
+    )
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
 

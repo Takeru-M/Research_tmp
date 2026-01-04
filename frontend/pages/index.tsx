@@ -46,6 +46,9 @@ import { S3UploadResponse } from '@/types/Responses/S3';
 import { DocumentResponse } from '@/types/Responses/Document';
 import { CreateHighlightRequest } from '@/types/Requests/Highlight';
 import { CreateDocumentFileRequest } from '@/types/Requests/DocumentFile';
+import { useAuthInfo } from '@/hooks/useAuthInfo';
+import { useLoadingHelper } from '@/hooks/useLoadingHelper';
+import { derivePurposeFromStage } from '@/utils/stageHelpers';
 
 const PdfViewer = dynamic(() => import('../components/PdfViewer'), { ssr: false });
 
@@ -71,10 +74,8 @@ const EditorPageContent: React.FC = () => {
   const [isFileUploaded, setIsFileUploaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ユーザーIDを取得するヘルパー関数を追加
-  const getUserId = useCallback(() => {
-    return session?.user?.id || session?.user?.email || 'anonymous';
-  }, [session]);
+  const { authHeaders, getUserId, getDocumentId } = useAuthInfo(session);
+  const runWithLoading = useLoadingHelper();
 
   const getUserName = useCallback(() => {
     return session?.user?.name || t("CommentPanel.comment-author-user");
@@ -82,11 +83,10 @@ const EditorPageContent: React.FC = () => {
 
   // ハイライトとコメントを取得
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
-    dispatch(startLoading('Loading highlights and comments...'));
-    try {
+    await runWithLoading('Loading highlights and comments...', async () => {
       const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[] | HighlightsWithStatusResponse>(`/highlights/file/${fileId}/`, {
         method: 'GET',
-        headers: {Authorization: `Bearer ${session?.accessToken}` },
+        headers: authHeaders,
       });
 
       if (status === 404) {
@@ -181,7 +181,7 @@ const EditorPageContent: React.FC = () => {
         
         const list = Array.isArray(item.comments) ? item.comments : [];
         
-        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; purpose?: number | null; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
+        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; purpose?: number | null; completion_stage?: number | null; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
           console.log('[fetchHighlightsAndComments] Converting comment:', {
             id: c.id,
             parent_id: c.parent_id,
@@ -200,6 +200,7 @@ const EditorPageContent: React.FC = () => {
             text: c.text,
             created_at: c.created_at,
             purpose: c.purpose ?? null,
+            completion_stage: c.completion_stage ?? null,
             edited_at: c.updated_at || null,
             deleted: Boolean(c.deleted_at),
             deleted_at: c.deleted_at || null,
@@ -228,14 +229,11 @@ const EditorPageContent: React.FC = () => {
         replyCount: comments.filter(c => c.parentId !== null).length,
         timestamp: new Date().toISOString(),
       }, getUserId());
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, getUserName, session?.accessToken, t, getUserId]);
+    });
+  }, [dispatch, getUserName, authHeaders, t, getUserId, runWithLoading]);
 
   const fetchDocumentFile = useCallback(async (documentId: number) => {
-    dispatch(startLoading('Loading document file...'));
-    try {
+    await runWithLoading('Loading document file...', async () => {
       const { data: response, error } = await apiClient<DocumentFileResponse[]>(`/documents/${documentId}/document-files/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -304,15 +302,11 @@ const EditorPageContent: React.FC = () => {
       }, getUserId());
 
       fetchHighlightsAndComments(latestFile.id);
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t, getUserId]);
+    });
+  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t, getUserId, runWithLoading]);
 
   const fetchDocumentInfo = useCallback(async (documentId: number) => {
-    try {
-      dispatch(startLoading('Loading document info...'));
-
+    await runWithLoading('Loading document info...', async () => {
       const { data: res, error } = await apiClient<DocumentResponse>(`/documents/${documentId}/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -351,10 +345,8 @@ const EditorPageContent: React.FC = () => {
           timestamp: new Date().toISOString(),
         }, getUserId());
       }
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, session?.accessToken, t, getUserId]);
+    });
+  }, [dispatch, session?.accessToken, t, getUserId, runWithLoading]);
 
   useEffect(() => {
     // router.isReady が false の場合は処理を実行しない（クエリ文字列の準備待ち）
@@ -414,7 +406,6 @@ const EditorPageContent: React.FC = () => {
       return;
     }
 
-    dispatch(startLoading('Uploading PDF...'));
     logUserAction('file_upload_started', {
       fileName: file.name,
       fileSize: filesize,
@@ -422,7 +413,7 @@ const EditorPageContent: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    try {
+    await runWithLoading('Uploading PDF...', async () => {
       const formData = new FormData();
       formData.append('file', file);
 
@@ -433,7 +424,6 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (s3Error || !s3Data) {
-        console.error('[uploadPdfToS3AndSave] S3 upload error:', s3Error);
         setErrorMessage(t('Error.s3-upload-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -444,7 +434,6 @@ const EditorPageContent: React.FC = () => {
         return;
       }
       if (s3Status >= 400) {
-        console.error('[uploadPdfToS3AndSave] S3 upload status error:', s3Status);
         setErrorMessage(t('Error.s3-upload-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -457,7 +446,6 @@ const EditorPageContent: React.FC = () => {
 
       const document_id = session?.preferredDocumentId;
       if (!document_id) {
-        console.error('[uploadPdfToS3AndSave] Document ID not found in session');
         setErrorMessage(t('Error.document-id-missing'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -481,7 +469,6 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (dbError || !dbResponse) {
-        console.error('[uploadPdfToS3AndSave] DB save error:', dbError);
         setErrorMessage(t('Error.metadata-save-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -506,10 +493,8 @@ const EditorPageContent: React.FC = () => {
         documentId: document_id,
         timestamp: new Date().toISOString(),
       }, getUserId());
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, t, isFileUploaded, session?.accessToken, session?.preferredDocumentId, getUserId]);
+    });
+  }, [dispatch, t, isFileUploaded, session?.accessToken, session?.preferredDocumentId, getUserId, runWithLoading]);
 
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
@@ -683,12 +668,9 @@ const EditorPageContent: React.FC = () => {
   const handleSaveMemo = useCallback(
     async (id: string, memo: string) => {
       if (pendingHighlight && pendingHighlight.id === id) {
-        try {
-          dispatch(startLoading('Saving highlight and memo...'));
-
-          const documentId = getDocumentIdFromCookie();
+        await runWithLoading('Saving highlight and memo...', async () => {
+          const documentId = getDocumentId();
           if (!documentId) {
-            console.error('[handleSaveMemo] Document ID not found');
             setErrorMessage(t('Error.document-id-missing'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -699,7 +681,6 @@ const EditorPageContent: React.FC = () => {
           }
 
           if (!fileId) {
-            console.error('[handleSaveMemo] File ID missing');
             setErrorMessage(t('Error.file-id-missing'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -710,19 +691,7 @@ const EditorPageContent: React.FC = () => {
           }
 
           const userName = getUserName();
-
-          const purpose = (() => {
-            switch (completionStage) {
-              case STAGE.THINKING_OPTION_LLM:
-                return COMMENT_PURPOSE.THINKING_PROCESS;
-              case STAGE.THINKING_DELIBERATION_LLM:
-                return COMMENT_PURPOSE.OTHER_OPTIONS;
-              case STAGE._SELF:
-                return COMMENT_PURPOSE.DELIBERATION;
-              default:
-                return null;
-            }
-          })();
+          const purpose = derivePurposeFromStage(completionStage);
 
           const { data: response, error } = await apiClient<CreateHighlightResponse>('/highlights/', {
             method: 'POST',
@@ -745,7 +714,6 @@ const EditorPageContent: React.FC = () => {
           });
 
           if (error) {
-            console.error('[handleSaveMemo] Error:', error);
             setErrorMessage(t('Error.highlight-save-failed'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -756,7 +724,6 @@ const EditorPageContent: React.FC = () => {
           }
 
           if (!response) {
-            console.error('[handleSaveMemo] No response data received');
             setErrorMessage(t('Error.highlight-save-failed'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -766,10 +733,7 @@ const EditorPageContent: React.FC = () => {
             return;
           }
 
-          console.log('Highlight saved:', response);
-
           if (!response.id) {
-            console.error('[handleSaveMemo] Highlight ID missing in response');
             setErrorMessage(t('Error.highlight-save-failed'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -810,11 +774,8 @@ const EditorPageContent: React.FC = () => {
 
           setPendingHighlight(null);
           setShowMemoModal(false);
-          // 作成されたルートコメントをアクティブにして、CommentPanelを自動スクロール
           dispatch(setActiveCommentId(response.comment_id.toString()));
-        } finally {
-          dispatch(stopLoading());
-        }
+        });
         return;
       }
 
@@ -827,7 +788,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken, completionStage]
+    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken, completionStage, runWithLoading, derivePurposeFromStage, getDocumentId]
   );
 
   // === Highlight Click ===

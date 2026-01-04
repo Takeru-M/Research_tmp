@@ -97,6 +97,7 @@ export type Comment = {
   text: string;
   created_at: string;
   purpose?: number | null;
+  completion_stage?: number | null;
   edited_at?: string | null;
   deleted?: boolean;
   deleted_at?: string | null;

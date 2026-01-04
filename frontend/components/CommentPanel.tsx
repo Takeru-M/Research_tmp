@@ -21,24 +21,12 @@ import { apiClient } from "@/utils/apiClient";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { logUserAction } from "@/utils/logger";
 import { DeleteReasonModal } from './DeleteReasonModal';
+import { getUserIdFromSession } from "@/utils/authHelpers";
+import { resolvePurposeForStage } from "@/utils/stageHelpers";
 
 // 動的なパディングを計算するヘルパー関数
 const getDynamicPadding = (viewerHeight: number | 'auto'): number => {
   return (typeof viewerHeight !== 'number') ? 500 : viewerHeight;
-};
-
-const resolvePurposeForStage = (stage: number | null | undefined): number | null => {
-  if (!stage) return null;
-  switch (stage) {
-    case STAGE.THINKING_PROCESS_SELF:
-      return COMMENT_PURPOSE.THINKING_PROCESS;
-    case STAGE.THINKING_OPTION_SELF || STAGE.THINKING_OPTION_LLM:
-      return COMMENT_PURPOSE.OTHER_OPTIONS;
-    case STAGE.THINKING_DELIBERATION_SELF || STAGE.THINKING_DELIBERATION_LLM:
-      return COMMENT_PURPOSE.DELIBERATION;
-    default:
-      return null;
-  }
 };
 
 // CommentHeader コンポーネント
@@ -236,11 +224,14 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   const { t } = useTranslation();
   const { data: session } = useSession();
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
+  const getUserId = useCallback(() => getUserIdFromSession(session), [session]);
 
   const { comments, activeHighlightId, activeCommentId, highlights, selectedRootCommentIds } = useSelector((s: RootState) => s.editor);
   const completionStage = useSelector(selectCompletionStage);
   const isExportStage = completionStage === Number(STAGE.EXPORT);
+
+  const commentsById = useMemo(() => new Map<string, Comment>(comments.map((c) => [c.id, c])), [comments]);
+  const highlightsById = useMemo(() => new Map<string, PdfHighlight>((highlights as PdfHighlight[]).map((h) => [h.id, h])), [highlights]);
 
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -392,7 +383,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   };
 
   const removeCommentFn = async (id: string) => {
-    const comment = comments.find((c: Comment) => c.id === id);
+    const comment = commentsById.get(id);
     if (!comment) {
       console.warn('[removeCommentFn] Comment not found:', id);
       return;
@@ -431,7 +422,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   };
 
   const performDelete = async (id: string, reason: string | null) => {
-    const comment = comments.find((c: Comment) => c.id === id);
+    const comment = commentsById.get(id);
     if (!comment) {
       console.warn('[performDelete] Comment not found:', id);
       return;
@@ -570,7 +561,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
       return;
     }
 
-    const parentComment = comments.find((c: Comment) => c.id === parentId);
+    const parentComment = commentsById.get(parentId);
     if (!parentComment) {
       console.warn('[sendReply] Parent comment not found:', parentId);
       return;
@@ -589,6 +580,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           author: userName,
           text: replyText.trim(),
           purpose,
+          completion_stage: completionStage,
         },
       });
 
@@ -626,6 +618,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
           author: userName,
           text: replyText.trim(),
           purpose: savedComment.purpose ?? purpose,
+          completion_stage: savedComment.completion_stage ?? completionStage,
           created_at: savedComment.created_at,
           edited_at: null,
           deleted: false,
@@ -698,23 +691,19 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
 
   const findRootId = useCallback((commentId: string | null) => {
     if (!commentId) return null;
-    const map = new Map<string, Comment>();
-    comments.forEach(c => map.set(c.id, c));
-    let cur = map.get(commentId);
+    let cur = commentsById.get(commentId);
     if (!cur) return null;
     while (cur.parentId) {
-      const parent = map.get(cur.parentId);
+      const parent = commentsById.get(cur.parentId);
       if (!parent) break;
       cur = parent;
     }
     return cur.id;
-  }, [comments]);
+  }, [commentsById]);
 
   const getHighlightInfo = (highlightId: string | null): HighlightInfo | null => {
     if (!highlightId) return null;
-    const map = new Map<string, HighlightInfo>();
-    (highlights as PdfHighlight[]).forEach((h: PdfHighlight) => map.set(h.id, h));
-    const highlightInfo = map.get(highlightId);
+    const highlightInfo = highlightsById.get(highlightId);
     if (!highlightInfo) return null;
     return highlightInfo;
   }
@@ -722,7 +711,7 @@ export default function CommentPanel({ viewerHeight = 'auto' }: CommentPanelProp
   // ハイライトテキストを取得するヘルパー関数
   const getHighlightText = (highlightId: string | null) => {
     if (!highlightId) return undefined;
-    const highlight = highlights.find((h: PdfHighlight) => h.id === highlightId);
+    const highlight = highlightsById.get(highlightId);
     return highlight?.text || undefined;
   };
 
