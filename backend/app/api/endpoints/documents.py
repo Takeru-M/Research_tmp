@@ -7,10 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from app.db.base import get_session
 from app.crud import document as crud_document
 from app.crud import document_file as crud_document_file
+from app.crud import document_formatted_text as crud_formatted_text
 from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentRead, CompletionStageUpdate
 from app.schemas.document_file import DocumentFileRead
+from app.schemas.document_formatted_text import DocumentFormattedTextCreate, DocumentFormattedTextRead, DocumentFormattedTextUpdate
 from app.api.deps import get_current_user
-from app.models import User, DocumentFile, Highlight, HighlightRect, Comment
+from app.models import User, DocumentFile, Highlight, HighlightRect, Comment, DocumentFormattedText, LLMCommentMetadata
 from app.services.pdf_export_service import PDFExportService
 from app.utils.s3 import fetch_pdf_bytes, delete_s3_files
 
@@ -445,6 +447,11 @@ def delete_document(
                     if all_comment_ids:
                         logger.info(f"[DELETE /documents/{document_id}] Found {len(all_comment_ids)} comments to delete")
                         
+                        # LLMコメントメタデータを削除（コメント削除前）
+                        logger.info(f"[DELETE /documents/{document_id}] Deleting LLM comment metadata")
+                        delete_metadata_stmt = delete(LLMCommentMetadata).where(LLMCommentMetadata.comment_id.in_(all_comment_ids))
+                        session.exec(delete_metadata_stmt)
+                        
                         max_iterations = 100
                         iteration = 0
                         
@@ -488,6 +495,11 @@ def delete_document(
                     logger.info(f"[DELETE /documents/{document_id}] Deleting highlights")
                     delete_highlights_stmt = delete(Highlight).where(Highlight.id.in_(highlight_ids))
                     session.exec(delete_highlights_stmt)
+            
+            # ドキュメントのフォーマット済みテキストを削除
+            logger.info(f"[DELETE /documents/{document_id}] Deleting formatted text")
+            delete_formatted_text_stmt = delete(DocumentFormattedText).where(DocumentFormattedText.document_id == document_id)
+            session.exec(delete_formatted_text_stmt)
             
             session.commit()
             logger.info(f"[DELETE /documents/{document_id}] Related data deleted successfully")
@@ -596,3 +608,115 @@ def list_document_files_for_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ファイル取得中にエラーが発生しました"
         )
+
+@router.post("/{document_id}/formatted-text", response_model=DocumentFormattedTextRead, status_code=status.HTTP_201_CREATED)
+def save_formatted_text(
+    document_id: int,
+    formatted_text_in: DocumentFormattedTextCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """フォーマット済みテキストを保存"""
+    try:
+        if document_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無効なドキュメントIDです"
+            )
+        
+        logger.info(f"[POST /documents/{document_id}/formatted-text] User {current_user.id} saving formatted text")
+        
+        # ドキュメントの存在確認と権限チェック
+        document = crud_document.get_document(session, document_id)
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ドキュメントが見つかりません"
+            )
+        
+        if document.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="このドキュメントへのアクセス権限がありません"
+            )
+        
+        # リクエストのdocument_idと一致させる
+        if formatted_text_in.document_id != document_id:
+            formatted_text_in.document_id = document_id
+        
+        # 既存のフォーマット済みテキストがあるかチェック
+        existing_formatted_text = crud_formatted_text.get_formatted_text_by_document(session, document_id)
+        
+        if existing_formatted_text:
+            # 既存データがある場合は更新
+            logger.info(f"[POST /documents/{document_id}/formatted-text] Updating existing formatted text")
+            update_data = DocumentFormattedTextUpdate(formatted_data=formatted_text_in.formatted_data)
+            formatted_text = crud_formatted_text.update_formatted_text(session, existing_formatted_text, update_data)
+        else:
+            # 新規作成
+            logger.info(f"[POST /documents/{document_id}/formatted-text] Creating new formatted text")
+            formatted_text = crud_formatted_text.create_formatted_text(session, formatted_text_in)
+        
+        logger.info(f"[POST /documents/{document_id}/formatted-text] Formatted text saved successfully")
+        return formatted_text
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[POST /documents/{document_id}/formatted-text] Error: {str(e)}", exc_info=True)
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="フォーマット済みテキストの保存中にエラーが発生しました"
+        )
+
+@router.get("/{document_id}/formatted-text", response_model=DocumentFormattedTextRead)
+def get_formatted_text(
+    document_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """フォーマット済みテキストを取得"""
+    try:
+        if document_id <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無効なドキュメントIDです"
+            )
+        
+        logger.info(f"[GET /documents/{document_id}/formatted-text] User {current_user.id} requesting formatted text")
+        
+        # ドキュメントの存在確認と権限チェック
+        document = crud_document.get_document(session, document_id)
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ドキュメントが見つかりません"
+            )
+        
+        if document.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="このドキュメントへのアクセス権限がありません"
+            )
+        
+        formatted_text = crud_formatted_text.get_formatted_text_by_document(session, document_id)
+        
+        if not formatted_text:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="フォーマット済みテキストが見つかりません"
+            )
+        
+        logger.info(f"[GET /documents/{document_id}/formatted-text] Formatted text found")
+        return formatted_text
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[GET /documents/{document_id}/formatted-text] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="フォーマット済みテキストの取得中にエラーが発生しました"
+        )
+

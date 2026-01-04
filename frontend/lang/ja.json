@@ -4,7 +4,15 @@
   "Header": {
     "back-to-document-list": "一覧に戻る",
     "restore-btn-ttl": "削除したLLMコメントを復元",
-    "restoring-llm-comments": "削除したLLMコメントを復元中..."
+    "restoring-llm-comments": "削除したLLMコメントを復元中...",
+    "stage-description": {
+      "thinking_process_self": "思考プロセスを表出化する",
+      "thinking_option_self": "他選択肢について考える",
+      "thinking_option_llm": "LLMからの示唆を受け，他選択肢について考える",
+      "thinking_deliberation_self": "吟味し，意思決定する",
+      "thinking_deliberation_llm": "LLMからの示唆を受け，吟味し，意思決定する",
+      "export": "活動終了"
+    }
   },
   "Utils": {
     "edit": "編集",
@@ -105,6 +113,7 @@
     "enter-memo": "メモを入力してください",
     "file-format-error": "このファイル形式はプレビューできません",
     "upload-failed": "アップロードに失敗しました",
+    "file-text-save-failed": "ファイルのテキスト情報の保存に失敗しました。もう一度お試しください。",
     "file-id-missing": "ファイルIDが未設定です。PDFの読み込み完了後に再度お試しください。",
     "document-id-missing": "ドキュメントIDが見つかりません。先にドキュメントを作成してください。",
     "file-fetch-failed": "ファイルの読み込みに失敗しました。もう一度お試しください。",

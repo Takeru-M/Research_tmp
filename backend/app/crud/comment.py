@@ -12,6 +12,11 @@ from app.crud import llm_comment_metadata as crud_llm_metadata
 logger = logging.getLogger(__name__)
 
 def create_comment(session: Session, comment_in: CommentCreate) -> Comment:
+    """
+    コメント作成処理
+    - 子コメント（parent_id!=None）の場合: 親コメントが存在し、同一ハイライトに属することを確認
+    - ルートコメント（parent_id=None）の場合: そのまま作成
+    """
     # 親コメントの存在と同一ハイライトをチェック（子コメントの場合）
     if comment_in.parent_id is not None:
         parent = session.get(Comment, comment_in.parent_id)

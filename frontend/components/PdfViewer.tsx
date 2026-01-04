@@ -8,7 +8,8 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { RootState } from '@/redux/store';
-import { PdfHighlight, Comment as CommentType, PdfRectWithPage, HighlightCommentList, HighlightCommentsList, DividedMeetingTexts } from '../redux/features/editor/editorTypes';
+import { PdfHighlight, Comment as CommentType, PdfRectWithPage } from '../redux/features/editor/editorTypes';
+import { OptionAnalyzeRequest, DeliberationAnalyzeRequest, HighlightCommentThread, HighlightComment } from '@/types/Requests/OpenaiAnalyze';
 import { selectActiveHighlightId, selectActiveCommentId, selectCompletionStage } from '../redux/features/editor/editorSelectors';
 import { setActiveHighlightId, setActiveCommentId, setPdfTextContent, setActiveScrollTarget, addComment, addHighlightWithComment, setCompletionStage, clearSelectedRootComments } from '../redux/features/editor/editorSlice';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
@@ -17,21 +18,36 @@ import LoadingOverlay from './LoadingOverlay';
 import { extractShapeData } from '../utils/pdfShapeExtractor';
 import { useTranslation } from "react-i18next";
 import { PageLoadData, PdfViewerProps } from '@/types/PdfViewer';
-import { STAGE, HIGHLIGHT_COLOR } from '@/utils/constants';
+import { STAGE, HIGHLIGHT_COLOR, COMMENT_PURPOSE } from '@/utils/constants';
 import { apiClient, parseJSONResponse } from '@/utils/apiClient';
 import { ErrorDisplay } from './ErrorDisplay';
-import { logUserAction } from '@/utils/logger'; // ← logLLMAnalysis はインポートしない
+import { logUserAction } from '@/utils/logger';
 import styles from '../styles/PdfViewer.module.css';
 import {
   FormatDataResponse,
   OptionAnalyzeResponse,
   DeliberationAnalyzeResponse,
   DialogueResponse,
-  CommentCreateResponse,
   HighlightCreateResponse,
   UpdateCompletionStageResponse,
 } from '@/types/Responses/Openai';
+import { CommentResponse } from '@/types/Responses/Comment';
+import { DocumentFormattedTextRead } from '@/types/Responses/DocumentFormattedText';
 import { groupTextItemsToLines, GroupedLine } from '../utils/pdfTextGrouper';
+
+type SelectionMenuState = {
+  x: number;
+  y: number;
+  visible: boolean;
+  pendingHighlight: PdfHighlight | null;
+};
+
+type HighlightColors = {
+  baseBg: string;
+  activeBg: string;
+  baseBorderColor: string;
+  activeBorderColor: string;
+};
 
 pdfjs.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -40,6 +56,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   file,
   highlights,
   comments,
+  documentId,
   onRequestAddHighlight,
   onHighlightClick,
   onRenderSuccess,
@@ -49,7 +66,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const [pageScales, setPageScales] = useState<{ [n:number]:number }>({});
   const [pageShapeData, setPageShapeData] = useState<{ [n:number]:PdfRectWithPage[] }>({});
   const [pageTextItems, setPageTextItems] = useState<{ [n:number]:TextItem[] }>({});
-  const [dividedMeetingTexts, setDividedMeetingTexts] = useState<DividedMeetingTexts | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [groupedTextLines, setGroupedTextLines] = useState<GroupedLine[]>([]);
 
@@ -59,8 +75,11 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
   const router = useRouter();
   const { data: session } = useSession();
 
-  const [selectionMenu, setSelectionMenu] = useState({
-    x: 0, y: 0, visible: false, pendingHighlight: null as PdfHighlight|null
+  const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState>({
+    x: 0,
+    y: 0,
+    visible: false,
+    pendingHighlight: null,
   });
 
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
@@ -79,13 +98,82 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const effectiveActiveHighlightId = activeHighlightId ?? activeHighlightFromComment ?? null;
 
-  const getDocumentIdFromCookie = (): number | null => {
-    const match = document.cookie.match(/(?:^|; )documentId=(\d+)/);
-    return match ? parseInt(match[1], 10) : null;
-  };
+  const buildHighlightThreads = useCallback((): HighlightCommentThread[] => {
+    const highlightCommentThreads: HighlightCommentThread[] = [];
 
-  // ユーザーIDを取得するヘルパー関数を追加
-  const getUserId = () => session?.user?.id || session?.user?.email || 'anonymous';
+    for (const h of highlights) {
+      const relatedComments = comments.filter((c) => c.highlightId === h.id);
+      if (relatedComments.length === 0) continue;
+
+      highlightCommentThreads.push({
+        id: h.id,
+        highlightId: h.id,
+        highlight: h.text.trim(),
+        comments: relatedComments.map((c) => ({
+          id: c.id,
+          parentId: c.parentId,
+          author: c.author,
+          text: c.text.trim(),
+        })),
+      });
+    }
+
+    return highlightCommentThreads;
+  }, [comments, highlights]);
+
+  const resolveHighlightColors = useCallback(
+    (
+      latestComment: CommentType | undefined,
+      hasLLMComment: boolean,
+      llmAuthor: string,
+    ): HighlightColors => {
+      if (!latestComment) {
+        return {
+          baseBg: HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE,
+          activeBg: HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE,
+          baseBorderColor: HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER,
+          activeBorderColor: HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER,
+        };
+      }
+
+      if (latestComment.author === llmAuthor) {
+        return {
+          baseBg: HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE,
+          activeBg: HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE,
+          baseBorderColor: HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE_BORDER,
+          activeBorderColor: HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE_BORDER,
+        };
+      }
+
+      if (hasLLMComment) {
+        return {
+          baseBg: HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE,
+          activeBg: HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE,
+          baseBorderColor: HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE_BORDER,
+          activeBorderColor: HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE_BORDER,
+        };
+      }
+
+      return {
+        baseBg: HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE,
+        activeBg: HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE,
+        baseBorderColor: HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER,
+        activeBorderColor: HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER,
+      };
+    },
+    [],
+  );
+
+  // ユーザーIDを取得するヘルパー関数をメモ化
+  const getUserId = useCallback(() => session?.user?.id || session?.user?.email || 'anonymous', [session]);
+
+  // JWT に保持しているドキュメントIDを取得
+  const getDocumentId = useCallback((): number | null => {
+    const docId = (session as any)?.preferredDocumentId ?? (session as any)?.user?.preferredDocumentId ?? null;
+    if (docId === null || docId === undefined) return null;
+    const n = Number(docId);
+    return Number.isNaN(n) ? null : n;
+  }, [session]);
 
   // PDF以外クリックで選択解除
   useEffect(() => {
@@ -304,45 +392,23 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       const childComments = comments.filter(c => rootComments.some(rc => rc.id === c.parentId));
       const allRelatedComments = [...rootComments, ...childComments];
       
-      const sortedComments = [...allRelatedComments].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      // コメントを作成日時で降順ソート（最新が先頭）
+      // created_atが文字列、数値、Dateオブジェクトのいずれでも正しく動作するようにする
+      const sortedComments = [...allRelatedComments].sort((a, b) => {
+        const timeA = typeof a.created_at === 'string' || typeof a.created_at === 'number' 
+          ? new Date(a.created_at).getTime() 
+          : 0;
+        const timeB = typeof b.created_at === 'string' || typeof b.created_at === 'number'
+          ? new Date(b.created_at).getTime() 
+          : 0;
+        return timeB - timeA; // 降順（新しい順）
+      });
       const latestComment = sortedComments[0];
 
-      // ハイライトの色を決定するロジック
-      let baseBg: string;
-      let activeBg: string;
-      let baseBorderColor: string;
-      let activeBorderColor: string;
+      // スレッド内にLLMコメントが存在するかチェック
+      const hasLLMComment = allRelatedComments.some(c => c.author === llmAuthorName);
 
-      if (!latestComment) {
-        // コメントがない場合：ユーザーハイライト（黄色）
-        baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
-        activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
-        baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
-        activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
-      } else if (latestComment.author === llmAuthorName) {
-        // 最新コメントがLLM：青色
-        baseBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE;
-        activeBg = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE;
-        baseBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_BASE_BORDER;
-        activeBorderColor = HIGHLIGHT_COLOR.LLM_HIGHLIGHT_ACTIVE_BORDER;
-      } else {
-        // 最新コメントがユーザー かつ スレッド内にLLMコメントが存在：緑色
-        const hasLLMComment = allRelatedComments.some(c => c.author === llmAuthorName);
-        if (hasLLMComment) {
-          baseBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE;
-          activeBg = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE;
-          baseBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_BASE_BORDER;
-          activeBorderColor = HIGHLIGHT_COLOR.ANSWER_HIGHLIGHT_ACTIVE_BORDER;
-        } else {
-          // ユーザーハイライト（黄色）
-          baseBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE;
-          activeBg = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE;
-          baseBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER;
-          activeBorderColor = HIGHLIGHT_COLOR.USER_HIGHLIGHT_ACTIVE_BORDER;
-        }
-      }
+      const colors = resolveHighlightColors(latestComment, hasLLMComment, llmAuthorName);
 
       const isActive = effectiveActiveHighlightId === h.id;
 
@@ -355,14 +421,42 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             top: `${rect.y1 * scale}px`,
             width: `${(rect.x2 - rect.x1) * scale}px`,
             height: `${(rect.y2 - rect.y1) * scale}px`,
-            backgroundColor: isActive ? activeBg : baseBg,
-            border: `${isActive ? 3 : 2}px solid ${isActive ? activeBorderColor : baseBorderColor}`,
+            backgroundColor: isActive ? colors.activeBg : colors.baseBg,
+            border: `${isActive ? 3 : 2}px solid ${isActive ? colors.activeBorderColor : colors.baseBorderColor}`,
             boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.12)' : undefined,
           }}
         />
       ));
     });
-  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, llmAuthorName]);
+  },[highlights, pageData, pageScales, effectiveActiveHighlightId, comments, llmAuthorName, resolveHighlightColors]);
+
+  // 選択中ハイライトのプレビューを描画（キャンセル時は選択メニューが閉じられるため非表示）
+  const renderPendingHighlight = useCallback((page: number) => {
+    if (!selectionMenu.visible || !selectionMenu.pendingHighlight || selectionMenu.pendingHighlight.type !== 'pdf') return null;
+    if (!pageData[page] || !pageScales[page]) return null;
+
+    const scale = pageScales[page];
+    const pendingRects = selectionMenu.pendingHighlight.rects.filter(r => r.pageNum === page);
+    if (pendingRects.length === 0) return null;
+
+    return pendingRects.map((rect, idx) => (
+      <div
+        key={`pending-${selectionMenu.pendingHighlight!.id}-${idx}`}
+        className={styles.highlightOverlay}
+        style={{
+          left: `${rect.x1 * scale}px`,
+          top: `${rect.y1 * scale}px`,
+          width: `${(rect.x2 - rect.x1) * scale}px`,
+          height: `${(rect.y2 - rect.y1) * scale}px`,
+          backgroundColor: 'rgba(255, 235, 59, 0.35)',
+          border: `2px dashed ${HIGHLIGHT_COLOR.USER_HIGHLIGHT_BASE_BORDER}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          pointerEvents: 'none',
+          position: 'absolute',
+        }}
+      />
+    ));
+  }, [selectionMenu, pageData, pageScales]);
 
   // TextNode対応 helper
   const getClosestPageElement = (node: Node): HTMLElement | null => {
@@ -674,6 +768,439 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     return rects;
   }, [pdfTextContent, pageData, pageTextItems, numPages]);
 
+  const updateCompletionStageOrThrow = useCallback(
+    async (targetStage: number, failureStage: string): Promise<number> => {
+      if (!documentId) {
+        setErrorMessage(t('Error.document-id-missing'));
+        logUserAction('analysis_failed', {
+          stage: failureStage,
+          reason: 'document_id_missing',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        throw new Error('document_id_missing');
+      }
+
+      const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
+        `/documents/${documentId}/update-completion-stage/`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+          body: {
+            completion_stage: targetStage,
+          }
+        }
+      );
+
+      if (updateError) {
+        setErrorMessage(t('Error.update-document-failed'));
+        logUserAction('analysis_failed', {
+          stage: failureStage,
+          reason: updateError,
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        throw new Error(String(updateError));
+      }
+
+      const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? targetStage;
+      const stageVal = Number(stageValRaw);
+      dispatch(setCompletionStage(Number.isNaN(stageVal) ? targetStage : stageVal));
+      return Number.isNaN(stageVal) ? targetStage : stageVal;
+    },
+    [dispatch, documentId, getUserId, session?.accessToken, t],
+  );
+
+  const advanceToNextStage = useCallback(async (): Promise<boolean> => {
+    if (!documentId) return true;
+
+    let nextStage = completionStage;
+    if (completionStage === STAGE.THINKING_PROCESS_SELF) {
+      nextStage = STAGE.THINKING_OPTION_SELF;
+    } else if (completionStage === STAGE.THINKING_OPTION_LLM) {
+      nextStage = STAGE.THINKING_DELIBERATION_SELF;
+    }
+
+    try {
+      await updateCompletionStageOrThrow(nextStage, `update_${completionStage}_to_${nextStage}_stage_error`);
+      return true;
+    } catch (error) {
+      console.error('[advanceToNextStage] Stage update failed:', error);
+      return false;
+    }
+  }, [completionStage, documentId, updateCompletionStageOrThrow]);
+
+  const handleOptionSelfFlow = useCallback(async (): Promise<boolean> => {
+    const highlightCommentThreads = buildHighlightThreads();
+
+    const { data: formatDataResponse, error: formatDataError } = await apiClient<FormatDataResponse>(
+      '/openai/format-data/',
+      {
+        method: 'POST',
+        body: {
+          pdfTextData: {
+            lines: groupedTextLines,
+          },
+        },
+      }
+    );
+
+    if (formatDataError || !formatDataResponse) {
+      setErrorMessage(t('Error.analysis-failed'));
+      logUserAction('analysis_failed', {
+        stage: 'format_data_error',
+        reason: formatDataError || 'no_response',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+      return false;
+    }
+
+    const firstResponseData = parseJSONResponse(formatDataResponse.analysis);
+
+    if (!documentId) {
+      setErrorMessage(t('Error.document-id-missing'));
+      return false;
+    }
+
+    const { error: saveFormattedTextError } = await apiClient(
+      `/documents/${documentId}/formatted-text`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
+        body: {
+          document_id: documentId,
+          formatted_data: firstResponseData,
+        },
+      }
+    );
+
+    if (saveFormattedTextError) {
+      setErrorMessage(t('Error.file-text-save-failed'));
+      return false;
+    }
+
+    const userInput: OptionAnalyzeRequest = {
+      mt_text: formatDataResponse.analysis,
+      highlights: highlightCommentThreads,
+    };
+
+    const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<OptionAnalyzeResponse>(
+      '/openai/option-analyze/',
+      {
+        method: 'POST',
+        body: {
+          userInput,
+        }
+      }
+    );
+
+    if (optionAnalyzeError || !optionAnalyzeResponse) {
+      setErrorMessage(t('Error.analysis-failed'));
+      logUserAction('analysis_failed', {
+        stage: 'option_analyze_error',
+        reason: optionAnalyzeError || 'no_response',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+      return false;
+    }
+
+    const responseData = parseJSONResponse(optionAnalyzeResponse.analysis);
+
+    const highlight_feedback = Array.isArray(responseData?.highlight_feedback)
+      ? responseData.highlight_feedback
+      : [];
+    const unhighlighted_feedback = Array.isArray(responseData?.unhighlighted_feedback)
+      ? responseData.unhighlighted_feedback
+      : [];
+
+    for (const hf of highlight_feedback) {
+      if (!hf.intervention_needed) continue;
+
+      const rootComment = comments.find((c) => c.highlightId === hf.highlight_id && c.parentId === null);
+      if (!rootComment) {
+        console.error(
+          `[handleOptionSelfFlow] No root comment found for highlight_id: ${hf.highlight_id}. Cannot create LLM response comment.`,
+        );
+        continue;
+      }
+
+      const { data: commentResponse, error: commentError } = await apiClient<CommentResponse>(
+        '/comments/',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+          body: {
+            highlight_id: parseInt(hf.highlight_id, 10),
+            parent_id: rootComment.id,
+            author: t("CommentPanel.comment-author-LLM"),
+            text: hf.suggestion,
+            suggestion_reason: hf.suggestion_reason,
+            purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
+          }
+        }
+      );
+
+      if (commentError || !commentResponse) {
+        setErrorMessage(t('Error.comment-save-failed'));
+        logUserAction('analysis_failed', {
+          stage: 'save_highlight_comment',
+          reason: commentError || 'no_response',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return false;
+      }
+
+      dispatch(
+        addComment({
+          id: commentResponse.id.toString(),
+          highlightId: hf.highlight_id,
+          parentId: hf.id,
+          author: t("CommentPanel.comment-author-LLM"),
+          text: hf.suggestion,
+          purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
+          created_at: commentResponse.created_at,
+          edited_at: null,
+          deleted: false,
+        }),
+      );
+    }
+
+    for (const uhf of unhighlighted_feedback) {
+      if (!uhf.unhighlighted_text || !uhf.suggestion) continue;
+
+      const foundRects = findTextInPdf(uhf.unhighlighted_text);
+      if (foundRects.length === 0) continue;
+
+      if (!documentId) {
+        setErrorMessage(t('Error.document-id-missing'));
+        logUserAction('analysis_failed', {
+          stage: 'create_llm_highlight',
+          reason: 'document_id_missing',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return false;
+      }
+
+      const userName = t("CommentPanel.comment-author-LLM");
+      const { data: highlightResponse, error: highlightError } = await apiClient<HighlightCreateResponse>(
+        '/highlights/',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+          body: {
+            document_file_id: fileId,
+            created_by: userName,
+            memo: uhf.suggestion,
+            text: uhf.unhighlighted_text,
+            suggestion_reason: uhf.suggestion_reason,
+            purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
+            rects: foundRects.map((rect) => ({
+              page_num: rect.pageNum,
+              x1: rect.x1,
+              y1: rect.y1,
+              x2: rect.x2,
+              y2: rect.y2,
+            })),
+            element_type: 'pdf',
+          }
+        }
+      );
+
+      if (highlightError || !highlightResponse) {
+        setErrorMessage(t('Error.highlight-save-failed'));
+        logUserAction('analysis_failed', {
+          stage: 'save_llm_highlight',
+          reason: highlightError || 'no_response',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return false;
+      }
+
+      const llmHighlight: PdfHighlight = {
+        id: highlightResponse.id.toString(),
+        type: "pdf",
+        text: uhf.unhighlighted_text,
+        rects: foundRects,
+        memo: uhf.suggestion,
+        createdAt: highlightResponse.created_at,
+        createdBy: t("CommentPanel.comment-author-LLM"),
+      };
+
+      const rootComment: CommentType = {
+        id: highlightResponse.comment_id.toString(),
+        highlightId: highlightResponse.id.toString(),
+        parentId: null,
+        author: t("CommentPanel.comment-author-LLM"),
+        text: uhf.suggestion,
+        purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
+        created_at: highlightResponse.created_at,
+        edited_at: null,
+        deleted: false,
+      };
+
+      dispatch(addHighlightWithComment({ highlight: llmHighlight, initialComment: rootComment }));
+    }
+
+    try {
+      const stageVal = await updateCompletionStageOrThrow(
+        STAGE.THINKING_OPTION_LLM,
+        'update_completion_stage',
+      );
+      logUserAction('analysis_completed', {
+        newCompletionStage: stageVal,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+    } catch (error) {
+      console.error('[handleOptionSelfFlow] Stage update failed:', error);
+      return false;
+    }
+
+    return true;
+  }, [
+    buildHighlightThreads,
+    comments,
+    documentId,
+    fileId,
+    findTextInPdf,
+    getUserId,
+    groupedTextLines,
+    session?.accessToken,
+    t,
+    updateCompletionStageOrThrow,
+    dispatch,
+  ]);
+
+  const handleDeliberationSelfFlow = useCallback(async (): Promise<boolean> => {
+    const highlightCommentThreads = buildHighlightThreads();
+    const currentDocumentId = getDocumentId();
+
+    if (!currentDocumentId) {
+      setErrorMessage(t('Error.document-id-missing'));
+      return false;
+    }
+
+    const { data: formattedTextData, error: formattedTextError } = await apiClient<DocumentFormattedTextRead>(
+      `/documents/${currentDocumentId}/formatted-text`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${session?.accessToken}` },
+      }
+    );
+
+    if (formattedTextError || !formattedTextData) {
+      setErrorMessage(t('Error.analysis-failed'));
+      return false;
+    }
+
+    const userInput: DeliberationAnalyzeRequest = {
+      mt_text: formattedTextData.formatted_data,
+      highlights: highlightCommentThreads,
+    };
+
+    const { data: deliberationResponse, error: deliberationError } = await apiClient<DeliberationAnalyzeResponse>(
+      '/openai/deliberation-analyze/',
+      {
+        method: 'POST',
+        body: {
+          userInput,
+        }
+      }
+    );
+
+    if (deliberationError || !deliberationResponse) {
+      setErrorMessage(t('Error.analysis-failed'));
+      logUserAction('analysis_failed', {
+        stage: 'deliberation_api_error',
+        reason: deliberationError || 'no_response',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+      return false;
+    }
+
+    const responseData = parseJSONResponse(deliberationResponse.analysis);
+    const suggestions = Array.isArray(responseData?.suggestions)
+      ? responseData.suggestions
+      : [];
+
+    for (const s of suggestions) {
+      if (!s.suggestion) continue;
+
+      const rootComment = comments.find(
+        (c) => c.highlightId === s.highlight_id && c.parentId === null,
+      );
+
+      if (!rootComment) {
+        console.error(
+          `[handleDeliberationSelfFlow] No root comment found for highlight_id: ${s.highlight_id}. Cannot create LLM response comment.`,
+        );
+        continue;
+      }
+
+      const { data: commentResponse, error: commentError } = await apiClient<CommentResponse>(
+        '/comments/',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+          body: {
+            highlight_id: parseInt(s.highlight_id, 10),
+            parent_id: rootComment.id,
+            author: t("CommentPanel.comment-author-LLM"),
+            text: s.suggestion,
+            suggestion_reason: s.suggestion_reason,
+            purpose: COMMENT_PURPOSE.DELIBERATION,
+          }
+        }
+      );
+
+      if (commentError || !commentResponse) {
+        setErrorMessage(t('Error.comment-save-failed'));
+        logUserAction('analysis_failed', {
+          stage: 'save_deliberation_comment',
+          reason: commentError || 'no_response',
+          timestamp: new Date().toISOString(),
+        }, getUserId());
+        return false;
+      }
+
+      dispatch(
+        addComment({
+          id: commentResponse.id.toString(),
+          highlightId: s.highlight_id,
+          parentId: rootComment.id.toString(),
+          author: t("CommentPanel.comment-author-LLM"),
+          text: s.suggestion,
+          purpose: COMMENT_PURPOSE.DELIBERATION,
+          created_at: commentResponse.created_at,
+          edited_at: null,
+          deleted: false,
+        }),
+      );
+    }
+
+    try {
+      const stageVal = await updateCompletionStageOrThrow(
+        STAGE.THINKING_DELIBERATION_LLM,
+        'update_deliberation_stage',
+      );
+      logUserAction('deliberation_analysis_completed', {
+        suggestionCount: suggestions.length,
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+    } catch (error) {
+      console.error('[handleDeliberationSelfFlow] Stage update failed:', error);
+      return false;
+    }
+
+    return true;
+  }, [
+    buildHighlightThreads,
+    comments,
+    getDocumentId,
+    getUserId,
+    session?.accessToken,
+    t,
+    updateCompletionStageOrThrow,
+    dispatch,
+  ]);
+
   const handleCompletion = useCallback(async () => {
     dispatch(startLoading(t('PdfViewer.analyzing')));
     dispatch(clearSelectedRootComments());
@@ -684,420 +1211,43 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    if (completionStage == STAGE.GIVE_OPTION_TIPS){
-      try {
-        const highlightCommentList: HighlightCommentList = [];
-        for (const h of highlights) {
-          const related = comments.filter(c => c.highlightId === h.id);
-          if (related.length > 0) {
-            for (const c of related) {
-              highlightCommentList.push({
-                id: c.id,
-                highlightId: h.id,
-                highlight: h.text.trim(),
-                comment: c.text.trim(),
-              });
-            }
-          } else {
-            highlightCommentList.push({
-              id: "",
-              highlightId: h.id,
-              highlight: h.text.trim(),
-              comment: "(none)",
-            });
-          }
-        }
+    try {
+      const isSelfStage =
+        completionStage === STAGE.THINKING_OPTION_SELF || completionStage === STAGE.THINKING_DELIBERATION_SELF;
 
-        const { data: formatDataResponse, error: formatDataError } = await apiClient<FormatDataResponse>(
-          '/openai/format-data/',
-          {
-            method: 'POST',
-            body: {
-              pdfTextData: {
-                lines: groupedTextLines,
-              },
-            },
-          }
-        );
-
-        if (formatDataError || !formatDataResponse) {
-          console.error('[handleCompletion] Format data error:', formatDataError);
-          setErrorMessage(t('Error.analysis-failed'));
-          logUserAction('analysis_failed', {
-            stage: 'format_data_error',
-            reason: formatDataError || 'no_response',
-            timestamp: new Date().toISOString(),
-          }, getUserId());
-          return;
-        }
-
-        const firstResponseData = parseJSONResponse(formatDataResponse.analysis);
-        setDividedMeetingTexts(firstResponseData);
-        console.log(firstResponseData);
-
-        const userInput = {
-          "mt_text": formatDataResponse.analysis,
-          "highlights": highlightCommentList,
-        }
-
-        const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<OptionAnalyzeResponse>(
-          '/openai/option-analyze/',
-          {
-            method: 'POST',
-            body: {
-              userInput: userInput,
-            }
-          }
-        );
-
-        if (optionAnalyzeError || !optionAnalyzeResponse) {
-          console.error('[handleCompletion] Option analyze error:', optionAnalyzeError);
-          setErrorMessage(t('Error.analysis-failed'));
-          logUserAction('analysis_failed', {
-            stage: 'option_analyze_error',
-            reason: optionAnalyzeError || 'no_response',
-            timestamp: new Date().toISOString(),
-          }, getUserId());
-          return;
-        }
-
-        const responseData = parseJSONResponse(optionAnalyzeResponse.analysis);
-
-        // 必ず配列に正規化
-        const highlight_feedback = Array.isArray(responseData?.highlight_feedback)
-          ? responseData.highlight_feedback
-          : [];
-        const unhighlighted_feedback = Array.isArray(responseData?.unhighlighted_feedback)
-          ? responseData.unhighlighted_feedback
-          : [];
-
-        // 以降の処理も配列に対してのみ実行
-        for (const hf of highlight_feedback) {
-          if (hf.intervention_needed) {
-            const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
-              '/comments/',
-              {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${session?.accessToken}` },
-                body: {
-                  highlight_id: parseInt(hf.highlight_id, 10),
-                  parent_id: parseInt(hf.id, 10),
-                  author: t("CommentPanel.comment-author-LLM"),
-                  text: hf.suggestion,
-                  suggestion_reason: hf.suggestion_reason,  // LLM示唆の理由を保存
-                }
-              }
-            );
-
-            if (commentError || !commentResponse) {
-              console.error('[handleCompletion] Comment save error:', commentError);
-              setErrorMessage(t('Error.comment-save-failed'));
-              logUserAction('analysis_failed', {
-                stage: 'save_highlight_comment',
-                reason: commentError || 'no_response',
-                timestamp: new Date().toISOString(),
-              }, getUserId());
-              return;
-            }
-
-            console.log('LLM comment saved:', commentResponse);
-            dispatch(
-              addComment({
-                id: commentResponse.id.toString(),
-                highlightId: hf.highlight_id,
-                parentId: hf.id,
-                author: t("CommentPanel.comment-author-LLM"),
-                text: hf.suggestion,
-                created_at: commentResponse.created_at,
-                edited_at: null,
-                deleted: false,
-              }));
-          }
-        }
-
-        for (const [index, uhf] of unhighlighted_feedback.entries()) {
-          if (uhf.unhighlighted_text && uhf.suggestion) {
-            const foundRects = findTextInPdf(uhf.unhighlighted_text);
-
-            if (foundRects.length > 0) {
-              const userName = t("CommentPanel.comment-author-LLM");
-              const documentId = getDocumentIdFromCookie();
-
-              if (!documentId) {
-                console.error('[handleCompletion] Document ID not found');
-                setErrorMessage(t('Error.document-id-missing'));
-                logUserAction('analysis_failed', {
-                  stage: 'create_llm_highlight',
-                  reason: 'document_id_missing',
-                  timestamp: new Date().toISOString(),
-                }, getUserId());
-                return;
-              }
-
-              const { data: highlightResponse, error: highlightError } = await apiClient<HighlightCreateResponse>(
-                '/highlights/',
-                {
-                  method: 'POST',
-                  headers: { Authorization: `Bearer ${session?.accessToken}` },
-                  body: {
-                    document_file_id: fileId,
-                    created_by: userName,
-                    memo: uhf.suggestion,
-                    text: uhf.unhighlighted_text,
-                    suggestion_reason: uhf.suggestion_reason,  // LLM示唆の理由を保存
-                    rects: foundRects.map(rect => ({
-                      page_num: rect.pageNum,
-                      x1: rect.x1,
-                      y1: rect.y1,
-                      x2: rect.x2,
-                      y2: rect.y2,
-                    })),
-                    element_type: 'pdf',
-                  }
-                }
-              );
-
-              if (highlightError || !highlightResponse) {
-                console.error('[handleCompletion] Highlight save error:', highlightError);
-                setErrorMessage(t('Error.highlight-save-failed'));
-                logUserAction('analysis_failed', {
-                  stage: 'save_llm_highlight',
-                  reason: highlightError || 'no_response',
-                  timestamp: new Date().toISOString(),
-                }, getUserId());
-                return;
-              }
-
-              console.log('LLM highlight saved:', highlightResponse);
-
-              const llmHighlight: PdfHighlight = {
-                id: highlightResponse.id.toString(),
-                type: "pdf",
-                text: uhf.unhighlighted_text,
-                rects: foundRects,
-                memo: uhf.suggestion,
-                createdAt: highlightResponse.created_at,
-                createdBy: t("CommentPanel.comment-author-LLM"),
-              };
-
-              const rootComment: CommentType = {
-                id: highlightResponse.comment_id.toString(),
-                highlightId: highlightResponse.id.toString(),
-                parentId: null,
-                author: t("CommentPanel.comment-author-LLM"),
-                text: uhf.suggestion,
-                created_at: highlightResponse.created_at,
-                edited_at: null,
-                deleted: false,
-              };
-
-              dispatch(addHighlightWithComment({ highlight: llmHighlight, initialComment: rootComment }));
-            }
-          }
-        }
-
-        const documentId = getDocumentIdFromCookie();
-        if (documentId) {
-          const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
-            `/documents/${documentId}/update-completion-stage/`,
-            {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${session?.accessToken}` },
-              body: {
-                completion_stage: STAGE.GIVE_DELIBERATION_TIPS,
-              }
-            }
-          );
-
-          if (updateError) {
-            console.error('[handleCompletion] Stage update error:', updateError);
-            setErrorMessage(t('Error.update-document-failed'));
-            logUserAction('analysis_failed', {
-              stage: 'update_completion_stage',
-              reason: updateError,
-              timestamp: new Date().toISOString(),
-            }, getUserId());
-            return;
-          }
-
-          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_DELIBERATION_TIPS;
-          const stageVal = Number(stageValRaw);
-          dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_DELIBERATION_TIPS : stageVal));
-          logUserAction('analysis_completed', {
-            newCompletionStage: stageVal,
-            timestamp: new Date().toISOString(),
-          }, getUserId());
-        }
-      } catch (error) {
-        console.error('[handleCompletion] Unexpected error:', error);
-        setErrorMessage(t('Error.analysis-failed'));
-        logUserAction('analysis_failed', {
-          stage: 'unexpected_error',
-          reason: error instanceof Error ? error.message : 'unknown',
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-      } finally {
-        dispatch(stopLoading());
+      if (!isSelfStage) {
+        await advanceToNextStage();
+        return;
       }
-    }
-    else if (completionStage == STAGE.GIVE_DELIBERATION_TIPS){
-      try {
-        const highlightCommentsList: HighlightCommentsList = [];
-        for (const h of highlights) {
-          const related = comments.filter(c => c.highlightId === h.id);
 
-          if (related.length > 0) {
-            const lastComment = related[related.length - 1];
-
-            if (lastComment && lastComment.author === t("CommentPanel.comment-author-LLM")) {
-              highlightCommentsList.push({
-                id: lastComment.id,
-                highlightId: h.id,
-                highlight: h.text.trim(),
-                comments: related.map(c => ({
-                  comment: c.text,
-                })),
-              });
-            }
-          }
-        }
-
-        const userInput = {
-          "mt_text": dividedMeetingTexts,
-          "highlights": highlightCommentsList,
-        }
-
-        const { data: deliberationResponse, error: deliberationError } = await apiClient<DeliberationAnalyzeResponse>(
-          '/openai/deliberation-analyze/',
-          {
-            method: 'POST',
-            body: {
-              userInput: userInput,
-            }
-          }
-        );
-
-        if (deliberationError || !deliberationResponse) {
-          console.error('[handleCompletion] Deliberation analyze error:', deliberationError);
-          setErrorMessage(t('Error.analysis-failed'));
-          logUserAction('analysis_failed', {
-            stage: 'deliberation_api_error',
-            reason: deliberationError || 'no_response',
-            timestamp: new Date().toISOString(),
-          }, getUserId());
-          return;
-        }
-
-        const responseData = parseJSONResponse(deliberationResponse.analysis);
-
-        // suggestions を安全に配列化（未定義/オブジェクトでも配列へ）
-        const rawSuggestions = (responseData as any)?.suggestions;
-        const suggestionsArr: any[] = Array.isArray(rawSuggestions)
-          ? rawSuggestions
-          : (rawSuggestions && typeof rawSuggestions === 'object')
-            ? Object.values(rawSuggestions)
-            : [];
-
-        // ループ見出しにカンマ演算子を使わない
-        for (const s of suggestionsArr) {
-          if (s.suggestion) {
-            const parentCommentExists = comments.some(c => c.id === s.id);
-            if (!parentCommentExists) {
-              console.warn('[handleCompletion] Parent comment ID not found:', s.id);
-              continue;
-            }
-
-            console.log('[handleCompletion] Saving comment with parent_id:', s.id, 'highlight_id:', s.highlight_id);
-
-            const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
-              '/comments/',
-              {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${session?.accessToken}` },
-                body: {
-                  highlight_id: parseInt(s.highlight_id, 10),
-                  parent_id: parseInt(s.id, 10),
-                  author: t("CommentPanel.comment-author-LLM"),
-                  text: s.suggestion,
-                  suggestion_reason: s.suggestion_reason,  // LLM示唆の理由を保存
-                }
-              }
-            );
-
-            if (commentError || !commentResponse) {
-              console.error('[handleCompletion] Comment save error:', commentError);
-              setErrorMessage(t('Error.comment-save-failed'));
-              logUserAction('analysis_failed', {
-                stage: 'save_deliberation_comment',
-                reason: commentError || 'no_response',
-                timestamp: new Date().toISOString(),
-              }, getUserId());
-              return;
-            }
-
-            console.log('LLM comment saved:', commentResponse);
-
-            dispatch(
-              addComment({
-                id: commentResponse.id.toString(),
-                highlightId: s.highlight_id,
-                parentId: s.id,
-                author: t("CommentPanel.comment-author-LLM"),
-                text: s.suggestion,
-                created_at: commentResponse.created_at,
-                edited_at: null,
-                deleted: false,
-              })
-            );
-          }
-        }
-
-        const documentId = getDocumentIdFromCookie();
-        if (documentId) {
-          const { data: updateResponse, error: updateError } = await apiClient<UpdateCompletionStageResponse>(
-            `/documents/${documentId}/update-completion-stage/`,
-            {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${session?.accessToken}` },
-              body: {
-                completion_stage: STAGE.GIVE_MORE_DELIBERATION_TIPS,
-              }
-            }
-          );
-
-          if (updateError) {
-            console.error('[handleCompletion] Stage update error:', updateError);
-            setErrorMessage(t('Error.update-document-failed'));
-            logUserAction('analysis_failed', {
-              stage: 'update_deliberation_stage',
-              reason: updateError,
-              timestamp: new Date().toISOString(),
-            }, getUserId());
-            return;
-          }
-
-          const stageValRaw = updateResponse?.completion_stage ?? updateResponse?.stage ?? STAGE.GIVE_MORE_DELIBERATION_TIPS;
-          const stageVal = Number(stageValRaw);
-          console.log('[handleCompletion] Completion stage updated to', stageVal);
-          dispatch(setCompletionStage(Number.isNaN(stageVal) ? STAGE.GIVE_MORE_DELIBERATION_TIPS : stageVal));
-          logUserAction('deliberation_analysis_completed', {
-            suggestionCount: suggestionsArr.length,
-            timestamp: new Date().toISOString(),
-          }, getUserId());
-        }
-      } catch (error) {
-        console.error('[handleCompletion] Unexpected error:', error);
-        setErrorMessage(t('Error.analysis-failed'));
-        logUserAction('analysis_failed', {
-          stage: 'deliberation_unexpected_error',
-          reason: error instanceof Error ? error.message : 'unknown',
-          timestamp: new Date().toISOString(),
-        }, getUserId());
-      } finally {
-        dispatch(stopLoading());
+      if (completionStage === STAGE.THINKING_OPTION_SELF) {
+        await handleOptionSelfFlow();
+      } else {
+        await handleDeliberationSelfFlow();
       }
+    } catch (error) {
+      console.error('[handleCompletion] Unexpected error:', error);
+      if (!errorMessage) setErrorMessage(t('Error.analysis-failed'));
+      logUserAction('analysis_failed', {
+        stage: 'unexpected_error',
+        reason: error instanceof Error ? error.message : 'unknown',
+        timestamp: new Date().toISOString(),
+      }, getUserId());
+    } finally {
+      dispatch(stopLoading());
     }
-  }, [highlights, comments, pdfTextContent, dispatch, findTextInPdf, t, completionStage, dividedMeetingTexts, fileId, getUserId, session?.accessToken]);
+  }, [
+    advanceToNextStage,
+    completionStage,
+    dispatch,
+    getUserId,
+    handleDeliberationSelfFlow,
+    handleOptionSelfFlow,
+    highlights.length,
+    comments.length,
+    t,
+    errorMessage,
+  ]);
 
   const handleCompletionforExport = useCallback(async () => {
     dispatch(startLoading(t('PdfViewer.exporting')));
@@ -1106,7 +1256,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     }, getUserId());
 
     try {
-      const documentId = getDocumentIdFromCookie();
       if (!documentId) {
         console.error('[handleCompletionforExport] Document ID not found');
         setErrorMessage(t('Error.document-id-missing'));
@@ -1221,7 +1370,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
       console.log(`[Export][Frontend] End at ${new Date().toISOString()}`);
       dispatch(stopLoading());
     }
-  }, [dispatch, fileId, t, getUserId, session?.accessToken, router]);
+  }, [dispatch, fileId, t, getUserId, session?.accessToken, router, documentId]);
 
   const handleDialogue = useCallback(async () => {
     if (selectedRootCommentIds.length === 0) {
@@ -1287,10 +1436,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
 
       let apiEndpoint: string;
 
-      if (completionStage === STAGE.GIVE_DELIBERATION_TIPS) {
-        apiEndpoint = '/openai/option-dialogue/';
-      } else if (completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) {
-        apiEndpoint = '/openai/deliberation-dialogue/';
+      if (completionStage === STAGE.THINKING_OPTION_LLM) {
+        apiEndpoint = '/openai/option-dialogue';
+      } else if (completionStage === STAGE.THINKING_DELIBERATION_LLM) {
+        apiEndpoint = '/openai/deliberation-dialogue';
       } else {
         console.error('[handleDialogue] Unsupported completion stage:', completionStage);
         setErrorMessage(t('Error.dialogue-failed'));
@@ -1302,8 +1451,35 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         return;
       }
 
+      // DBからフォーマット済みテキストを取得
+      const documentId = getDocumentId();
+      if (!documentId) {
+        console.error('[handleDialogue] Document ID not found');
+        setErrorMessage(t('Error.document-id-missing'));
+        return;
+      }
+
+      const { data: formattedTextData, error: formattedTextError } = await apiClient<DocumentFormattedTextRead>(
+        `/documents/${documentId}/formatted-text`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${session?.accessToken}` },
+        }
+      );
+
+      if (formattedTextError || !formattedTextData) {
+        console.error('[handleDialogue] Failed to fetch formatted text:', formattedTextError);
+        setErrorMessage(t('Error.dialogue-failed'));
+        return;
+      }
+
+      // formatted_dataをJSON文字列に変換
+      const pdfTextData = typeof formattedTextData.formatted_data === 'string'
+        ? formattedTextData.formatted_data
+        : JSON.stringify(formattedTextData.formatted_data);
+
       const userInput = {
-        pdf_text: pdfTextContent,
+        pdf_text: pdfTextData,
         selected_threads: selectedThreads,
       };
 
@@ -1314,6 +1490,9 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           method: 'POST',
           body: {
             userInput,
+            purpose: completionStage === STAGE.THINKING_DELIBERATION_LLM
+              ? COMMENT_PURPOSE.OTHER_OPTIONS
+              : COMMENT_PURPOSE.DELIBERATION,
           }
         }
       );
@@ -1337,10 +1516,6 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         : [];
 
       if (dialogueResponses.length > 0) {
-        const analysisType =
-          completionStage === STAGE.GIVE_DELIBERATION_TIPS
-            ? 'option_dialogue'
-            : 'deliberation_dialogue';
 
         for (const dr of dialogueResponses) {
           if (dr.root_comment_id && dr.response_text) {
@@ -1350,7 +1525,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
               continue;
             }
 
-            const { data: commentResponse, error: commentError } = await apiClient<CommentCreateResponse>(
+            const { data: commentResponse, error: commentError } = await apiClient<CommentResponse>(
               '/comments/',
               {
                 method: 'POST',
@@ -1360,6 +1535,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(dr.root_comment_id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: dr.response_text,
+                  purpose: completionStage === STAGE.THINKING_DELIBERATION_LLM
+                    ? COMMENT_PURPOSE.OTHER_OPTIONS
+                    : COMMENT_PURPOSE.DELIBERATION,
+                  completion_stage: completionStage,
                 }
               }
             );
@@ -1382,6 +1561,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: dr.root_comment_id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: dr.response_text,
+                purpose: commentResponse.purpose ?? (completionStage === STAGE.THINKING_DELIBERATION_LLM
+                  ? COMMENT_PURPOSE.OTHER_OPTIONS
+                  : COMMENT_PURPOSE.DELIBERATION),
+                completion_stage: commentResponse.completion_stage ?? completionStage,
                 created_at: commentResponse.created_at,
                 edited_at: null,
                 deleted: false,
@@ -1413,7 +1596,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     } finally {
       dispatch(stopLoading());
     }
-  }, [selectedRootCommentIds, comments, highlights, pdfTextContent, completionStage, dispatch, t, getUserId]);
+  }, [selectedRootCommentIds, comments, highlights, completionStage, dispatch, t, getUserId, session?.accessToken, getDocumentId]);
 
   return (
     <>
@@ -1452,6 +1635,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   scale={pdfScale}
                 />
                 {renderHighlightVisuals(i + 1)}
+                {renderPendingHighlight(i + 1)}
                 {pageData[i + 1] && pageShapeData[i + 1] && (pageScales[i + 1] > 0) && (
                   <FabricShapeLayer
                     pageNumber={i + 1}
@@ -1487,27 +1671,34 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
         )}
         <div style={{textAlign:'center', padding: '20px 0'}}>
-          {completionStage !== STAGE.EXPORT && completionStage !== STAGE.GIVE_MORE_DELIBERATION_TIPS && (
+          {completionStage !== STAGE.EXPORT && (
             <>
-              <button
-                onClick={handleCompletion}
-                disabled={isLoading}
-                style={{
-                    padding: '10px 20px',
-                    fontSize: '16px',
-                    backgroundColor: isLoading ? '#cccccc' : '#4CAF50',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: isLoading ? 'not-allowed' : 'pointer',
-                    opacity: isLoading ? 0.6 : 1,
-                    marginRight: (selectedRootCommentIds.length > 0) ? '10px' : '0',
-                }}
-              >
-                {t("PdfViewer.complete")}
-              </button>
+              {completionStage !== STAGE.THINKING_DELIBERATION_LLM && (
+                <button
+                  onClick={handleCompletion}
+                  disabled={isLoading}
+                  style={{
+                      padding: '10px 20px',
+                      fontSize: '16px',
+                      backgroundColor: isLoading ? '#cccccc' : '#4CAF50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      opacity: isLoading ? 0.6 : 1,
+                      marginRight:
+                        selectedRootCommentIds.length > 0 &&
+                        (completionStage === STAGE.THINKING_OPTION_LLM || completionStage === STAGE.THINKING_DELIBERATION_LLM)
+                          ? '10px'
+                          : '0',
+                  }}
+                >
+                  {t("PdfViewer.complete")}
+                </button>
+              )}
 
-              {selectedRootCommentIds.length > 0 && (
+              {selectedRootCommentIds.length > 0 &&
+              (completionStage === STAGE.THINKING_OPTION_LLM || completionStage === STAGE.THINKING_DELIBERATION_LLM) && (
                 <button
                   onClick={handleDialogue}
                   disabled={isLoading}
@@ -1529,7 +1720,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
             </>
           )}
 
-          {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS || completionStage === STAGE.EXPORT) && (
+          {(completionStage === STAGE.THINKING_DELIBERATION_LLM || completionStage === STAGE.EXPORT) && (
             <button
               onClick={handleCompletionforExport}
               disabled={isLoading}
@@ -1544,7 +1735,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   opacity: isLoading ? 0.6 : 1,
               }}
             >
-              {(completionStage === STAGE.GIVE_MORE_DELIBERATION_TIPS) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
+              {(completionStage === STAGE.THINKING_DELIBERATION_LLM) ? t("PdfViewer.finish") : t("PdfViewer.export-again")}
             </button>
           )}
         </div>

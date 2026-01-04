@@ -4,6 +4,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { logUserAction } from '../utils/logger';
+import { setAccessToken } from '../utils/apiClient';
 import styles from '../styles/Login.module.css';
 
 const LoginPage: React.FC = () => {
@@ -65,7 +66,17 @@ const LoginPage: React.FC = () => {
     if (result?.ok) {
       console.log("[Login] Sign-in successful, redirecting to /documents");
       
+      // セッションからアクセストークンを取得して保存
+      const timer = setTimeout(() => {
+        const session = typeof window !== 'undefined' ? (window as any).__session__ : null;
+        if (session?.accessToken) {
+          setAccessToken(session.accessToken);
+          console.log("[Login] Access token stored in memory");
+        }
+      }, 100);
+      
       await new Promise(resolve => setTimeout(resolve, 500));
+      clearTimeout(timer);
       
       logUserAction('login_success', {
         email: email.replace(/(.{2})(.*)(.{2})@(.*)/, '$1***$3@$4'),

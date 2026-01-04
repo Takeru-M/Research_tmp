@@ -14,11 +14,6 @@ export interface DialogueResponse {
   analysis: string;
 }
 
-export interface CommentCreateResponse {
-  id: number;
-  created_at: string;
-}
-
 export interface HighlightCreateResponse {
   id: number;
   created_at: string;

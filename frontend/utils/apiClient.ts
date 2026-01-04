@@ -19,6 +19,17 @@ interface ErrorResponse {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL_LOCAL;
 
+// アクセストークンをメモリに保存（アプリケーションのライフサイクル中）
+let cachedAccessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  cachedAccessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return cachedAccessToken;
+}
+
 async function parseErrorMessage(res: Response): Promise<string> {
   const contentType = res.headers.get('Content-Type') || '';
   const fallback = res.statusText || 'Request failed';
@@ -67,6 +78,9 @@ export function parseJSONResponse(responseText: string): any {
 
 // セッション切れ時の処理関数
 async function handleSessionExpired(): Promise<void> {
+  // アクセストークンをクリア
+  setAccessToken(null);
+  
   // next-auth の signOut を呼び出す
   const { signOut } = await import('next-auth/react');
   
@@ -128,6 +142,44 @@ async function handleSessionExpired(): Promise<void> {
   window.location.href = loginUrl;
 }
 
+/**
+ * リフレッシュトークンを使用してアクセストークンを更新
+ */
+async function refreshAccessTokenFromBackend(): Promise<boolean> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL_LOCAL;
+    if (!baseUrl) {
+      console.error("API_URL_LOCAL is not configured");
+      return false;
+    }
+
+    const response = await fetch(`${baseUrl}/auth/refresh/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${cachedAccessToken}`,
+      },
+      credentials: "include", // クッキーからリフレッシュトークンを自動送信
+    });
+
+    if (!response.ok) {
+      console.error("Failed to refresh token. Status:", response.status);
+      return false;
+    }
+
+    const data: any = await response.json();
+    if (data.access_token) {
+      setAccessToken(data.access_token);
+      console.log("Access token refreshed successfully");
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    return false;
+  }
+}
+
 export async function apiClient<T>(
   path: string,
   options: ApiRequestOptions = {}
@@ -138,16 +190,46 @@ export async function apiClient<T>(
   try {
     const fetchHeaders: Record<string, string> = { ...headers };
 
+    // アクセストークンがある場合はヘッダーに追加
+    if (cachedAccessToken) {
+      fetchHeaders['Authorization'] = `Bearer ${cachedAccessToken}`;
+    }
+
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
     if (body && !isFormData && !fetchHeaders['Content-Type']) {
       fetchHeaders['Content-Type'] = 'application/json';
     }
 
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    let res = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers: fetchHeaders,
       body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      credentials: 'include', // クッキーを送受信
     });
+
+    // アクセストークンの失効処理（401）
+    if (res.status === 401 && cachedAccessToken && method !== 'DELETE') {
+      console.warn('[apiClient] Access token expired. Attempting to refresh...');
+      
+      // リフレッシュトークンを使用して再取得を試みる
+      const refreshed = await refreshAccessTokenFromBackend();
+      if (refreshed && cachedAccessToken) {
+        // ヘッダーを更新して再試行
+        fetchHeaders['Authorization'] = `Bearer ${cachedAccessToken}`;
+        
+        res = await fetch(`${API_BASE_URL}${path}`, {
+          method,
+          headers: fetchHeaders,
+          body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+          credentials: 'include',
+        });
+      } else {
+        // リフレッシュに失敗した場合はセッション期限切れ
+        console.error('[apiClient] Token refresh failed. Redirecting to login.');
+        await handleSessionExpired();
+        return { data: null, error: 'Session expired', status: 401 };
+      }
+    }
 
     // セッション切れ判定（401 or 403）
     if (res.status === 401 || res.status === 403) {

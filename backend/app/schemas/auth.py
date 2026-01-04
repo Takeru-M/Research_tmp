@@ -16,9 +16,11 @@ class User(BaseModel):
 # JWTトークンのレスポンススキーマ
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     user_id: str
     name: str
     email: str
+    preferred_document_id: Optional[int] = None
 
     class Config:
         orm_mode = True
@@ -38,3 +40,6 @@ class UserSignupSchema(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+class SelectDocumentRequest(BaseModel):
+    document_id: int

@@ -10,7 +10,7 @@ import {
   setComments,
   setCompletionStage,
   setFileId,
-  setHasSoftDeletedLLMComment,
+  setDocumentName,
 } from '../redux/features/editor/editorSlice';
 
 import {
@@ -33,7 +33,7 @@ import CommentPanel from '../components/CommentPanel';
 import styles from '../styles/Index.module.css';
 import "../lang/config";
 import { useTranslation } from "react-i18next";
-import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH } from '@/utils/constants';
+import { MIN_PDF_WIDTH, MIN_COMMENT_PANEL_WIDTH, HANDLE_WIDTH, COMMENT_PURPOSE, STAGE } from '@/utils/constants';
 import { startLoading, stopLoading } from '../redux/features/loading/loadingSlice';
 import { useSelector as useReduxSelector } from 'react-redux';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -46,6 +46,9 @@ import { S3UploadResponse } from '@/types/Responses/S3';
 import { DocumentResponse } from '@/types/Responses/Document';
 import { CreateHighlightRequest } from '@/types/Requests/Highlight';
 import { CreateDocumentFileRequest } from '@/types/Requests/DocumentFile';
+import { useAuthInfo } from '@/hooks/useAuthInfo';
+import { useLoadingHelper } from '@/hooks/useLoadingHelper';
+import { derivePurposeFromStage } from '@/utils/stageHelpers';
 
 const PdfViewer = dynamic(() => import('../components/PdfViewer'), { ssr: false });
 
@@ -63,6 +66,7 @@ const EditorPageContent: React.FC = () => {
   const activeHighlightMemo = useSelector(selectActiveHighlightMemo);
   const allComments = useSelector(selectAllComments);
   const fileId = useSelector(selectFileId);
+  const completionStage = useSelector((state: RootState) => state.editor.completionStage);
 
   const [showMemoModal, setShowMemoModal] = useState(false);
   const [pendingHighlight, setPendingHighlight] = useState<PdfHighlight | null>(null);
@@ -70,27 +74,19 @@ const EditorPageContent: React.FC = () => {
   const [isFileUploaded, setIsFileUploaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ユーザーIDを取得するヘルパー関数を追加
-  const getUserId = useCallback(() => {
-    return session?.user?.id || session?.user?.email || 'anonymous';
-  }, [session]);
+  const { authHeaders, getUserId, getDocumentId } = useAuthInfo(session);
+  const runWithLoading = useLoadingHelper();
 
   const getUserName = useCallback(() => {
     return session?.user?.name || t("CommentPanel.comment-author-user");
   }, [session, t]);
 
-  const getDocumentIdFromCookie = (): number | null => {
-    const match = document.cookie.match(/(?:^|; )documentId=(\d+)/);
-    return match ? parseInt(match[1], 10) : null;
-  };
-
   // ハイライトとコメントを取得
   const fetchHighlightsAndComments = useCallback(async (fileId: number) => {
-    dispatch(startLoading('Loading highlights and comments...'));
-    try {
+    await runWithLoading('Loading highlights and comments...', async () => {
       const { data: response, error, status } = await apiClient<HighlightWithCommentsResponse[] | HighlightsWithStatusResponse>(`/highlights/file/${fileId}/`, {
         method: 'GET',
-        headers: {Authorization: `Bearer ${session?.accessToken}` },
+        headers: authHeaders,
       });
 
       if (status === 404) {
@@ -185,12 +181,13 @@ const EditorPageContent: React.FC = () => {
         
         const list = Array.isArray(item.comments) ? item.comments : [];
         
-        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
+        return list.map((c: { id: number; parent_id: number | null; author: string; text: string; created_at: string; purpose?: number | null; completion_stage?: number | null; updated_at?: string | null; deleted_at?: string | null; deleted_reason?: string | null }) => {
           console.log('[fetchHighlightsAndComments] Converting comment:', {
             id: c.id,
             parent_id: c.parent_id,
             author: c.author,
             text: c.text.substring(0, 30),
+            purpose: c.purpose,
           });
           
           return {
@@ -202,6 +199,8 @@ const EditorPageContent: React.FC = () => {
             author: c.author || getUserName(),
             text: c.text,
             created_at: c.created_at,
+            purpose: c.purpose ?? null,
+            completion_stage: c.completion_stage ?? null,
             edited_at: c.updated_at || null,
             deleted: Boolean(c.deleted_at),
             deleted_at: c.deleted_at || null,
@@ -230,14 +229,11 @@ const EditorPageContent: React.FC = () => {
         replyCount: comments.filter(c => c.parentId !== null).length,
         timestamp: new Date().toISOString(),
       }, getUserId());
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, getUserName, session?.accessToken, t, getUserId]);
+    });
+  }, [dispatch, getUserName, authHeaders, t, getUserId, runWithLoading]);
 
   const fetchDocumentFile = useCallback(async (documentId: number) => {
-    dispatch(startLoading('Loading document file...'));
-    try {
+    await runWithLoading('Loading document file...', async () => {
       const { data: response, error } = await apiClient<DocumentFileResponse[]>(`/documents/${documentId}/document-files/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -306,15 +302,11 @@ const EditorPageContent: React.FC = () => {
       }, getUserId());
 
       fetchHighlightsAndComments(latestFile.id);
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t, getUserId]);
+    });
+  }, [dispatch, fetchHighlightsAndComments, session?.accessToken, t, getUserId, runWithLoading]);
 
   const fetchDocumentInfo = useCallback(async (documentId: number) => {
-    try {
-      dispatch(startLoading('Loading document info...'));
-
+    await runWithLoading('Loading document info...', async () => {
       const { data: res, error } = await apiClient<DocumentResponse>(`/documents/${documentId}/`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${session?.accessToken}` },
@@ -333,6 +325,11 @@ const EditorPageContent: React.FC = () => {
 
       const stage = res?.completion_stage ?? res?.stage ?? null;
 
+      // ヘッダー表示用のドキュメント名をReduxに保持
+      if (res?.document_name) {
+        dispatch(setDocumentName(res.document_name));
+      }
+
       if (stage !== null && !Number.isNaN(stage)) {
         dispatch(setCompletionStage(stage));
         logUserAction('document_info_loaded', {
@@ -348,13 +345,14 @@ const EditorPageContent: React.FC = () => {
           timestamp: new Date().toISOString(),
         }, getUserId());
       }
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, session?.accessToken, t, getUserId]);
+    });
+  }, [dispatch, session?.accessToken, t, getUserId, runWithLoading]);
 
   useEffect(() => {
-    const documentId = getDocumentIdFromCookie();
+    // router.isReady が false の場合は処理を実行しない（クエリ文字列の準備待ち）
+    if (!router.isReady) return;
+    
+    const documentId = session?.preferredDocumentId;
     const isNewDocument = router.query.new === 'true';
 
     if (documentId && !isNewDocument) {
@@ -374,14 +372,14 @@ const EditorPageContent: React.FC = () => {
       fetchDocumentInfo(documentId);
       console.log('New document created.');
     } else {
-      console.warn('No document ID found in cookies');
+      console.warn('No document ID found in session');
       logUserAction('editor_load_failed', {
-        reason: 'no_document_id',
+        reason: 'no_document_id_in_session',
         timestamp: new Date().toISOString(),
       }, getUserId());
       router.push('/documents');
     }
-  }, [fetchDocumentInfo, fetchDocumentFile, router, getUserId]);
+  }, [session?.preferredDocumentId, router.isReady, router.query.new, router, fetchDocumentInfo, fetchDocumentFile, getUserId]);
 
   // LLMコメント復元トリガーを監視して再フェッチ
   const lastLLMCommentRestoreTime = useSelector((state: RootState) => state.editor.lastLLMCommentRestoreTime);
@@ -408,7 +406,6 @@ const EditorPageContent: React.FC = () => {
       return;
     }
 
-    dispatch(startLoading('Uploading PDF...'));
     logUserAction('file_upload_started', {
       fileName: file.name,
       fileSize: filesize,
@@ -416,7 +413,7 @@ const EditorPageContent: React.FC = () => {
       timestamp: new Date().toISOString(),
     }, getUserId());
 
-    try {
+    await runWithLoading('Uploading PDF...', async () => {
       const formData = new FormData();
       formData.append('file', file);
 
@@ -427,7 +424,6 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (s3Error || !s3Data) {
-        console.error('[uploadPdfToS3AndSave] S3 upload error:', s3Error);
         setErrorMessage(t('Error.s3-upload-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -438,7 +434,6 @@ const EditorPageContent: React.FC = () => {
         return;
       }
       if (s3Status >= 400) {
-        console.error('[uploadPdfToS3AndSave] S3 upload status error:', s3Status);
         setErrorMessage(t('Error.s3-upload-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -449,9 +444,8 @@ const EditorPageContent: React.FC = () => {
         return;
       }
 
-      const document_id = getDocumentIdFromCookie();
+      const document_id = session?.preferredDocumentId;
       if (!document_id) {
-        console.error('[uploadPdfToS3AndSave] Document ID not found');
         setErrorMessage(t('Error.document-id-missing'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -475,7 +469,6 @@ const EditorPageContent: React.FC = () => {
       });
 
       if (dbError || !dbResponse) {
-        console.error('[uploadPdfToS3AndSave] DB save error:', dbError);
         setErrorMessage(t('Error.metadata-save-failed'));
         logUserAction('file_upload_failed', {
           fileName: file.name,
@@ -500,10 +493,8 @@ const EditorPageContent: React.FC = () => {
         documentId: document_id,
         timestamp: new Date().toISOString(),
       }, getUserId());
-    } finally {
-      dispatch(stopLoading());
-    }
-  }, [dispatch, t, isFileUploaded, session?.accessToken, getUserId]);
+    });
+  }, [dispatch, t, isFileUploaded, session?.accessToken, session?.preferredDocumentId, getUserId, runWithLoading]);
 
   // 初期幅をビューポートの幅に基づいて設定（例: 70%）。初回マウント時に一度だけ計算
   const [pdfViewerWidth, setPdfViewerWidth] = useState(() => {
@@ -677,12 +668,9 @@ const EditorPageContent: React.FC = () => {
   const handleSaveMemo = useCallback(
     async (id: string, memo: string) => {
       if (pendingHighlight && pendingHighlight.id === id) {
-        try {
-          dispatch(startLoading('Saving highlight and memo...'));
-
-          const documentId = getDocumentIdFromCookie();
+        await runWithLoading('Saving highlight and memo...', async () => {
+          const documentId = getDocumentId();
           if (!documentId) {
-            console.error('[handleSaveMemo] Document ID not found');
             setErrorMessage(t('Error.document-id-missing'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -693,7 +681,6 @@ const EditorPageContent: React.FC = () => {
           }
 
           if (!fileId) {
-            console.error('[handleSaveMemo] File ID missing');
             setErrorMessage(t('Error.file-id-missing'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -704,6 +691,7 @@ const EditorPageContent: React.FC = () => {
           }
 
           const userName = getUserName();
+          const purpose = derivePurposeFromStage(completionStage);
 
           const { data: response, error } = await apiClient<CreateHighlightResponse>('/highlights/', {
             method: 'POST',
@@ -712,6 +700,7 @@ const EditorPageContent: React.FC = () => {
               document_file_id: fileId,
               created_by: userName,
               memo: memo.trim(),
+              purpose,
               text: pendingHighlight.text || '',
               rects: pendingHighlight.rects.map(rect => ({
                 page_num: rect.pageNum,
@@ -725,7 +714,6 @@ const EditorPageContent: React.FC = () => {
           });
 
           if (error) {
-            console.error('[handleSaveMemo] Error:', error);
             setErrorMessage(t('Error.highlight-save-failed'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -736,7 +724,6 @@ const EditorPageContent: React.FC = () => {
           }
 
           if (!response) {
-            console.error('[handleSaveMemo] No response data received');
             setErrorMessage(t('Error.highlight-save-failed'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -746,10 +733,7 @@ const EditorPageContent: React.FC = () => {
             return;
           }
 
-          console.log('Highlight saved:', response);
-
           if (!response.id) {
-            console.error('[handleSaveMemo] Highlight ID missing in response');
             setErrorMessage(t('Error.highlight-save-failed'));
             logUserAction('highlight_save_failed', {
               highlightId: id,
@@ -774,6 +758,7 @@ const EditorPageContent: React.FC = () => {
             author: userName,
             text: memo.trim(),
             created_at: response.created_at,
+            purpose,
             edited_at: null,
             deleted: false,
           };
@@ -789,11 +774,8 @@ const EditorPageContent: React.FC = () => {
 
           setPendingHighlight(null);
           setShowMemoModal(false);
-          // 作成されたルートコメントをアクティブにして、CommentPanelを自動スクロール
           dispatch(setActiveCommentId(response.comment_id.toString()));
-        } finally {
-          dispatch(stopLoading());
-        }
+        });
         return;
       }
 
@@ -806,7 +788,7 @@ const EditorPageContent: React.FC = () => {
       setShowMemoModal(false);
       dispatch(setActiveHighlightId(null));
     },
-    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken]
+    [dispatch, pendingHighlight, getUserName, t, fileId, getUserId, session?.accessToken, completionStage, runWithLoading, derivePurposeFromStage, getDocumentId]
   );
 
   // === Highlight Click ===
@@ -834,6 +816,7 @@ const EditorPageContent: React.FC = () => {
           file={pdfFile}
           highlights={pdfHighlights}
           comments={allComments}
+          documentId={session?.preferredDocumentId}
           onRequestAddHighlight={handleRequestAddHighlight}
           onHighlightClick={handleHighlightClick}
           onRenderSuccess={handlePdfRenderComplete}
@@ -905,7 +888,7 @@ const EditorPageContent: React.FC = () => {
 };
 
 const IndexPage: React.FC = () => {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
 
   const isAuthenticated = status === 'authenticated';

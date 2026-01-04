@@ -21,7 +21,8 @@ const initialState: EditorState = {
   pdfScale: 1.0,
   responses: {} as Record<string, string>,
   documentName: null,
-  completionStage: STAGE.GIVE_OPTION_TIPS,
+  completionStage: STAGE.THINKING_OPTION_LLM,
+  preferredDocumentId: null,
   selectedRootCommentIds: [] as string[],
   hasSoftDeletedLLMComment: false,
   lastLLMCommentRestoreTime: null,
@@ -70,7 +71,7 @@ const editorSlice = createSlice({
       state,
       action: PayloadAction<{
         highlight: Highlight;
-        initialComment?: { id?: string; author: string; text: string; createdAt?: string };
+        initialComment?: { id?: string; author: string; text: string; createdAt?: string; purpose?: number | null };
       }>
     ) {
       const { highlight, initialComment } = action.payload;
@@ -91,6 +92,7 @@ const editorSlice = createSlice({
           author: initialComment.author,
           text: initialComment.text,
           created_at: initialComment.createdAt ?? new Date().toISOString(),
+          purpose: initialComment.purpose ?? null,
           edited_at: null,
           deleted: false,
         };
@@ -276,7 +278,7 @@ const editorSlice = createSlice({
       state.pdfScale = 1.0;
       state.responses = {};
       state.documentName = null;
-      state.completionStage = STAGE.GIVE_OPTION_TIPS;
+      state.completionStage = STAGE.THINKING_OPTION_LLM;
       state.selectedRootCommentIds = [];
       state.hasSoftDeletedLLMComment = false;
       state.lastLLMCommentRestoreTime = null;
@@ -294,6 +296,10 @@ const editorSlice = createSlice({
 
     setCompletionStage(state, action: PayloadAction<number>) {
       state.completionStage = action.payload;
+    },
+
+    setPreferredDocumentId(state, action: PayloadAction<number | null>) {
+      state.preferredDocumentId = action.payload;
     },
 
     setHasSoftDeletedLLMComment: (state, action: PayloadAction<boolean>) => {
@@ -333,6 +339,7 @@ export const {
   addLLMResponse,
   setDocumentName,
   setCompletionStage,
+  setPreferredDocumentId,
   setHasSoftDeletedLLMComment,
   toggleSelectRootComment,
   clearSelectedRootComments,

@@ -1,6 +1,8 @@
 export interface CommentCreateRequest {
   text: string;
   highlight_id: number;
+  purpose?: number | null;
+  completion_stage?: number | null;
 }
 
 export interface CommentEntity {
@@ -22,6 +24,8 @@ export interface CommentResponse {
   parent_id: number | null;
   author: string;
   text: string;
+  purpose?: number | null;
+  completion_stage?: number | null;
   created_at: string;
   updated_at: string | null;
   deleted_at: string | null;

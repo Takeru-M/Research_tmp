@@ -5,6 +5,7 @@ import { FastApiAuthResponse } from "@/types/Responses/Auth";
 declare module "next-auth" {
   interface Session {
     accessToken?: string;
+    preferredDocumentId?: number | null;
     user: {
       id?: string;
       name?: string;
@@ -15,9 +16,10 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
-    fastApiToken?: string;
+    accessToken?: string;
     id?: string;
-    accessTokenExpires?: number; // JWTトークンの有効期限（UNIX timestamp）
+    accessTokenExpires?: number;
+    preferredDocumentId?: number | null;
   }
 }
 
@@ -39,9 +41,10 @@ async function refreshAccessToken(token: any) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token.fastApiToken}`,
+        "Authorization": `Bearer ${token.accessToken}`,
         "Host": new URL(baseUrl).hostname,
       },
+      credentials: "include", // クッキーを送信
     });
 
     console.log("Refresh response status:", response.status);
@@ -54,18 +57,17 @@ async function refreshAccessToken(token: any) {
     const data: FastApiAuthResponse = await response.json();
     console.log("Token refreshed successfully");
 
-    // トークンの有効期限を計算（現在時刻 + ACCESS_TOKEN_EXPIRE_MINUTES）
-    // バックエンドのトークン有効期限（分）を取得（デフォルト: 60分）
     const tokenExpireMinutes = parseInt(process.env.NEXT_PUBLIC_TOKEN_EXPIRE_MINUTES || "60");
     const now = Math.floor(Date.now() / 1000);
     const accessTokenExpires = now + tokenExpireMinutes * 60;
 
     return {
       ...token,
-      fastApiToken: data.access_token,
+      accessToken: data.access_token,
       id: String(data.user_id),
       name: data.name || data.email,
       email: data.email,
+      preferredDocumentId: data.preferred_document_id || null,
       accessTokenExpires,
     };
   } catch (error) {
@@ -113,6 +115,7 @@ export const authOptions: NextAuthOptions = {
               "Content-Type": "application/json",
               "Host": new URL(baseUrl).hostname,
             },
+            credentials: "include", // クッキーを送受信
             body: JSON.stringify({
               email: credentials.email,
               password: credentials.password,
@@ -144,7 +147,6 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          // トークンの有効期限を計算（現在時刻 + ACCESS_TOKEN_EXPIRE_MINUTES）
           const tokenExpireMinutes = parseInt(process.env.NEXT_PUBLIC_TOKEN_EXPIRE_MINUTES || "60");
           const now = Math.floor(Date.now() / 1000);
           const accessTokenExpires = now + tokenExpireMinutes * 60;
@@ -153,8 +155,9 @@ export const authOptions: NextAuthOptions = {
             id: String(data.user_id),
             name: data.name || data.email,
             email: data.email,
-            fastApiToken: data.access_token,
+            accessToken: data.access_token,
             accessTokenExpires,
+            preferredDocumentId: data.preferred_document_id || null,
           };
         } catch (error) {
           console.error("Authorization error:", error);
@@ -165,14 +168,28 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       // 初回ログイン時（userが存在する場合）
       if (user) {
-        token.fastApiToken = (user as any).fastApiToken;
+        token.accessToken = (user as any).accessToken;
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
         token.accessTokenExpires = (user as any).accessTokenExpires;
+        token.preferredDocumentId = (user as any).preferredDocumentId || null;
+        return token;
+      }
+
+      // クライアントからの updateSession を反映
+      if (trigger === "update" && session) {
+        token.accessToken = session.accessToken || token.accessToken;
+        token.preferredDocumentId =
+          typeof session.preferredDocumentId !== "undefined"
+            ? session.preferredDocumentId
+            : token.preferredDocumentId;
+        token.id = session.user?.id || token.id;
+        token.name = session.user?.name || token.name;
+        token.email = session.user?.email || token.email;
         return token;
       }
 
@@ -205,10 +222,11 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       if (token && session.user) {
-        session.accessToken = (token.fastApiToken as string) || undefined;
+        session.accessToken = (token.accessToken as string) || undefined;
         session.user.id = (token.id as string) || undefined;
         session.user.name = (token.name as string) || undefined;
         session.user.email = (token.email as string) || undefined;
+        session.preferredDocumentId = (token.preferredDocumentId as number | null) || null;
       }
       return session;
     },

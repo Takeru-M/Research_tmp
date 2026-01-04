@@ -13,7 +13,7 @@ from app.schemas.llm_comment_metadata import LLMCommentMetadataCreate
 from app.schemas.highlight_rect import HighlightRectCreate
 from app.crud import highlight as crud_highlight
 from app.crud import highlight_rect as crud_highlight_rect
-from app.utils.constants import LLM_AUTHOR_LOWER
+from app.utils.constants import LLM_AUTHOR_LOWER, COMMENT_PURPOSE
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ class HighlightWithMemoCreate(BaseModel):
     document_file_id: int
     created_by: str
     memo: str
+    purpose: int | None = None
     text: str | None = None
     rects: List[RectData]
     element_type: str | None = None
@@ -69,6 +70,12 @@ def create_highlight_with_memo(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="ハイライト範囲が指定されていません"
+            )
+
+        if highlight_data.purpose is not None and highlight_data.purpose not in COMMENT_PURPOSE.values():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不正なコメント目的が指定されました"
             )
         
         # === データ受信の確認ログ ===
@@ -156,6 +163,7 @@ def create_highlight_with_memo(
             parent_id=None,
             author=highlight_data.created_by,
             text=highlight_data.memo,
+            purpose=highlight_data.purpose,
             suggestion_reason=getattr(highlight_data, 'suggestion_reason', None)
         )
         logger.info(f"Comment input data: {comment_in.model_dump()}")
@@ -269,6 +277,7 @@ def get_highlights_by_file_endpoint(
                         parent_id=c.parent_id,
                         author=c.author,
                         text=c.text,
+                        purpose=c.purpose,
                         created_at=c.created_at,
                         updated_at=c.updated_at
                     )

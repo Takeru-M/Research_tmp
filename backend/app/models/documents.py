@@ -16,3 +16,4 @@ class Document(SQLModel, table=True):
     # Relationship
     user: Optional["User"] = Relationship(back_populates="documents")
     document_file: Optional["DocumentFile"] = Relationship(back_populates="document")
+    formatted_text: Optional["DocumentFormattedText"] = Relationship(back_populates="document")

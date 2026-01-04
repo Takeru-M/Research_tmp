@@ -4,6 +4,7 @@ export interface FastApiAuthResponse {
   user_id: string;
   email: string;
   name: string;
+  preferred_document_id?: number | null;
 }
 
 export interface SignupResponse {

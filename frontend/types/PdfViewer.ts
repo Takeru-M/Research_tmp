@@ -13,6 +13,7 @@ export interface PdfViewerProps {
   file: string | null;
   highlights: PdfHighlight[];
   comments: CommentType[];
+  documentId?: number | null;
   onRequestAddHighlight?: (highlight: PdfHighlight) => void;
   onHighlightClick?: (highlightId: string) => void;
   onRenderSuccess?: () => void;

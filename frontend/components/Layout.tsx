@@ -3,27 +3,32 @@ import React, { ChangeEvent, PropsWithChildren, useCallback, useState, useEffect
 import styles from '../styles/Layout.module.css';
 import { Trans, useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { RootState } from '@/redux/rootReducer';
 import { setPdfScale, clearAllState, setHasSoftDeletedLLMComment, triggerLLMCommentRefresh, triggerSoftDeleteFlagCheck } from '../redux/features/editor/editorSlice';
 import { SCALE_OPTIONS } from '@/utils/constants';
 import { apiClient } from '@/utils/apiClient';
+import { useLogout } from '@/hooks/useLogout';
 
 const Layout: React.FC<PropsWithChildren> = ({ children }) => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { logout } = useLogout();
   const isAuthenticated = status === 'authenticated';
   const pdfScale = useSelector((state: RootState) => state.editor.pdfScale);
   const documentName = useSelector((state: RootState) => state.editor.documentName);
   const hasSoftDeletedLLM = useSelector((state: RootState) => state.editor.hasSoftDeletedLLMComment);
+  const completionStage = useSelector((state: RootState) => state.editor.completionStage);
 
   const isAuthPage = ['/login', '/signup'].includes(router.pathname);
   const isDocumentsPage = router.pathname === '/documents';
 
   const [restoring, setRestoring] = useState(false);
+
+  const fileId = useSelector((state: RootState) => state.editor.fileId);
 
   // ソフトデリート済みLLMコメント存在チェック用の関数
   const fetchSoftDeletedFlag = useCallback(async () => {
@@ -43,9 +48,9 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
     dispatch(setPdfScale(newScale));
   }, [dispatch]);
 
-  const handleLogout = useCallback(() => {
-    signOut({ callbackUrl: '/login' });
-  }, []);
+  const handleLogout = useCallback(async () => {
+    await logout();
+  }, [logout]);
 
   const handleBackToDocuments = useCallback(() => {
     dispatch(clearAllState());
@@ -106,9 +111,21 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
             
             {/* ドキュメント名を表示 */}
             {router.pathname === '/' && documentName && (
-              <h2 className={styles.documentName}>
+              <h2 className={styles.documentName} title={documentName}>
                 {documentName}
               </h2>
+            )}
+            
+            {/* ステージに応じた表示エリア (ドキュメント編集ページのみ) */}
+            {router.pathname === '/' && fileId && (
+              <div className={styles.stageIndicator}>
+                {completionStage === 1 && <span>{t("Header.stage-description.thinking_process_self")}</span>}
+                {completionStage === 2 && <span>{t("Header.stage-description.thinking_option_self")}</span>}
+                {completionStage === 3 && <span>{t("Header.stage-description.thinking_option_llm")}</span>}
+                {completionStage === 4 && <span>{t("Header.stage-description.thinking_deliberation_self")}</span>}
+                {completionStage === 5 && <span>{t("Header.stage-description.thinking_deliberation_llm")}</span>}
+                {completionStage === 6 && <span>{t("Header.stage-description.export")}</span>}
+              </div>
             )}
             
             <div className={styles.headerActions}>
@@ -153,18 +170,20 @@ const Layout: React.FC<PropsWithChildren> = ({ children }) => {
                 </div>
               )}
 
-              {/* ユーザー情報とログアウトボタン（右固定） */}
-              <div className={styles.userSection}>
-                {session?.user?.name && (
-                  <span className={styles.userName}>{session.user.name}</span>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className={styles.logoutButton}
-                >
-                  {t("Logout.button-text")}
-                </button>
-              </div>
+              {/* ユーザー情報とログアウトボタン（ドキュメント一覧ページでのみ表示） */}
+              {isDocumentsPage && (
+                <div className={styles.userSection}>
+                  {session?.user?.name && (
+                    <span className={styles.userName}>{session.user.name}</span>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className={styles.logoutButton}
+                  >
+                    {t("Logout.button-text")}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

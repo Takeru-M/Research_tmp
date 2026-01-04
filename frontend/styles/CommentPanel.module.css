@@ -50,6 +50,21 @@
   align-items: baseline;
 }
 
+
+.purposeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  margin-right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  text-transform: none;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
 .commentAuthor {
   font-size: 14px;
   font-weight: 600;

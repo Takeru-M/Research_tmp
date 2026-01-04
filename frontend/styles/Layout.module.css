@@ -30,6 +30,10 @@
   font-size: 1.5rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .headerActions {
@@ -94,6 +98,26 @@
 .scaleSelect option {
   background-color: #667eea;
   color: white;
+}
+
+.stageIndicator {
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+}
+
+.stageIndicator span {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.userSection {
+  display: flex;
+  align-items: center;
 }
 
 .userName {

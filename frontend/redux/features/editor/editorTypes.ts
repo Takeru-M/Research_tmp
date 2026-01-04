@@ -80,12 +80,13 @@ export interface EditorState {
   activeScrollTarget: ScrollTarget | null;
   pdfScale: number;
   responses: Record<string, string>;
-  dividedMeetingTexts?: DividedMeetingTexts;
   documentName?: string | null;
   completionStage: number;
+  preferredDocumentId?: number | null;
   selectedRootCommentIds: string[];
   hasSoftDeletedLLMComment: boolean;
   lastLLMCommentRestoreTime: number | null;
+  lastSoftDeleteFlagCheckTime: number | null;
 }
 
 export type Comment = {
@@ -95,6 +96,8 @@ export type Comment = {
   author: string;
   text: string;
   created_at: string;
+  purpose?: number | null;
+  completion_stage?: number | null;
   edited_at?: string | null;
   deleted?: boolean;
   deleted_at?: string | null;
@@ -110,29 +113,6 @@ export type HighlightInfo = {
   text: string;
   type: 'pdf' | string;
 }
-
-export type HighlightCommentList = {
-  id: string;
-  highlightId: string;
-  highlight: string;
-  comment: string;
-}[]
-
-export type HighlightCommentsList = {
-  id: string;
-  highlightId: string;
-  highlight: string;
-  comments: {
-    comment: string;
-  }[];
-}[]
-
-export type DividedMeetingText = {
-  id: number;
-  text: string;
-}
-
-export type DividedMeetingTexts = DividedMeetingText[];
 
 export type Document = {
   id: number;

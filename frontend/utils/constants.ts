@@ -32,11 +32,32 @@ export const HANDLE_WIDTH = 8;
 
 // ステージの種類
 export const STAGE = {
-  GIVE_OPTION_TIPS: 1,
-  GIVE_DELIBERATION_TIPS: 2,
-  GIVE_MORE_DELIBERATION_TIPS: 3,
-  EXPORT: 4,
+  THINKING_PROCESS_SELF: 1,
+  THINKING_OPTION_SELF: 2,
+  THINKING_OPTION_LLM: 3,
+  THINKING_DELIBERATION_SELF: 4,
+  THINKING_DELIBERATION_LLM: 5,
+  EXPORT: 6,
 }
+
+// コメント返信目的（ステージに応じて付与）
+export const COMMENT_PURPOSE = {
+  THINKING_PROCESS: 1,
+  OTHER_OPTIONS: 2,
+  DELIBERATION: 3,
+} as const;
+
+export const COMMENT_PURPOSE_LABELS: Record<number, string> = {
+  [COMMENT_PURPOSE.THINKING_PROCESS]: '思考プロセス',
+  [COMMENT_PURPOSE.OTHER_OPTIONS]: '他選択肢',
+  [COMMENT_PURPOSE.DELIBERATION]: '吟味',
+};
+
+export const COMMENT_PURPOSE_STYLES: Record<number, { fg: string; bg: string; border: string }> = {
+  [COMMENT_PURPOSE.THINKING_PROCESS]: { fg: '#0b5c4a', bg: '#e0f4ed', border: '#8ad2bb' },
+  [COMMENT_PURPOSE.OTHER_OPTIONS]: { fg: '#7a3c0d', bg: '#fff2df', border: '#f3c77d' },
+  [COMMENT_PURPOSE.DELIBERATION]: { fg: '#0d3c7a', bg: '#e4ecff', border: '#94b8ff' },
+};
 
 // ハイライトの色
 export const HIGHLIGHT_COLOR = {

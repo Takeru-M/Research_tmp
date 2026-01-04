@@ -6,7 +6,7 @@ from app.crud import comment as crud_comment
 from app.crud import llm_comment_metadata as crud_llm_metadata
 from app.schemas.comment import CommentCreate, CommentUpdate, CommentRead
 from app.schemas.llm_comment_metadata import LLMCommentMetadataCreate
-from app.utils.constants import LLM_AUTHOR_LOWER
+from app.utils.constants import LLM_AUTHOR_LOWER, COMMENT_PURPOSE
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,13 @@ def create_comment_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="作成者名を入力してください"
+            )
+
+        if comment_in.purpose is not None and comment_in.purpose not in COMMENT_PURPOSE.values():
+            logger.warning(f"Attempt to create comment with invalid purpose: {comment_in.purpose}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不正なコメント目的が指定されました"
             )
 
         logger.info(f"Creating comment: highlight_id={comment_in.highlight_id}, parent_id={comment_in.parent_id}")
@@ -142,6 +149,13 @@ def update_comment_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="コメント本文を入力してください"
+            )
+
+        if comment_in.purpose is not None and comment_in.purpose not in COMMENT_PURPOSE.values():
+            logger.warning(f"Attempt to update comment {comment_id} with invalid purpose: {comment_in.purpose}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不正なコメント目的が指定されました"
             )
 
         logger.info(f"Updating comment: ID={comment_id}")
