@@ -832,7 +832,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     const highlightCommentThreads = buildHighlightThreads();
 
     const { data: formatDataResponse, error: formatDataError } = await apiClient<FormatDataResponse>(
-      '/openai/format-data/',
+      '/openai/format-data',
       {
         method: 'POST',
         body: {
@@ -883,7 +883,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     };
 
     const { data: optionAnalyzeResponse, error: optionAnalyzeError } = await apiClient<OptionAnalyzeResponse>(
-      '/openai/option-analyze/',
+      '/openai/option-analyze',
       {
         method: 'POST',
         body: {
@@ -929,7 +929,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
           headers: { Authorization: `Bearer ${session?.accessToken}` },
           body: {
             highlight_id: parseInt(hf.highlight_id, 10),
-            parent_id: rootComment.id,
+            parent_id: parseInt(rootComment.id, 10),
             author: t("CommentPanel.comment-author-LLM"),
             text: hf.suggestion,
             suggestion_reason: hf.suggestion_reason,
@@ -952,7 +952,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
         addComment({
           id: commentResponse.id.toString(),
           highlightId: hf.highlight_id,
-          parentId: hf.id,
+          parentId: rootComment.id,
           author: t("CommentPanel.comment-author-LLM"),
           text: hf.suggestion,
           purpose: COMMENT_PURPOSE.OTHER_OPTIONS,
@@ -1096,7 +1096,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
     };
 
     const { data: deliberationResponse, error: deliberationError } = await apiClient<DeliberationAnalyzeResponse>(
-      '/openai/deliberation-analyze/',
+      '/openai/deliberation-analyze',
       {
         method: 'POST',
         body: {

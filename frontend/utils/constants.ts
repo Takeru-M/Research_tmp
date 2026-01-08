@@ -38,7 +38,7 @@ export const STAGE = {
   THINKING_DELIBERATION_SELF: 4,
   THINKING_DELIBERATION_LLM: 5,
   EXPORT: 6,
-}
+} as const;
 
 // コメント返信目的（ステージに応じて付与）
 export const COMMENT_PURPOSE = {

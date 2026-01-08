@@ -39,7 +39,7 @@ apiアクセスとユーザアクションを記録している
 ・スキーマの追加はschemas内でschemaを定義→__init__.pyに追加
 ・エラー発生時にはエラーに応じたステータスコードとメッセージを返す
 ・エラーメッセージはi18n/locales/ja/messages.poやen/messages.poに記述→バックのコンテナ内でbabelのコンパイルコマンド
-・apiAccessログは通信があったときに処理
+・apiAccessログは通信があったときにバックで処理
 
 デバッグ法
 ・何かエラーが起きたらdocker compose logsコマンドでエラーを確認，または検証ツールでエラー内容を確認
