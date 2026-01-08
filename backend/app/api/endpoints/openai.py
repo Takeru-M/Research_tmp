@@ -81,17 +81,25 @@ class DeliberationDialogueRequest(BaseModel):
     userInput: DialogueInput = Field(..., alias="userInput")
 
 
-def _call_chat(model: str, temperature: float, system_prompt: str, user_content: str, as_json: bool = False):
+def _call_chat(model: str, system_prompt: str, user_content: str, temperature: Optional[float] = None, as_json: bool = False):
     try:
-        resp = client.chat.completions.create(
-            model=model,
-            temperature=temperature,
-            messages=[
+        kwargs = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ],
-            response_format={"type": "json_object"} if as_json else None,
-        )
+        }
+        
+        # temperatureがNoneでない場合のみ含める
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        
+        # as_jsonの場合のみresponse_formatを含める
+        if as_json:
+            kwargs["response_format"] = {"type": "json_object"}
+        
+        resp = client.chat.completions.create(**kwargs)
         return {"analysis": resp.choices[0].message.content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to call OpenAI: {str(e)}")
@@ -111,8 +119,7 @@ def format_data(req: FormatDataRequest):
 def option_analyze(req: OptionAnalyzeRequest):
     user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
     return _call_chat(
-        model="gpt-4o",
-        temperature=0.0,
+        model="gpt-5",
         system_prompt=OPTION_SYSTEM_PROMPT,
         user_content=user_content,
         as_json=True,
@@ -122,8 +129,7 @@ def option_analyze(req: OptionAnalyzeRequest):
 def option_dialogue(req: OptionDialogueRequest):
     user_json = req.model_dump(by_alias=True)["userInput"]
     return _call_chat(
-        model="gpt-4o-mini",
-        temperature=0.7,
+        model="gpt-5",
         system_prompt=OPTION_DIALOGUE_SYSTEM_PROMPT,
         user_content=str(user_json),
         as_json=True,
@@ -133,8 +139,7 @@ def option_dialogue(req: OptionDialogueRequest):
 def deliberation_analyze(req: DeliberationAnalyzeRequest):
     user_content = req.userInput if isinstance(req.userInput, str) else str(req.userInput)
     return _call_chat(
-        model="gpt-4o",
-        temperature=0.0,
+        model="gpt-5",
         system_prompt=DELIBERATION_SYSTEM_PROMPT,
         user_content=user_content,
         as_json=True,
@@ -144,8 +149,7 @@ def deliberation_analyze(req: DeliberationAnalyzeRequest):
 def deliberation_dialogue(req: DeliberationDialogueRequest):
     user_json = req.model_dump(by_alias=True)["userInput"]
     return _call_chat(
-        model="gpt-4o-mini",
-        temperature=0.7,
+        model="gpt-5",
         system_prompt=DELIBERATION_DIALOGUE_SYSTEM_PROMPT,
         user_content=str(user_json),
         as_json=True,
