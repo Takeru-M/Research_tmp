@@ -9,6 +9,8 @@ from app.models import User
 import logging
 from fastapi.responses import StreamingResponse
 from typing import Optional
+import base64
+import unicodedata
 
 router = APIRouter()
 
@@ -114,8 +116,11 @@ async def upload_pdf(
         # ファイル名生成
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         original_filename = file.filename
-        # ファイル名のサニタイズ（安全な文字のみ許可）
-        safe_filename = "".join(c for c in original_filename if c.isalnum() or c in "._- ")
+        # ファイル名のサニタイズ（危険な文字のみ除外してUnicode対応）
+        # S3では: / \ \0 \n などが問題になる
+        normalized_filename = unicodedata.normalize('NFC', original_filename)
+        safe_filename = "".join(c for c in normalized_filename if c not in r'\/\x00\n\r' and not c.isspace() or c == ' ')
+        safe_filename = safe_filename.replace('/', '').replace('\\', '').replace('\x00', '').replace('\n', '').replace('\r', '')
         s3_key = f"pdfs/{current_user.id}/{timestamp}_{safe_filename}"
 
         logger.info(
@@ -125,6 +130,8 @@ async def upload_pdf(
 
         # S3 アップロード
         try:
+            # メタデータはASCIIのみ許可されるため、オリジナルファイル名はBase64エンコード
+            encoded_filename = base64.b64encode(original_filename.encode('utf-8')).decode('ascii')
             s3_client.put_object(
                 Bucket=BUCKET_NAME,
                 Key=s3_key,
@@ -133,7 +140,7 @@ async def upload_pdf(
                 Metadata={
                     'user_id': str(current_user.id),
                     'uploaded_at': timestamp,
-                    'original_filename': original_filename
+                    'original_filename': encoded_filename
                 }
             )
         except ClientError as e:

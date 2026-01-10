@@ -35,11 +35,11 @@ def create_users_data():
     テスト用のユーザーデータリストを作成します。
     """
     
-    plainpasswords = ["Password1", "Password2", "Password3"]
+    plainpasswords = ["Password1", "Password2", "Password3", "Samplepass1"]
     # hashed_passwordは実際のハッシュ関数で生成されるべきですが、ここではプレースホルダーを使用
     return [
         User(
-            name="Sample",
+            name="Sample1",
             email="test.test@test.com",
             hashed_password=get_password_hash(plainpasswords[0]),
             # created_at, updated_at は default_factory で自動設定されます
@@ -54,6 +54,11 @@ def create_users_data():
             email="test3.test@test.com",
             hashed_password=get_password_hash(plainpasswords[2]),
             deleted_at=datetime.utcnow() # 論理削除されたユーザーの例
+        ),
+        User(
+            name="Sample",
+            email="sample@sample.com",
+            hashed_password=get_password_hash(plainpasswords[3]),
         )
     ]
 
