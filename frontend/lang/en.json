@@ -9,8 +9,8 @@
       "thinking_process_self": "Expressing Thinking Process",
       "thinking_option_self": "Considering Other Options",
       "thinking_option_llm": "Considering Other Options with LLM Suggestions",
-      "thinking_deliberation_self": "Deliberating and Making Decisions",
-      "thinking_deliberation_llm": "Deliberating and Making Decisions with LLM Suggestions",
+      "thinking_deliberation_self": "Deliberating on Characteristics and Pros/Cons of Options",
+      "thinking_deliberation_llm": "Deliberating with LLM Suggestions",
       "export": "Activity Completed"
     }
   },
@@ -33,7 +33,7 @@
     "password": "Password",
     "confirm-password": "Confirm Password",
     "button-text": "Sign Up",
-    "success": "User creation successful. Redirecting to login page.",
+    "success": "User creation successful.",
     "error": "User creation failed",
     "password-mismatch": "Passwords do not match",
     "has-account": "Already have an account?",

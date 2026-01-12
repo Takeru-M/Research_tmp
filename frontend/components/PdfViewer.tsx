@@ -1535,7 +1535,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                   parent_id: parseInt(dr.root_comment_id, 10),
                   author: t("CommentPanel.comment-author-LLM"),
                   text: dr.response_text,
-                  purpose: completionStage === STAGE.THINKING_DELIBERATION_LLM
+                  purpose: completionStage === STAGE.THINKING_OPTION_LLM
                     ? COMMENT_PURPOSE.OTHER_OPTIONS
                     : COMMENT_PURPOSE.DELIBERATION,
                   completion_stage: completionStage,
@@ -1561,7 +1561,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({
                 parentId: dr.root_comment_id,
                 author: t("CommentPanel.comment-author-LLM"),
                 text: dr.response_text,
-                purpose: commentResponse.purpose ?? (completionStage === STAGE.THINKING_DELIBERATION_LLM
+                purpose: commentResponse.purpose ?? (completionStage === STAGE.THINKING_OPTION_LLM
                   ? COMMENT_PURPOSE.OTHER_OPTIONS
                   : COMMENT_PURPOSE.DELIBERATION),
                 completion_stage: commentResponse.completion_stage ?? completionStage,
